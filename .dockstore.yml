@@ -1,0 +1,7 @@
+version: 1.2
+workflows:
+  - name: StringTie-merge
+    subclass: WDL
+    primaryDescriptorPath: /LR-tools/stringtie_merge/stringtie_merge_and_reestimate.wdl
+    authors:
+      - orcid: 0000-0002-2603-1660
