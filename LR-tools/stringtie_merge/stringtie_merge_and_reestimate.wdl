@@ -56,8 +56,8 @@ task stringtie_re_estimate {
             -e \
             -G ~{merged_assembly} \
             -p ~{numThreads} \
-            -o outputName \
-            bam_alignment
+            -o ~{outputName} \
+            ~{bam_alignment}
     >>>
 
     output {
