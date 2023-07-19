@@ -129,6 +129,7 @@ workflow stringtie_merge {
 
     output {
         Array[File] reestimated_assemblies = stringtie_re_estimate.reestimated_assembly
+        File merged_assembly = stringtie_merge.merged_assembly
     }
 }
 
