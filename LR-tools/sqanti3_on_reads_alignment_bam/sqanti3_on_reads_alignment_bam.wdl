@@ -5,7 +5,7 @@ task split_bam_per_chromosome {
     input {
         File inputBAM
         Int memoryGB
-        Int diskSizeGB
+        # Int diskSizeGB
         String docker
     }
 
@@ -30,7 +30,7 @@ task split_bam_per_chromosome {
 task backformatBAM {
     input {
         File inputBAM
-        String outputType       # sam or bam
+        String outputType = "sam"       # sam or bam
         Int memoryGB
         Int diskSizeGB
         String docker
@@ -63,7 +63,7 @@ task convertSAMtoGTF_CTATLR {
     input {
         File inputSAM
         Int memoryGB
-        Int diskSizeGB
+        # Int diskSizeGB
         String docker
     }
 
@@ -94,14 +94,14 @@ task convertSAMtoGTF_CTATLR {
 task convertSAMtoGTF_cDNACupcake {
     input {
         File inputSAM
-        File? ref_fasta
+        File? reference_fasta
         Boolean correct_fasta = false
         Int memoryGB
-        Int diskSizeGB
+        # Int diskSizeGB
         String docker
     }
 
-    String extra_arg = if correct_fasta then " --fasta_correction" else ""
+    String extra_arg = if correct_fasta then "--reference_genome ~{reference_fasta} --fasta_correction" else ""
     String alignmentGTF_name = basename("~{inputSAM}", ".sam")
 
     command <<<
@@ -110,7 +110,7 @@ task convertSAMtoGTF_cDNACupcake {
         convert_SAM_to_GTF_for_SQANTI3.py \
             --sam_file ~{inputSAM} \
             --output_prefix ${baseSamName} \
-            --reference_genome ${ref_fasta} ~{extra_arg}
+            ~{extra_arg}
     >>>
 
     output {
@@ -131,7 +131,7 @@ task concatenate_gtfs {
     input {
         Array[File] files
         Int memoryGB
-        Int diskSizeGB
+        # Int diskSizeGB
         # String docker
     }
 
@@ -249,6 +249,7 @@ workflow sqanti3_on_reads_alignment_bam {
             call convertSAMtoGTF_cDNACupcake {
                 input:
                     inputSAM = backformatBAM.backformatedBAM,
+                    reference_fasta = reference_fasta,
                     memoryGB = memoryGB,
                     # diskSizeGB = diskSizeGB,
                     docker = docker
@@ -277,7 +278,7 @@ workflow sqanti3_on_reads_alignment_bam {
             polyA_motifs = polyA_motifs,
             cpu = cpu,
             memoryGB = 32,
-            # diskSizeGB = diskSizeGB,
+            diskSizeGB = diskSizeGB,
             docker = docker
     }
 
