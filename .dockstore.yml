@@ -5,3 +5,8 @@ workflows:
     primaryDescriptorPath: /LR-tools/stringtie_merge/stringtie_merge_and_reestimate.wdl
     authors:
       - orcid: 0000-0002-2603-1660
+  - name: Sqanti3-on-reads-alignment-BAM
+    subclass: WDL
+    primaryDescriptorPath: /LR-tools/sqanti3_on_reads_alignment_bam/sqanti3_on_reads_alignment_bam.wdl
+    authors:
+      - orcid: 0000-0002-2603-1660
