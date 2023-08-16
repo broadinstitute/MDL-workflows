@@ -95,14 +95,14 @@ task convertSAMtoGTF_CTATLR {
 task convertSAMtoGTF_cDNACupcake {
     input {
         File inputSAM
-        File? reference_fasta
+        File reference_fasta
         Boolean correct_fasta = false
         Int memoryGB
         # Int diskSizeGB
         String docker
     }
 
-    String extra_arg = if correct_fasta then "--reference_genome ~{reference_fasta} --fasta_correction" else ""
+    String extra_arg = if correct_fasta then "--fasta_correction" else ""
     String alignmentGTF_name = basename("~{inputSAM}", ".sam")
 
     command <<<
@@ -111,7 +111,7 @@ task convertSAMtoGTF_cDNACupcake {
         convert_SAM_to_GTF_for_SQANTI3.py \
             --sam_file ~{inputSAM} \
             --output_prefix ${baseSamName} \
-            ~{extra_arg}
+            --reference_genome ~{reference_fasta} ~{extra_arg}
     >>>
 
     output {
