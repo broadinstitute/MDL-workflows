@@ -211,7 +211,7 @@ workflow sqanti3_on_reads_alignment_bam {
         Int diskSizeGB = 500
     }
 
-    String docker = "us-east4-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:d86f8ee893a20372477de40779f1db5af24baa44bf4122816844a75d1fb50bd9"
+    String docker = "us-east4-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:7f04c4ffef87d29f198442ab8da80cd1eea9679b54884a4bf21a6a123c0bf856"
     File monitoringScript = "gs://broad-dsde-methods-tbrookin/cromwell_monitoring_script2.sh"
 
     call split_bam_per_chromosome {
@@ -231,8 +231,6 @@ workflow sqanti3_on_reads_alignment_bam {
                 docker = docker
         }
 
-        # File converted_gtf = ""
-
         if (conversion_method == "CTAT-LR") {
             call convertSAMtoGTF_CTATLR {
                 input:
@@ -241,8 +239,6 @@ workflow sqanti3_on_reads_alignment_bam {
                     # diskSizeGB = diskSizeGB,
                     docker = docker
             }
-            
-            # converted_gtf = convertSAMtoGTF_CTATLR.alignmentGTF
         }
 
         if (conversion_method == "cDNACupcake") {
@@ -254,8 +250,6 @@ workflow sqanti3_on_reads_alignment_bam {
                     # diskSizeGB = diskSizeGB,
                     docker = docker
             }
-
-            # converted_gtf = convertSAMtoGTF_cDNACupcake.alignmentGTF
         }
 
         File converted_gtf = select_first([convertSAMtoGTF_CTATLR.alignmentGTF, convertSAMtoGTF_cDNACupcake.alignmentGTF])
@@ -264,9 +258,7 @@ workflow sqanti3_on_reads_alignment_bam {
     call concatenate_gtfs {
         input:
             files = converted_gtf,
-            memoryGB = 8,
-            # diskSizeGB = diskSizeGB
-            # docker = docker # any base linux image
+            memoryGB = 8
     }
 
     call run_sqanti {
