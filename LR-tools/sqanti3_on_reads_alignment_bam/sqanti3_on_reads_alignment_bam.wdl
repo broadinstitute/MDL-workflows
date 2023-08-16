@@ -4,6 +4,7 @@ version 1.0
 task split_bam_per_chromosome {
     input {
         File inputBAM
+        File inputBAM_index
         Int memoryGB
         # Int diskSizeGB
         String docker
@@ -201,6 +202,7 @@ workflow sqanti3_on_reads_alignment_bam {
 
     input {
         File inputBAM
+        File inputBAM_index
         String conversion_method = "CTAT-LR"
         File reference_gtf
         File reference_fasta
@@ -217,6 +219,7 @@ workflow sqanti3_on_reads_alignment_bam {
     call split_bam_per_chromosome {
         input:
             inputBAM = inputBAM,
+            inputBAM_index = inputBAM_index,
             memoryGB = memoryGB,
             # diskSizeGB = ,
             docker = docker
