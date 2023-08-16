@@ -39,16 +39,16 @@ task backformatBAM {
 
     command <<<
         baseBamName=$(basename ~{inputBAM} | sed 's/\(.*\)\..*/\1/')
-        echo "${baseBamName}.~{outputType}" > output_name.txt
+        # echo "${baseBamName}.~{outputType}" > output_name.txt
 
         reformat.sh \
             in=~{inputBAM} \
-            out=${baseBamName}.~{outputType} \
+            out=${baseBamName}.backformatted.~{outputType} \
             sam=1.3
     >>>
 
     output {
-        File backformatedBAM = read_string("output_name.txt")
+        File backformatedBAM = select_first(glob("*.backformatted.~{outputType}"))
     }
 
     runtime {
