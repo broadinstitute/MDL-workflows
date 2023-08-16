@@ -32,7 +32,7 @@ task backformatBAM {
         File inputBAM
         String outputType = "sam"       # sam or bam
         Int memoryGB
-        Int diskSizeGB
+        # Int diskSizeGB
         String docker
     }
 
@@ -211,7 +211,7 @@ workflow sqanti3_on_reads_alignment_bam {
         Int diskSizeGB = 500
     }
 
-    String docker = "us-east4-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus"
+    String docker = "us-east4-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:d86f8ee893a20372477de40779f1db5af24baa44bf4122816844a75d1fb50bd9"
     File monitoringScript = "gs://broad-dsde-methods-tbrookin/cromwell_monitoring_script2.sh"
 
     call split_bam_per_chromosome {
@@ -283,7 +283,7 @@ workflow sqanti3_on_reads_alignment_bam {
     }
 
     output {
-        Array[File] reestimated_assemblies = run_sqanti.sqanti_outputs
+        Array[File] sqanti_outputs = run_sqanti.sqanti_outputs
     }
 }
 
