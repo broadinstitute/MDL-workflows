@@ -106,11 +106,11 @@ task convertSAMtoGTF_cDNACupcake {
     String alignmentGTF_name = basename("~{inputSAM}", ".sam")
 
     command <<<
-        baseSamName=$(basename ~{inputSAM} | sed 's/\(.*\)\..*/\1/')
+        # baseSamName=$(basename ~{inputSAM} | sed 's/\(.*\)\..*/\1/')
 
         convert_SAM_to_GTF_for_SQANTI3.py \
             --sam_file ~{inputSAM} \
-            --output_prefix ${alignmentGTF_name} \
+            --output_prefix ~{alignmentGTF_name} \
             --reference_genome ~{reference_fasta} ~{extra_arg}
     >>>
 
