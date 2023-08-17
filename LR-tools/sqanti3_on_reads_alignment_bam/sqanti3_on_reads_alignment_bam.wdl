@@ -169,16 +169,16 @@ task run_sqanti {
     command <<<
         sqanti3_qc.py \
             --report both \
-            --chunks ${cpu}
+            --chunks ~{cpu} \
             --dir sqanti_out_dir \
-            --CAGE_peak ${cage_peak} \
-            --polyA_motif_list ${polyA_motifs} \
+            --CAGE_peak ~{cage_peak} \
+            --polyA_motif_list ~{polyA_motifs} \
             --skipORF \
             --window 20 \
             --isoform_hits \
-            ${input_gtf} \
-            ${reference_gtf} \
-            ${reference_fasta}
+            ~{input_gtf} \
+            ~{reference_gtf} \
+            ~{reference_fasta}
     >>>
 
     output {
