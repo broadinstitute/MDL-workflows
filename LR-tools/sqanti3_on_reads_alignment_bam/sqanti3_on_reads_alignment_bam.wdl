@@ -116,7 +116,7 @@ task convertSAMtoGTF_cDNACupcake {
 
     output {
         File alignmentGTF = "~{alignmentGTF_name}.gtf"
-        File? correctedFasta = glob("*corrected.fasta")
+        File? correctedFasta = "~{alignmentGTF_name}.corrected.fasta"
     }
 
     runtime {
