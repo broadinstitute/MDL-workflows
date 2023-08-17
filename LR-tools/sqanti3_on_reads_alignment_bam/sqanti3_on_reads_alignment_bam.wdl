@@ -133,7 +133,7 @@ task concatenate_gtfs {
         Array[File] files
         Int memoryGB
         # Int diskSizeGB
-        # String docker
+        String docker
     }
 
     command <<<
@@ -148,7 +148,7 @@ task concatenate_gtfs {
         cpu: 1
         memory: "~{memoryGB} GiB"
         disks: "local-disk 100 HDD"
-        docker: "alpine:latest"
+        docker: docker
     }
 }
 
@@ -261,7 +261,8 @@ workflow sqanti3_on_reads_alignment_bam {
     call concatenate_gtfs {
         input:
             files = converted_gtf,
-            memoryGB = 8
+            memoryGB = 8,
+            docker = docker
     }
 
     call run_sqanti {
