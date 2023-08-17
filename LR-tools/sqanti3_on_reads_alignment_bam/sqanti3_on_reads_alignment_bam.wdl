@@ -110,12 +110,12 @@ task convertSAMtoGTF_cDNACupcake {
 
         convert_SAM_to_GTF_for_SQANTI3.py \
             --sam_file ~{inputSAM} \
-            --output_prefix ${baseSamName} \
+            --output_prefix ${alignmentGTF_name} \
             --reference_genome ~{reference_fasta} ~{extra_arg}
     >>>
 
     output {
-        File alignmentGTF = "~{alignmentGTF_name}"
+        File alignmentGTF = "~{alignmentGTF_name}.gtf"
         File? correctedFasta = glob("*corrected.fasta")
     }
 
