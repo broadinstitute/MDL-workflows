@@ -213,7 +213,7 @@ workflow sqanti3_on_reads_alignment_bam {
         Int diskSizeGB = 500
     }
 
-    String docker = "us-east4-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:7f04c4ffef87d29f198442ab8da80cd1eea9679b54884a4bf21a6a123c0bf856"
+    String docker = "us-east4-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:3dcdda75dfff0eae95a76d1ca692a696b08c5a1c8a17059a239df8e29c663963"
     File monitoringScript = "gs://broad-dsde-methods-tbrookin/cromwell_monitoring_script2.sh"
 
     call split_bam_per_chromosome {
