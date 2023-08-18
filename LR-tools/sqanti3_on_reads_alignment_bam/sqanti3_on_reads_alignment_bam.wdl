@@ -209,7 +209,7 @@ workflow sqanti3_on_reads_alignment_bam {
         File cage_peak
         File polyA_motifs
         Int cpu = 4
-        Int memoryGB = 16
+        Int memoryGB = 64
         Int diskSizeGB = 500
     }
 
@@ -273,7 +273,7 @@ workflow sqanti3_on_reads_alignment_bam {
             cage_peak = cage_peak,
             polyA_motifs = polyA_motifs,
             cpu = cpu,
-            memoryGB = 32,
+            memoryGB = memoryGB,
             diskSizeGB = diskSizeGB,
             docker = docker
     }
