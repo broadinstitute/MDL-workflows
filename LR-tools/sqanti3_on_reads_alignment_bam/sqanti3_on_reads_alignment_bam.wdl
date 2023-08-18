@@ -137,7 +137,7 @@ task concatenate_gtfs {
     }
 
     command <<<
-        cat '~{sep="' '" files}' > "concatenated.gtf"
+        /scripts/concate_gtfs_and_tag_duplicates.py -o concatenated.gtf '~{sep="' '" files}'
     >>>
 
     output {
