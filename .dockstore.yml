@@ -1,12 +1,27 @@
 version: 1.2
 workflows:
-  - name: StringTie-merge
+  - name: IsoQuant-makeDB
     subclass: WDL
-    primaryDescriptorPath: /LR-tools/stringtie_merge/stringtie_merge_and_reestimate.wdl
+    primaryDescriptorPath: /LR-tools/IsoQuant/IsoQuant_quantify.wdl
+    authors:
+      - orcid: 0000-0002-2603-1660
+  - name: IsoQuant-quantify
+    subclass: WDL
+    primaryDescriptorPath: /LR-tools/IsoQuant/IsoQuant_makedb.wdl
+    authors:
+      - orcid: 0000-0002-2603-1660
+  - name: LIQA-quantify
+    subclass: WDL
+    primaryDescriptorPath: /LR-tools/LIQA/liqa_quantify.wdl
     authors:
       - orcid: 0000-0002-2603-1660
   - name: Sqanti3-on-reads-alignment-BAM
     subclass: WDL
     primaryDescriptorPath: /LR-tools/sqanti3_on_reads_alignment_bam/sqanti3_on_reads_alignment_bam.wdl
+    authors:
+      - orcid: 0000-0002-2603-1660
+  - name: StringTie-merge
+    subclass: WDL
+    primaryDescriptorPath: /LR-tools/stringtie_merge/stringtie_merge_and_reestimate.wdl
     authors:
       - orcid: 0000-0002-2603-1660

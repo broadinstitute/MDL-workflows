@@ -109,6 +109,9 @@ workflow stringtie_merge {
             docker = docker
     }
 
+    #if has_longreads && has_shortreads then "--mix"
+    #if has_longreads && !has_shortreads then "-L"
+    # if !has_longreads && has_shortreads then default
     String reads_type = if has_longreads then (if has_shortreads then "--mix" else "-L") else ""
 
     # may need to have a map sample_name to bam_alignment? to scatter on a single object
