@@ -4,7 +4,7 @@ version 1.0
 task split_bam_per_chromosome {
     input {
         File inputBAM
-        File inputBAM_index
+        File inputBAMIndex
         Int memoryGB
         # Int diskSizeGB
         String docker
@@ -64,19 +64,21 @@ task convertSAMtoGTF_CTATLR {
     input {
         File inputSAM
         Int memoryGB
+        Boolean allowNonPrimary
         # Int diskSizeGB
         String docker
     }
 
     String alignmentGTF_name = basename("~{inputSAM}", ".sam")
+    String extra_arg = if allowNonPrimary then "--allow_non_primary" else ""
 
     command <<<
         baseSamName=$(basename ~{inputSAM} | sed 's/\(.*\)\..*/\1/')
 
-        SAM_to_gxf.pl --format gtf --allow_non_primary \
+        SAM_to_gxf.pl --format gtf ~{extra_arg} \
             --sam ~{inputSAM} \
             > temp.sam_to_gxf
-        grep -P "[A-z0-1]" temp.sam_to_gxf > ${baseSamName}.gtf
+        grep -P "[A-z0-1]" temp.sam_to_gxf > {alignmentGTF_name}.gtf
     >>>
 
     output {
@@ -95,7 +97,7 @@ task convertSAMtoGTF_CTATLR {
 task convertSAMtoGTF_cDNACupcake {
     input {
         File inputSAM
-        File reference_fasta
+        File referenceFasta
         Boolean correct_fasta = false
         Int memoryGB
         # Int diskSizeGB
@@ -111,7 +113,7 @@ task convertSAMtoGTF_cDNACupcake {
         convert_SAM_to_GTF_for_SQANTI3.py \
             --sam_file ~{inputSAM} \
             --output_prefix ~{alignmentGTF_name} \
-            --reference_genome ~{reference_fasta} ~{extra_arg}
+            --reference_genome ~{referenceFasta} ~{extra_arg}
     >>>
 
     output {
@@ -156,10 +158,10 @@ task concatenate_gtfs {
 task run_sqanti {
     input {
         File input_gtf
-        File reference_gtf
-        File reference_fasta
-        File cage_peak
-        File polyA_motifs
+        File referenceGTF
+        File referenceFasta
+        File cagePeak
+        File polyAMotifs
         Int cpu
         Int memoryGB
         Int diskSizeGB
@@ -171,18 +173,20 @@ task run_sqanti {
             --report both \
             --chunks ~{cpu} \
             --dir sqanti_out_dir \
-            --CAGE_peak ~{cage_peak} \
-            --polyA_motif_list ~{polyA_motifs} \
+            --CAGE_peak ~{cagePeak} \
+            --polyA_motif_list ~{polyAMotifs} \
             --skipORF \
             --window 20 \
             --isoform_hits \
             ~{input_gtf} \
-            ~{reference_gtf} \
-            ~{reference_fasta}
+            ~{referenceGTF} \
+            ~{referenceFasta}
     >>>
 
     output {
         Array[File] sqanti_outputs = glob("sqanti_out_dir/*")
+        File sqanti_classification = select_first(glob("sqanti_out_dir/*_classification.txt"))
+        File sqanti_report_pdf = select_first(glob("sqanti_out_dir/*_SQANTI3_report.pdf"))
     }
 
     runtime {
@@ -202,12 +206,13 @@ workflow sqanti3_on_reads_alignment_bam {
 
     input {
         File inputBAM
-        File inputBAM_index
-        String conversion_method = "CTAT-LR"
-        File reference_gtf
-        File reference_fasta
-        File cage_peak
-        File polyA_motifs
+        File inputBAMIndex
+        String conversionMethod = "cDNACupcake"
+        File referenceGTF
+        File referenceFasta
+        File cagePeak
+        File polyAMotifs
+        Boolean allowNonPrimary = true
         Int cpu = 4
         Int memoryGB = 64
         Int diskSizeGB = 500
@@ -219,9 +224,8 @@ workflow sqanti3_on_reads_alignment_bam {
     call split_bam_per_chromosome {
         input:
             inputBAM = inputBAM,
-            inputBAM_index = inputBAM_index,
+            inputBAMIndex = inputBAMIndex,
             memoryGB = memoryGB,
-            # diskSizeGB = ,
             docker = docker
     }
 
@@ -230,27 +234,25 @@ workflow sqanti3_on_reads_alignment_bam {
             input:
                 inputBAM = chromosomeBAM,
                 memoryGB = memoryGB,
-                # diskSizeGB = diskSizeGB,
                 docker = docker
         }
 
-        if (conversion_method == "CTAT-LR") {
+        if (conversionMethod == "CTAT-LR") {
             call convertSAMtoGTF_CTATLR {
                 input:
                     inputSAM = backformatBAM.backformatedBAM,
                     memoryGB = memoryGB,
-                    # diskSizeGB = diskSizeGB,
+                    allowNonPrimary = allowNonPrimary,
                     docker = docker
             }
         }
 
-        if (conversion_method == "cDNACupcake") {
+        if (conversionMethod == "cDNACupcake") {
             call convertSAMtoGTF_cDNACupcake {
                 input:
                     inputSAM = backformatBAM.backformatedBAM,
-                    reference_fasta = reference_fasta,
+                    referenceFasta = referenceFasta,
                     memoryGB = memoryGB,
-                    # diskSizeGB = diskSizeGB,
                     docker = docker
             }
         }
@@ -268,10 +270,10 @@ workflow sqanti3_on_reads_alignment_bam {
     call run_sqanti {
         input:
             input_gtf = concatenate_gtfs.concatenatedGTF,
-            reference_gtf = reference_gtf,
-            reference_fasta = reference_fasta,
-            cage_peak = cage_peak,
-            polyA_motifs = polyA_motifs,
+            referenceGTF = referenceGTF,
+            referenceFasta = referenceFasta,
+            cagePeak = cagePeak,
+            polyAMotifs = polyAMotifs,
             cpu = cpu,
             memoryGB = memoryGB,
             diskSizeGB = diskSizeGB,
