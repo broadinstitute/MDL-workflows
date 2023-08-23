@@ -98,13 +98,13 @@ task convertSAMtoGTF_cDNACupcake {
     input {
         File inputSAM
         File referenceFasta
-        Boolean correct_fasta = false
+        Boolean correctFasta = false
         Int memoryGB
         # Int diskSizeGB
         String docker
     }
 
-    String extra_arg = if correct_fasta then "--fasta_correction" else ""
+    String extra_arg = if correctFasta then "--fasta_correction" else ""
     String alignmentGTF_name = basename("~{inputSAM}", ".sam")
 
     command <<<
@@ -282,6 +282,9 @@ workflow sqanti3_on_reads_alignment_bam {
 
     output {
         Array[File] sqanti_outputs = run_sqanti.sqanti_outputs
+        File sqanti_classification = run_sqanti.sqanti_classification
+        File sqanti_report_pdf = run_sqanti.sqanti_report_pdf
+ 
     }
 }
 
