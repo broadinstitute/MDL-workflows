@@ -5,10 +5,9 @@ task isoquantMakeGeneDBTask {
     input {
         File gtfToDB
         Boolean isCompleteGeneDB
-        Int cpu = 16
-        Int numThreads = 32
-        Int memoryGB = 128
-        Int diskSizeGB = 500
+        Int cpu = 1
+        Int memoryGB = 16
+        Int diskSizeGB = 50
         String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-isoquant/lrtools-isoquant-plus@sha256:afad1eba2743f09cc8bddf6f38b99f3b8fd104c67dddccd830ecb2e43ec3deab"
         # File monitoringScript = "gs://broad-dsde-methods-tbrookin/cromwell_monitoring_script2.sh"
     }
@@ -19,7 +18,7 @@ task isoquantMakeGeneDBTask {
         /usr/local/src/IsoQuant-3.3.1/isoquant_prepare_genedb.py \
             --genedb ~{gtfToDB} \
             --genedb_output ./ \
-            --threads ~{numThreads} ~{extra_args}
+            ~{extra_args}
     >>>
 
     output {
