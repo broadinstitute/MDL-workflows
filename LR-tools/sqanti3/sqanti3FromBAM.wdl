@@ -183,7 +183,7 @@ task sqantiTask {
             ~{referenceGTF} \
             ~{referenceFasta}
 
-            gzip sqanti_out_dir/*_classification.txt
+            find sqanti_out_dir/ -maxdepth 1 -type f ! -name "*.pdf" -exec gzip {} +
     >>>
 
     output {
