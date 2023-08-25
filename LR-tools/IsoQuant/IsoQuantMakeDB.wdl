@@ -10,13 +10,13 @@ task isoquantMakeGeneDBTask {
         Int memoryGB = 128
         Int diskSizeGB = 500
         String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-isoquant/lrtools-isoquant-plus@sha256:afad1eba2743f09cc8bddf6f38b99f3b8fd104c67dddccd830ecb2e43ec3deab"
-        File monitoringScript = "gs://broad-dsde-methods-tbrookin/cromwell_monitoring_script2.sh"
+        # File monitoringScript = "gs://broad-dsde-methods-tbrookin/cromwell_monitoring_script2.sh"
     }
 
     String extra_args = if isCompleteGeneDB then "--complete_genedb" else ""
 
     command <<<
-        bash ~{monitoringScript} > monitoring.log &
+        # bash ~{monitoringScript} > monitoring.log &
 
         /usr/local/src/IsoQuant-3.3.1/isoquant_prepare_genedb.py \
             --genedb ~{gtfToDB} \
@@ -26,7 +26,7 @@ task isoquantMakeGeneDBTask {
 
     output {
         File geneDB = select_first(glob("*.db"))
-        File monitoringLog = "monitoring.log"
+        # File monitoringLog = "monitoring.log"
     }
 
     runtime {
@@ -56,6 +56,6 @@ workflow isoquantMakeGeneDB {
 
     output {
         File geneDB = isoquantMakeGeneDBTask.geneDB
-        File monitoringLog = isoquantMakeGeneDBTask.monitoringLog
+        # File monitoringLog = isoquantMakeGeneDBTask.monitoringLog
     }
 }

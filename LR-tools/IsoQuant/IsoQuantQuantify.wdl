@@ -15,14 +15,14 @@ task isoquantQuantifyTask {
         Int memoryGB = 128
         Int diskSizeGB = 500
         String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-isoquant/lrtools-isoquant-plus@sha256:afad1eba2743f09cc8bddf6f38b99f3b8fd104c67dddccd830ecb2e43ec3deab"
-        File monitoringScript = "gs://broad-dsde-methods-tbrookin/cromwell_monitoring_script2.sh"
+        # File monitoringScript = "gs://broad-dsde-methods-tbrookin/cromwell_monitoring_script2.sh"
     }
 
     # String file_name = basename("~{inputBAM}", ".bam")
     String extra_args = if noModelConstruction then "--no_model_construction" else ""
 
     command <<<
-        bash ~{monitoringScript} > monitoring.log &
+        # bash ~{monitoringScript} > monitoring.log &
 
         /usr/local/src/IsoQuant-3.3.1/isoquant.py \
             --reference ~{referenceFasta} \
@@ -42,7 +42,7 @@ task isoquantQuantifyTask {
     output {
         Array[File] isoquantOutputs = glob("isoquant_out/*.gz")
         File readAssignmentsTSV = select_first(glob("isoquant_out/*.read_assignments.tsv.gz"))
-        File monitoringLog = "monitoring.log"
+        # File monitoringLog = "monitoring.log"
     }
 
     runtime {
@@ -83,6 +83,6 @@ workflow isoquantQuantify {
     output {
         Array[File] isoquantOutputs = isoquantQuantifyTask.isoquantOutputs
         File readAssignmentsTSV = isoquantQuantifyTask.readAssignmentsTSV
-        File monitoringLog = isoquantQuantifyTask.monitoringLog
+        # File monitoringLog = isoquantQuantifyTask.monitoringLog
     }
 }
