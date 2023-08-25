@@ -22,8 +22,6 @@ task isoquantQuantifyTask {
     String extra_args = if noModelConstruction then "--no_model_construction" else ""
 
     command <<<
-        # bash ~{monitoringScript} > monitoring.log &
-
         /usr/local/src/IsoQuant-3.3.1/isoquant.py \
             --reference ~{referenceFasta} \
             --genedb ~{geneDB} \

@@ -16,8 +16,6 @@ task isoquantMakeGeneDBTask {
     String extra_args = if isCompleteGeneDB then "--complete_genedb" else ""
 
     command <<<
-        # bash ~{monitoringScript} > monitoring.log &
-
         /usr/local/src/IsoQuant-3.3.1/isoquant_prepare_genedb.py \
             --genedb ~{gtfToDB} \
             --genedb_output ./ \
