@@ -103,6 +103,7 @@ workflow rnaseqcPlusFromBam {
 
         call sqanti3FromBAMWorkflow.sqanti3FromBam as sqanti3FromBam {
             input:
+                sampleName = sample.sample_name,
                 inputBAM = sample.bam,
                 inputBAMIndex = sample.bam_index,
                 referenceGTF = referenceGTF,
@@ -115,6 +116,7 @@ workflow rnaseqcPlusFromBam {
 
         call IsoQuantQuantifyWorkflow.isoquantQuantify as isoquantQuantify {
             input:
+                sampleName = sample.sample_name,
                 inputBAM = sample.bam,
                 inputBAMIndex = sample.bam_index,
                 referenceFasta = referenceFasta,
