@@ -35,7 +35,7 @@ task isoquantQuantifyTask {
             --prefix ~{sampleName} \
             -o isoquant_output
 
-            gzip -q isoquant_output/~{sampleName}/*
+            find isoquant_output/~{sampleName}/ -maxdepth 1 -type f -exec gzip {} +
     >>>
 
     output {
