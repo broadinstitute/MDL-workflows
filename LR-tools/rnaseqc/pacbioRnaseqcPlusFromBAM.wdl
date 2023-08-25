@@ -32,6 +32,14 @@ task createStructTask {
             bam_index: inputBAMIndex
         }
     }
+
+
+    runtime {
+        docker: "alpine:latest"
+        disks: "local-disk 30 HDD"
+        memory: "8 GiB"
+        cpu: 1
+    }
 }
 
 
