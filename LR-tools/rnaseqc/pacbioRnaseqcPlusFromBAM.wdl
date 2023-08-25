@@ -68,9 +68,9 @@ workflow rnaseqcPlusFromBam {
 
     scatter(i in range(length(sampleName))) {
         SampleBamAndIndex sampleBamAndIndex = object { 
-            sample_name: sampleName, 
-            bam: inputBAM, 
-            bam_index: inputBAMIndex
+            sample_name: sampleName[i], 
+            bam: inputBAM[i],
+            bam_index: inputBAMIndex[i]
         }
     }
 
