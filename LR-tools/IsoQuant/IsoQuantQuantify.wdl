@@ -31,15 +31,16 @@ task isoquantQuantifyTask {
             --transcript_quantification all \
             --gene_quantification all \
             --threads ~{numThreads} ~{extra_args} \
-            --labels ~{sampleName}
-            -o isoquant_out
+            --labels ~{sampleName} \
+            --prefix ~{sampleName} \
+            -o isoquant_output
 
-            gzip isoquant_out/*
+            gzip isoquant_output/~{sampleName}/*
     >>>
 
     output {
-        Array[File] isoquantOutputs = glob("isoquant_out/*.gz")
-        File readAssignmentsTSV = select_first(glob("isoquant_out/*.read_assignments.tsv.gz"))
+        Array[File] isoquantOutputs = glob("isoquant_output/~{sampleName}/*.gz")
+        File readAssignmentsTSV = select_first(glob("isoquant_output/~{sampleName}/*.read_assignments.tsv.gz"))
         # File monitoringLog = "monitoring.log"
     }
 
