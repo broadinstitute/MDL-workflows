@@ -14,33 +14,33 @@ struct SampleBamAndIndex {
 }
 
 
-task createStructTask {
-    input {
-        String sampleName
-        File inputBAM
-        File inputBAMIndex
-    }
-
-
-    command <<<
-    >>>
-
-    output {
-        SampleBamAndIndex sampleBamAndIndex = object { 
-            sample_name: sampleName, 
-            bam: inputBAM, 
-            bam_index: inputBAMIndex
-        }
-    }
-
-
-    runtime {
-        docker: "alpine:latest"
-        disks: "local-disk 30 HDD"
-        memory: "8 GiB"
-        cpu: 1
-    }
-}
+#task createStructTask {
+#    input {
+#        String sampleName
+#        File inputBAM
+#        File inputBAMIndex
+#    }
+#
+#
+#    command <<<
+#    >>>
+#
+#    output {
+#        SampleBamAndIndex sampleBamAndIndex = object { 
+#            sample_name: sampleName, 
+#            bam: inputBAM, 
+#            bam_index: inputBAMIndex
+#        }
+#    }
+#
+#
+#    runtime {
+#        docker: "alpine:latest"
+#        disks: "local-disk 30 HDD"
+#        memory: "8 GiB"
+#        cpu: 1
+#    }
+#}
 
 
 workflow rnaseqcPlusFromBam {
@@ -67,13 +67,22 @@ workflow rnaseqcPlusFromBam {
     }
 
     scatter(i in range(length(sampleName))) {
-        call createStructTask {
-            input:
-                sampleName = sampleName[i],
-                inputBAM = inputBAM[i],
-                inputBAMIndex = inputBAMIndex[i]
+        SampleBamAndIndex sampleBamAndIndex = object { 
+            sample_name: sampleName, 
+            bam: inputBAM, 
+            bam_index: inputBAMIndex
         }
     }
+
+
+    #scatter(i in range(length(sampleName))) {
+    #    call createStructTask {
+    #        input:
+    #            sampleName = sampleName[i],
+    #            inputBAM = inputBAM[i],
+    #            inputBAMIndex = inputBAMIndex[i]
+    #    }
+    #}
 
     if (defined(referenceGTF_DB)) {
         String db_filename = basename(select_first([referenceGTF_DB]))
@@ -100,7 +109,8 @@ workflow rnaseqcPlusFromBam {
 
     File isoquantDB = select_first([isoquantMakeGeneDB_fromRef.geneDB, isoquantMakeGeneDB_fromDB.geneDB, referenceGTF_DB])
 
-    scatter(sample in createStructTask.sampleBamAndIndex) {
+    # scatter(sample in createStructTask.sampleBamAndIndex) {
+    scatter(sample in sampleBamAndIndex) {
         call pacbioRnaseqcFromBAMWorkflow.pacbioRnaseqc as pacbioRnaseqc {
             input:
                 sampleName = sample.sample_name,
