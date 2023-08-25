@@ -36,6 +36,11 @@ task createStructTask {
 
 
 workflow rnaseqcPlusFromBam {
+
+    meta {
+        description: "Using a BAM as input, run the pacbio adapted version of rnaseqc, Sqanti3, and IsoQuant."
+    }
+
     input {
         Array[String] sampleName
         String dataType
@@ -87,8 +92,6 @@ workflow rnaseqcPlusFromBam {
 
     File isoquantDB = select_first([isoquantMakeGeneDB_fromRef.geneDB, isoquantMakeGeneDB_fromDB.geneDB, referenceGTF_DB])
 
-
-
     scatter(sample in createStructTask.sampleBamAndIndex) {
         call pacbioRnaseqcFromBAMWorkflow.pacbioRnaseqc as pacbioRnaseqc {
             input:
@@ -119,12 +122,7 @@ workflow rnaseqcPlusFromBam {
                 dataType = dataType,
                 noModelConstruction = true
         }
-
-
-
     }
-
-
 
     output {
         # Array[SampleBamAndIndex] sampleBamAndIndex = createStructTask.sampleBamAndIndex
