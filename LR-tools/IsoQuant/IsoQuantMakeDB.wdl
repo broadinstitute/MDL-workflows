@@ -1,7 +1,7 @@
 version 1.0
 
 
-task run_isoquant_make_geneDB {
+task isoquantMakeGeneDBTask {
     input {
         File gtfToDB
         Boolean isCompleteGeneDB
@@ -38,7 +38,7 @@ task run_isoquant_make_geneDB {
 }
 
 
-workflow isoquant_make_geneDB {
+workflow isoquantMakeGeneDB {
     meta {
         description: "Run IsoQuant only to make a .db file from a .gtf file."
     }
@@ -48,14 +48,14 @@ workflow isoquant_make_geneDB {
         Boolean isCompleteGeneDB = false
     }
 
-    call run_isoquant_make_geneDB {
+    call isoquantMakeGeneDBTask {
         input:
             gtfToDB = gtfToDB,
             isCompleteGeneDB = isCompleteGeneDB,
     }
 
     output {
-        File geneDB = run_isoquant_make_geneDB.geneDB
-        File monitoringLog = run_isoquant_make_geneDB.monitoringLog
+        File geneDB = isoquantMakeGeneDBTask.geneDB
+        File monitoringLog = isoquantMakeGeneDBTask.monitoringLog
     }
 }

@@ -1,7 +1,7 @@
 version 1.0
 
 
-task split_bam_per_chromosome {
+task splitBAMPerChromosomeTask {
     input {
         File inputBAM
         File inputBAMIndex
@@ -28,7 +28,7 @@ task split_bam_per_chromosome {
 }
 
 
-task backformatBAM {
+task backformatBAMTask {
     input {
         File inputBAM
         String outputType = "sam"       # sam or bam
@@ -60,7 +60,7 @@ task backformatBAM {
 }
 
 
-task convertSAMtoGTF_CTATLR {
+task convertSAMtoGTF_CTATLRTask {
     input {
         File inputSAM
         Int memoryGB
@@ -94,7 +94,7 @@ task convertSAMtoGTF_CTATLR {
 }
 
 
-task convertSAMtoGTF_cDNACupcake {
+task convertSAMtoGTF_cDNACupcakeTask {
     input {
         File inputSAM
         File referenceFasta
@@ -130,8 +130,9 @@ task convertSAMtoGTF_cDNACupcake {
 }
 
 
-task concatenate_gtfs {
+task concatenateGTFsTask {
     input {
+        String sampleName
         Array[File] files
         Int memoryGB
         # Int diskSizeGB
@@ -139,11 +140,11 @@ task concatenate_gtfs {
     }
 
     command <<<
-        /scripts/concate_gtfs_and_tag_duplicates.py -o concatenated.gtf '~{sep="' '" files}'
+        /scripts/concate_gtfs_and_tag_duplicates.py -o ~{sampleName}.gtf '~{sep="' '" files}'
     >>>
 
     output {
-        File concatenatedGTF = "concatenated.gtf"
+        File concatenatedGTF = "~{sampleName}.gtf"
     }
 
     runtime {
@@ -155,9 +156,9 @@ task concatenate_gtfs {
 }
 
 
-task run_sqanti {
+task sqantiTask {
     input {
-        File input_gtf
+        File inputGTF
         File referenceGTF
         File referenceFasta
         File cagePeak
@@ -178,15 +179,18 @@ task run_sqanti {
             --skipORF \
             --window 20 \
             --isoform_hits \
-            ~{input_gtf} \
+            ~{inputGTF} \
             ~{referenceGTF} \
             ~{referenceFasta}
+
+            gzip sqanti_out_dir/*_classification.txt
     >>>
 
     output {
-        Array[File] sqanti_outputs = glob("sqanti_out_dir/*")
-        File sqanti_classification = select_first(glob("sqanti_out_dir/*_classification.txt"))
-        File sqanti_report_pdf = select_first(glob("sqanti_out_dir/*_SQANTI3_report.pdf"))
+        Array[File] sqantiOutputs = glob("sqanti_out_dir/*")
+        File sqantiClassificationTSV = select_first(glob("sqanti_out_dir/*_classification.txt.gz"))
+        File sqantiJunctionsTSV = select_first(glob("sqanti_out_dir/*_junctions.txt.gz"))
+        File sqantiReportPDF = select_first(glob("sqanti_out_dir/*_SQANTI3_report.pdf"))
     }
 
     runtime {
@@ -198,13 +202,14 @@ task run_sqanti {
 }
 
 
-workflow sqanti3_on_reads_alignment_bam {
+workflow sqanti3FromBam {
 
     meta {
         description: "Run Sqanti3 classification of non-assembled reads on an input BAM with the alignments without having to rerun the alignment."
     }
 
     input {
+        String sampleName
         File inputBAM
         File inputBAMIndex
         String conversionMethod = "cDNACupcake"
@@ -221,7 +226,7 @@ workflow sqanti3_on_reads_alignment_bam {
     String docker = "us-east4-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:ea331333f071173970c922897bf0d05787f48d6f6ae89dd961ae47645008ba20"
     File monitoringScript = "gs://broad-dsde-methods-tbrookin/cromwell_monitoring_script2.sh"
 
-    call split_bam_per_chromosome {
+    call splitBAMPerChromosomeTask {
         input:
             inputBAM = inputBAM,
             inputBAMIndex = inputBAMIndex,
@@ -229,8 +234,8 @@ workflow sqanti3_on_reads_alignment_bam {
             docker = docker
     }
 
-    scatter(chromosomeBAM in split_bam_per_chromosome.chromosomeBAMs) {
-        call backformatBAM {
+    scatter(chromosomeBAM in splitBAMPerChromosomeTask.chromosomeBAMs) {
+        call backformatBAMTask {
             input:
                 inputBAM = chromosomeBAM,
                 memoryGB = memoryGB,
@@ -238,9 +243,9 @@ workflow sqanti3_on_reads_alignment_bam {
         }
 
         if (conversionMethod == "CTAT-LR") {
-            call convertSAMtoGTF_CTATLR {
+            call convertSAMtoGTF_CTATLRTask {
                 input:
-                    inputSAM = backformatBAM.backformatedBAM,
+                    inputSAM = backformatBAMTask.backformatedBAM,
                     memoryGB = memoryGB,
                     allowNonPrimary = allowNonPrimary,
                     docker = docker
@@ -248,28 +253,29 @@ workflow sqanti3_on_reads_alignment_bam {
         }
 
         if (conversionMethod == "cDNACupcake") {
-            call convertSAMtoGTF_cDNACupcake {
+            call convertSAMtoGTF_cDNACupcakeTask {
                 input:
-                    inputSAM = backformatBAM.backformatedBAM,
+                    inputSAM = backformatBAMTask.backformatedBAM,
                     referenceFasta = referenceFasta,
                     memoryGB = memoryGB,
                     docker = docker
             }
         }
 
-        File converted_gtf = select_first([convertSAMtoGTF_CTATLR.alignmentGTF, convertSAMtoGTF_cDNACupcake.alignmentGTF])
+        File convertedGTF = select_first([convertSAMtoGTF_CTATLRTask.alignmentGTF, convertSAMtoGTF_cDNACupcakeTask.alignmentGTF])
     }
 
-    call concatenate_gtfs {
+    call concatenateGTFsTask {
         input:
-            files = converted_gtf,
+            sampleName = sampleName,
+            files = convertedGTF,
             memoryGB = 8,
             docker = docker
     }
 
-    call run_sqanti {
+    call sqantiTask {
         input:
-            input_gtf = concatenate_gtfs.concatenatedGTF,
+            inputGTF = concatenateGTFsTask.concatenatedGTF,
             referenceGTF = referenceGTF,
             referenceFasta = referenceFasta,
             cagePeak = cagePeak,
@@ -281,10 +287,10 @@ workflow sqanti3_on_reads_alignment_bam {
     }
 
     output {
-        Array[File] sqanti_outputs = run_sqanti.sqanti_outputs
-        File sqanti_classification = run_sqanti.sqanti_classification
-        File sqanti_report_pdf = run_sqanti.sqanti_report_pdf
- 
+        Array[File] sqantiOutputs = sqantiTask.sqantiOutputs
+        File sqantiClassificationTSV = sqantiTask.sqantiClassificationTSV
+        File sqantiJunctionsTSV = sqantiTask.sqantiJunctionsTSV
+        File sqantiReportPDF = sqantiTask.sqantiReportPDF
     }
 }
 

@@ -1,9 +1,11 @@
 version 1.0
 
 
-task run_isoquant_quantify {
+task isoquantQuantifyTask {
     input {
+        String sampleName
         File inputBAM
+        File inputBAMIndex
         File referenceFasta
         File geneDB
         String dataType
@@ -30,13 +32,16 @@ task run_isoquant_quantify {
             --stranded forward \
             --transcript_quantification all \
             --gene_quantification all \
-            --threads ~{numThreads} ~{extra_args}\
+            --threads ~{numThreads} ~{extra_args} \
+            --labels ~{sampleName}
             -o isoquant_out
+
+            gzip isoquant_out/*
     >>>
 
     output {
-        Array[File] isoquantOutputs = glob("isoquant_out/*")
-        File readAssignmentsTsv = select_first(glob("isoquant_out/*.read_assignments.tsv"))
+        Array[File] isoquantOutputs = glob("isoquant_out/*.gz")
+        File readAssignmentsTSV = select_first(glob("isoquant_out/*.read_assignments.tsv.gz"))
         File monitoringLog = "monitoring.log"
     }
 
@@ -49,30 +54,35 @@ task run_isoquant_quantify {
 }
 
 
-workflow isoquant_quantify {
+workflow isoquantQuantify {
     meta {
         description: "Run IsoQuant quantification (on an already gffutils preprocessed reference geneDB ideally)."
     }
 
     input {
+        String sampleName
         File inputBAM
+        File inputBAMIndex
         File referenceFasta
         File geneDB
         String dataType = "pacbio_ccs"
         Boolean noModelConstruction = false
     }
 
-    call run_isoquant_quantify {
+    call isoquantQuantifyTask {
         input:
+            sampleName = sampleName,
             inputBAM = inputBAM,
+            inputBAMIndex = inputBAMIndex,
             geneDB = geneDB,
             referenceFasta = referenceFasta,
-            dataType = dataType
+            dataType = dataType,
+            noModelConstruction = noModelConstruction
     }
 
     output {
-        Array[File] isoquantOutputs = run_isoquant_quantify.isoquantOutputs
-        File readAssignmentsTsv = run_isoquant_quantify.readAssignmentsTsv
-        File monitoringLog = run_isoquant_quantify.monitoringLog
+        Array[File] isoquantOutputs = isoquantQuantifyTask.isoquantOutputs
+        File readAssignmentsTSV = isoquantQuantifyTask.readAssignmentsTSV
+        File monitoringLog = isoquantQuantifyTask.monitoringLog
     }
 }

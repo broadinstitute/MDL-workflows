@@ -2,12 +2,12 @@ version: 1.2
 workflows:
   - name: IsoQuant-makeDB
     subclass: WDL
-    primaryDescriptorPath: /LR-tools/IsoQuant/IsoQuant_quantify.wdl
+    primaryDescriptorPath: /LR-tools/IsoQuant/IsoQuantQuantify.wdl
     authors:
       - orcid: 0000-0002-2603-1660
   - name: IsoQuant-quantify
     subclass: WDL
-    primaryDescriptorPath: /LR-tools/IsoQuant/IsoQuant_makedb.wdl
+    primaryDescriptorPath: /LR-tools/IsoQuant/IsoQuantMakeDB.wdl
     authors:
       - orcid: 0000-0002-2603-1660
   - name: LIQA-quantify
@@ -15,9 +15,17 @@ workflows:
     primaryDescriptorPath: /LR-tools/LIQA/liqa_quantify.wdl
     authors:
       - orcid: 0000-0002-2603-1660
-  - name: Sqanti3-on-reads-alignment-BAM
+  - name: pacbioRnaseqcFromBAM
     subclass: WDL
-    primaryDescriptorPath: /LR-tools/sqanti3_on_reads_alignment_bam/sqanti3_on_reads_alignment_bam.wdl
+    primaryDescriptorPath: /LR-tools/rnaseqc/pacbioRnaseqcFromBAM.wdl
+  - name: pacbioRnaseqcPlusFromBAM
+    subclass: WDL
+    primaryDescriptorPath: /LR-tools/rnaseqc/pacbioRnaseqcPlusFromBAM.wdl
+    authors:
+      - orcid: 0000-0002-2603-1660
+  - name: Sqanti3FromBAM
+    subclass: WDL
+    primaryDescriptorPath: /LR-tools/sqanti3/sqanti3FromBAM.wdl
     authors:
       - orcid: 0000-0002-2603-1660
   - name: StringTie-merge
