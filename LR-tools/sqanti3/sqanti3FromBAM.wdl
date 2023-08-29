@@ -6,13 +6,13 @@ task splitBAMPerChromosomeTask {
         File inputBAM
         File inputBAMIndex
         Int memoryGB
-        # Int diskSizeGB
+        String outputType
         String docker
     }
 
     command <<<
         mkdir -p split_dir
-        split_bam_per_chromosome.sh ~{inputBAM} split_dir
+        split_bam_per_chromosome.sh ~{inputBAM} split_dir ~{outputType}
     >>>
 
     output {
@@ -167,9 +167,13 @@ task sqantiTask {
         Int memoryGB
         Int diskSizeGB
         String docker
+        File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
+
     command <<<
+        bash ~{monitoringScript} > monitoring.log &
+
         sqanti3_qc.py \
             --report both \
             --chunks ~{cpu} \
@@ -191,6 +195,7 @@ task sqantiTask {
         File sqantiClassificationTSV = select_first(glob("sqanti_out_dir/*_classification.txt.gz"))
         File sqantiJunctionsTSV = select_first(glob("sqanti_out_dir/*_junctions.txt.gz"))
         File sqantiReportPDF = select_first(glob("sqanti_out_dir/*_SQANTI3_report.pdf"))
+        File monitoringLog = "monitoring.log"
     }
 
     runtime {
@@ -218,31 +223,33 @@ workflow sqanti3FromBam {
         File cagePeak
         File polyAMotifs
         Boolean allowNonPrimary = true
-        Int cpu = 4
-        Int memoryGB = 64
+        Int cpu = 8
+        Int memoryGB = 128
         Int diskSizeGB = 500
     }
 
-    String docker = "us-east4-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:ea331333f071173970c922897bf0d05787f48d6f6ae89dd961ae47645008ba20"
-    File monitoringScript = "gs://broad-dsde-methods-tbrookin/cromwell_monitoring_script2.sh"
+    String docker = "us-east4-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:0da748835f3b95056aa4be3a831c57950a8587c67c17b214a95a53cc94dc3805"
 
+    String outputType = if (conversionMethod == "cDNACupcake") then "sam" else "bam" 
     call splitBAMPerChromosomeTask {
         input:
             inputBAM = inputBAM,
             inputBAMIndex = inputBAMIndex,
+            outputType = outputType,
             memoryGB = memoryGB,
             docker = docker
     }
 
+    
     scatter(chromosomeBAM in splitBAMPerChromosomeTask.chromosomeBAMs) {
-        call backformatBAMTask {
-            input:
-                inputBAM = chromosomeBAM,
-                memoryGB = memoryGB,
-                docker = docker
-        }
-
         if (conversionMethod == "CTAT-LR") {
+            call backformatBAMTask {
+                input:
+                    inputBAM = chromosomeBAM,
+                    memoryGB = memoryGB,
+                    docker = docker
+            }
+
             call convertSAMtoGTF_CTATLRTask {
                 input:
                     inputSAM = backformatBAMTask.backformatedBAM,
@@ -255,7 +262,7 @@ workflow sqanti3FromBam {
         if (conversionMethod == "cDNACupcake") {
             call convertSAMtoGTF_cDNACupcakeTask {
                 input:
-                    inputSAM = backformatBAMTask.backformatedBAM,
+                    inputSAM = chromosomeBAM,
                     referenceFasta = referenceFasta,
                     memoryGB = memoryGB,
                     docker = docker
