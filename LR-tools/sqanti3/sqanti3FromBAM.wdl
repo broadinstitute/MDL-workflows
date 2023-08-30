@@ -5,18 +5,22 @@ task splitBAMPerChromosomeTask {
     input {
         File inputBAM
         File inputBAMIndex
-        Int memoryGB
+        Int memoryGB = 16
         String outputType
         String docker
+        File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
     command <<<
+        bash ~{monitoringScript} > monitoring.log &
+        
         mkdir -p split_dir
         split_bam_per_chromosome.sh ~{inputBAM} split_dir ~{outputType}
     >>>
 
     output {
         Array[File] chromosomeBAMs = glob("split_dir/*.*am")
+        File monitoringLog = "monitoring.log"
     }
 
     runtime {
@@ -32,14 +36,16 @@ task backformatBAMTask {
     input {
         File inputBAM
         String outputType = "sam"       # sam or bam
-        Int memoryGB
+        Int memoryGB = 16
         # Int diskSizeGB
         String docker
+        File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
     command <<<
+        bash ~{monitoringScript} > monitoring.log &
+
         baseBamName=$(basename ~{inputBAM} | sed 's/\(.*\)\..*/\1/')
-        # echo "${baseBamName}.~{outputType}" > output_name.txt
 
         reformat.sh \
             in=~{inputBAM} \
@@ -49,6 +55,7 @@ task backformatBAMTask {
 
     output {
         File backformatedBAM = select_first(glob("*.backformatted.~{outputType}"))
+        File monitoringLog = "monitoring.log"
     }
 
     runtime {
@@ -63,17 +70,18 @@ task backformatBAMTask {
 task convertSAMtoGTF_CTATLRTask {
     input {
         File inputSAM
-        Int memoryGB
+        Int memoryGB = 16
         Boolean allowNonPrimary
         # Int diskSizeGB
         String docker
+        File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
     String alignmentGTF_name = basename("~{inputSAM}", ".sam")
     String extra_arg = if allowNonPrimary then "--allow_non_primary" else ""
 
     command <<<
-        baseSamName=$(basename ~{inputSAM} | sed 's/\(.*\)\..*/\1/')
+        bash ~{monitoringScript} > monitoring.log &
 
         SAM_to_gxf.pl --format gtf ~{extra_arg} \
             --sam ~{inputSAM} \
@@ -83,6 +91,7 @@ task convertSAMtoGTF_CTATLRTask {
 
     output {
         File alignmentGTF = "~{alignmentGTF_name}"
+        File monitoringLog = "monitoring.log"
     }
 
     runtime {
@@ -99,16 +108,17 @@ task convertSAMtoGTF_cDNACupcakeTask {
         File inputSAM
         File referenceFasta
         Boolean correctFasta = false
-        Int memoryGB
+        Int memoryGB = 16
         # Int diskSizeGB
         String docker
+        File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
     String extra_arg = if correctFasta then "--fasta_correction" else ""
     String alignmentGTF_name = basename("~{inputSAM}", ".sam")
 
     command <<<
-        # baseSamName=$(basename ~{inputSAM} | sed 's/\(.*\)\..*/\1/')
+        bash ~{monitoringScript} > monitoring.log &
 
         convert_SAM_to_GTF_for_SQANTI3.py \
             --sam_file ~{inputSAM} \
@@ -119,6 +129,7 @@ task convertSAMtoGTF_cDNACupcakeTask {
     output {
         File alignmentGTF = "~{alignmentGTF_name}.gtf"
         File? correctedFasta = "~{alignmentGTF_name}.corrected.fasta"
+        File monitoringLog = "monitoring.log"
     }
 
     runtime {
@@ -134,17 +145,21 @@ task concatenateGTFsTask {
     input {
         String sampleName
         Array[File] files
-        Int memoryGB
+        Int memoryGB = 8
         # Int diskSizeGB
         String docker
+        File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
     command <<<
+        bash ~{monitoringScript} > monitoring.log &
+
         /scripts/concate_gtfs_and_tag_duplicates.py -o ~{sampleName}.gtf '~{sep="' '" files}'
     >>>
 
     output {
         File concatenatedGTF = "~{sampleName}.gtf"
+        File monitoringLog = "monitoring.log"
     }
 
     runtime {
@@ -225,7 +240,7 @@ workflow sqanti3FromBam {
         Boolean allowNonPrimary = true
         Int cpu = 8
         Int memoryGB = 128
-        Int diskSizeGB = 500
+        Int diskSizeGB = 100
     }
 
     String docker = "us-east4-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:0da748835f3b95056aa4be3a831c57950a8587c67c17b214a95a53cc94dc3805"
@@ -236,7 +251,7 @@ workflow sqanti3FromBam {
             inputBAM = inputBAM,
             inputBAMIndex = inputBAMIndex,
             outputType = outputType,
-            memoryGB = memoryGB,
+            # memoryGB = memoryGB,
             docker = docker
     }
 
@@ -246,14 +261,14 @@ workflow sqanti3FromBam {
             call backformatBAMTask {
                 input:
                     inputBAM = chromosomeBAM,
-                    memoryGB = memoryGB,
+                    # memoryGB = memoryGB,
                     docker = docker
             }
 
             call convertSAMtoGTF_CTATLRTask {
                 input:
                     inputSAM = backformatBAMTask.backformatedBAM,
-                    memoryGB = memoryGB,
+                    # memoryGB = memoryGB,
                     allowNonPrimary = allowNonPrimary,
                     docker = docker
             }
@@ -264,7 +279,7 @@ workflow sqanti3FromBam {
                 input:
                     inputSAM = chromosomeBAM,
                     referenceFasta = referenceFasta,
-                    memoryGB = memoryGB,
+                    # memoryGB = memoryGB,
                     docker = docker
             }
         }
