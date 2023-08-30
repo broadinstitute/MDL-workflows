@@ -16,7 +16,7 @@ task splitBAMPerChromosomeTask {
     >>>
 
     output {
-        Array[File] chromosomeBAMs = glob("split_dir/*.bam")
+        Array[File] chromosomeBAMs = glob("split_dir/*.*am")
     }
 
     runtime {
