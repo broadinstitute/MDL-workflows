@@ -155,7 +155,7 @@ workflow rnaseqcPlusFromBam {
         Array[Array[File]] sqantiOutputs = sqanti3FromBam.sqantiOutputs
         Array[File] sqantiClassificationTSV = sqanti3FromBam.sqantiClassificationTSV
         Array[File] sqantiJunctionsTSV = sqanti3FromBam.sqantiJunctionsTSV
-        Array[File] sqantiReportPDF = sqanti3FromBam.sqantiReportPDF
+        # Array[File] sqantiReportPDF = sqanti3FromBam.sqantiReportPDF
         Array[Array[File]] isoquantOutputs = isoquantQuantify.isoquantOutputs
         Array[File] isoquantReadAssignmentsTSV = isoquantQuantify.readAssignmentsTSV
     }
