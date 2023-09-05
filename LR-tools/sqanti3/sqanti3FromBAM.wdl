@@ -26,7 +26,7 @@ task splitBAMPerChromosomeTask {
     runtime {
         cpu: 1
         memory: "~{memoryGB} GiB"
-        disks: "local-disk " + ceil(size(inputBAM, "GB")*2 + 10) + " HDD"
+        disks: "local-disk " + ceil(size(inputBAM, "GB")*20 + 10) + " HDD"
         docker: docker
     }
 }
@@ -145,7 +145,7 @@ task concatenateGTFsTask {
     input {
         String sampleName
         Array[File] files
-        Int memoryGB = 8
+        Int memoryGB = 16
         # Int diskSizeGB
         String docker
         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
@@ -190,7 +190,7 @@ task sqantiTask {
         bash ~{monitoringScript} > monitoring.log &
 
         sqanti3_qc.py \
-            --report both \
+            --report skip \
             --chunks ~{cpu} \
             --dir sqanti_out_dir \
             --CAGE_peak ~{cagePeak} \
@@ -209,7 +209,7 @@ task sqantiTask {
         Array[File] sqantiOutputs = glob("sqanti_out_dir/*")
         File sqantiClassificationTSV = select_first(glob("sqanti_out_dir/*_classification.txt.gz"))
         File sqantiJunctionsTSV = select_first(glob("sqanti_out_dir/*_junctions.txt.gz"))
-        File sqantiReportPDF = select_first(glob("sqanti_out_dir/*_SQANTI3_report.pdf"))
+        # File sqantiReportPDF = select_first(glob("sqanti_out_dir/*_SQANTI3_report.pdf"))
         File monitoringLog = "monitoring.log"
     }
 
@@ -240,7 +240,7 @@ workflow sqanti3FromBam {
         Boolean allowNonPrimary = true
         Int cpu = 8
         Int memoryGB = 128
-        Int diskSizeGB = 100
+        Int diskSizeGB = 256
     }
 
     String docker = "us-east4-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:0da748835f3b95056aa4be3a831c57950a8587c67c17b214a95a53cc94dc3805"
@@ -291,7 +291,7 @@ workflow sqanti3FromBam {
         input:
             sampleName = sampleName,
             files = convertedGTF,
-            memoryGB = 8,
+            memoryGB = 16,
             docker = docker
     }
 
@@ -312,7 +312,7 @@ workflow sqanti3FromBam {
         Array[File] sqantiOutputs = sqantiTask.sqantiOutputs
         File sqantiClassificationTSV = sqantiTask.sqantiClassificationTSV
         File sqantiJunctionsTSV = sqantiTask.sqantiJunctionsTSV
-        File sqantiReportPDF = sqantiTask.sqantiReportPDF
+        # File sqantiReportPDF = sqantiTask.sqantiReportPDF
     }
 }
 
