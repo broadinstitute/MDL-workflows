@@ -14,34 +14,6 @@ struct SampleBamAndIndex {
 }
 
 
-#task createStructTask {
-#    input {
-#        String sampleName
-#        File inputBAM
-#        File inputBAMIndex
-#    }
-#
-#
-#    command <<<
-#    >>>
-#
-#    output {
-#        SampleBamAndIndex sampleBamAndIndex = object { 
-#            sample_name: sampleName, 
-#            bam: inputBAM, 
-#            bam_index: inputBAMIndex
-#        }
-#    }
-#
-#
-#    runtime {
-#        docker: "alpine:latest"
-#        disks: "local-disk 30 HDD"
-#        memory: "8 GiB"
-#        cpu: 1
-#    }
-#}
-
 
 workflow rnaseqcPlusFromBam {
 
@@ -54,6 +26,7 @@ workflow rnaseqcPlusFromBam {
         String dataType
         Array[File] inputBAM
         Array[File] inputBAMIndex
+        String chromosomesList # comma seprarated
         File referenceFasta
         File referenceGTF
         File ?referenceGTF_DB
@@ -74,15 +47,6 @@ workflow rnaseqcPlusFromBam {
         }
     }
 
-
-    #scatter(i in range(length(sampleName))) {
-    #    call createStructTask {
-    #        input:
-    #            sampleName = sampleName[i],
-    #            inputBAM = inputBAM[i],
-    #            inputBAMIndex = inputBAMIndex[i]
-    #    }
-    #}
 
     if (defined(referenceGTF_DB)) {
         String db_filename = basename(select_first([referenceGTF_DB]))
@@ -124,6 +88,7 @@ workflow rnaseqcPlusFromBam {
                 sampleName = sample.sample_name,
                 inputBAM = sample.bam,
                 inputBAMIndex = sample.bam_index,
+                chromosomesList = chromosomesList,
                 referenceGTF = referenceGTF,
                 referenceFasta = referenceFasta,
                 cagePeak = cagePeak,
@@ -144,6 +109,8 @@ workflow rnaseqcPlusFromBam {
         }
     }
 
+    # Here is where the plotting would happen
+
     output {
         # Array[SampleBamAndIndex] sampleBamAndIndex = createStructTask.sampleBamAndIndex
         Array[File] rnaseqc_gene_reads_gct = pacbioRnaseqc.rnaseqc_gene_reads_gct
@@ -152,10 +119,10 @@ workflow rnaseqcPlusFromBam {
         Array[File] rnaseqc_exon_reads_gct = pacbioRnaseqc.rnaseqc_exon_reads_gct
         Array[File] rnaseqc_exon_cv_tsv = pacbioRnaseqc.rnaseqc_exon_cv_tsv
         Array[File] rnaseqc_metrics_tsv = pacbioRnaseqc.rnaseqc_metrics_tsv
-        Array[Array[File]] sqantiOutputs = sqanti3FromBam.sqantiOutputs
         Array[File] sqantiClassificationTSV = sqanti3FromBam.sqantiClassificationTSV
         Array[File] sqantiJunctionsTSV = sqanti3FromBam.sqantiJunctionsTSV
-        # Array[File] sqantiReportPDF = sqanti3FromBam.sqantiReportPDF
+        Array[File] sqantiCorrectedFasta = sqanti3FromBam.sqantiCorrectedFasta
+        Array[File] sqantiCorrectedGTF = sqanti3FromBam.sqantiCorrectedGTF
         Array[Array[File]] isoquantOutputs = isoquantQuantify.isoquantOutputs
         Array[File] isoquantReadAssignmentsTSV = isoquantQuantify.readAssignmentsTSV
     }
