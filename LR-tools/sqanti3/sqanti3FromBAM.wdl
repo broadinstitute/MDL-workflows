@@ -1,12 +1,43 @@
 version 1.0
 
 
-task splitBAMPerChromosomeTask {
+# task splitBAMPerChromosomeTask {
+#     input {
+#         File inputBAM
+#         File inputBAMIndex
+#         String chromosomesList
+#         Int memoryGB = 16
+#         String outputType
+#         String docker
+#         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
+#     }
+# 
+#     command <<<
+#         bash ~{monitoringScript} > monitoring.log &
+#         
+#         mkdir -p split_dir
+#         split_bam_per_chromosome.sh ~{inputBAM} split_dir ~{outputType} ~{chromosomesList}
+#     >>>
+# 
+#     output {
+#         Array[File] chromosomeBAMs = glob("split_dir/*.*am")
+#         File monitoringLog = "monitoring.log"
+#     }
+# 
+#     runtime {
+#         cpu: 1
+#         memory: "~{memoryGB} GiB"
+#         disks: "local-disk " + ceil(size(inputBAM, "GB")*20 + 10) + " HDD"
+#         docker: docker
+#     }
+# }
+
+
+task splitGTFPerChromosomeTask {
     input {
-        File inputBAM
-        File inputBAMIndex
+        File inputGTF
+        String chromosomesList
         Int memoryGB = 16
-        String outputType
         String docker
         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
@@ -15,61 +46,62 @@ task splitBAMPerChromosomeTask {
         bash ~{monitoringScript} > monitoring.log &
         
         mkdir -p split_dir
-        split_bam_per_chromosome.sh ~{inputBAM} split_dir ~{outputType}
+        split_gtf_per_chromosome.sh ~{inputGTF} split_dir ~{chromosomesList}
     >>>
 
     output {
-        Array[File] chromosomeBAMs = glob("split_dir/*.*am")
+        Array[File] chromosomeGTFs = glob("split_dir/*.gtf")
         File monitoringLog = "monitoring.log"
     }
 
     runtime {
         cpu: 1
         memory: "~{memoryGB} GiB"
-        disks: "local-disk " + ceil(size(inputBAM, "GB")*20 + 10) + " HDD"
+        disks: "local-disk " + ceil(size(inputGTF, "GB")*2 + 10) + " HDD"
         docker: docker
     }
 }
 
 
-task backformatBAMTask {
-    input {
-        File inputBAM
-        String outputType = "sam"       # sam or bam
-        Int memoryGB = 16
-        # Int diskSizeGB
-        String docker
-        File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
-    }
-
-    command <<<
-        bash ~{monitoringScript} > monitoring.log &
-
-        baseBamName=$(basename ~{inputBAM} | sed 's/\(.*\)\..*/\1/')
-
-        reformat.sh \
-            in=~{inputBAM} \
-            out=${baseBamName}.backformatted.~{outputType} \
-            sam=1.3
-    >>>
-
-    output {
-        File backformatedBAM = select_first(glob("*.backformatted.~{outputType}"))
-        File monitoringLog = "monitoring.log"
-    }
-
-    runtime {
-        cpu: 1
-        memory: "~{memoryGB} GiB"
-        disks: "local-disk " + ceil(size(inputBAM, "GB")*10 + 10) + " HDD"
-        docker: docker
-    }
-}
+# task backformatBAMTask {
+#     input {
+#         File inputBAM
+#         String outputType = "sam"       # sam or bam
+#         Int memoryGB = 16
+#         # Int diskSizeGB
+#         String docker
+#         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
+#     }
+# 
+#     command <<<
+#         bash ~{monitoringScript} > monitoring.log &
+# 
+#         baseBamName=$(basename ~{inputBAM} | sed 's/\(.*\)\..*/\1/')
+# 
+#         reformat.sh \
+#             in=~{inputBAM} \
+#             out=${baseBamName}.backformatted.~{outputType} \
+#             sam=1.3
+#     >>>
+# 
+#     output {
+#         File backformatedBAM = select_first(glob("*.backformatted.~{outputType}"))
+#         File monitoringLog = "monitoring.log"
+#     }
+# 
+#     runtime {
+#         cpu: 1
+#         memory: "~{memoryGB} GiB"
+#         disks: "local-disk " + ceil(size(inputBAM, "GB")*10 + 10) + " HDD"
+#         docker: docker
+#     }
+# }
 
 
 task convertSAMtoGTF_CTATLRTask {
     input {
-        File inputSAM
+        File inputBAM
+        File inputBAMIndex
         Int memoryGB = 16
         Boolean allowNonPrimary
         # Int diskSizeGB
@@ -77,27 +109,32 @@ task convertSAMtoGTF_CTATLRTask {
         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
-    String alignmentGTF_name = basename("~{inputSAM}", ".sam")
+    String baseBamName = basename("~{inputBAM}", ".bam")
     String extra_arg = if allowNonPrimary then "--allow_non_primary" else ""
 
     command <<<
         bash ~{monitoringScript} > monitoring.log &
 
+        reformat.sh \
+            in=~{inputBAM} \
+            out=${baseBamName}.backformatted.sam \
+            sam=1.3
+
         SAM_to_gxf.pl --format gtf ~{extra_arg} \
-            --sam ~{inputSAM} \
+            --sam ${baseBamName}.backformatted.sam \
             > temp.sam_to_gxf
-        grep -P "[A-z0-1]" temp.sam_to_gxf > {alignmentGTF_name}.gtf
+        grep -P "[A-z0-1]" temp.sam_to_gxf > {baseBamName}.gtf
     >>>
 
     output {
-        File alignmentGTF = "~{alignmentGTF_name}"
+        File alignmentGTF = "~{baseBamName}"
         File monitoringLog = "monitoring.log"
     }
 
     runtime {
         cpu: 1
         memory: "~{memoryGB} GiB"
-        disks: "local-disk " + ceil(size(inputSAM, "GB")*3 + 10) + " HDD"
+        disks: "local-disk " + ceil(size(inputBAM, "GB")*3 + 10) + " HDD"
         docker: docker
     }
 }
@@ -105,9 +142,11 @@ task convertSAMtoGTF_CTATLRTask {
 
 task convertSAMtoGTF_cDNACupcakeTask {
     input {
-        File inputSAM
+        File inputBAM
+        File inputBAMIndex
         File referenceFasta
         Boolean correctFasta = false
+        Boolean allowNonPrimary = true
         Int memoryGB = 16
         # Int diskSizeGB
         String docker
@@ -115,36 +154,46 @@ task convertSAMtoGTF_cDNACupcakeTask {
     }
 
     String extra_arg = if correctFasta then "--fasta_correction" else ""
-    String alignmentGTF_name = basename("~{inputSAM}", ".sam")
+    String baseBamName = basename("~{inputBAM}", ".bam")
 
     command <<<
         bash ~{monitoringScript} > monitoring.log &
 
+        samtools view "$input_bam" > "$output_file"
+
         convert_SAM_to_GTF_for_SQANTI3.py \
-            --sam_file ~{inputSAM} \
-            --output_prefix ~{alignmentGTF_name} \
+            --sam_file ~{inputBAM} \
+            --output_prefix ~{baseBamName} \
             --reference_genome ~{referenceFasta} ~{extra_arg}
+
+        if ! ~{allowNonPrimary}; then
+            mv ~{baseBamName}.gtf tmp.gtf
+            grep -v "_dup" tmp.gtf > ~{baseBamName}.gtf
+        fi
     >>>
 
     output {
-        File alignmentGTF = "~{alignmentGTF_name}.gtf"
-        File? correctedFasta = "~{alignmentGTF_name}.corrected.fasta"
+        File alignmentGTF = "~{baseBamName}.gtf"
+        File? correctedFasta = "~{baseBamName}.corrected.fasta"
         File monitoringLog = "monitoring.log"
     }
 
     runtime {
         cpu: 1
         memory: "~{memoryGB} GiB"
-        disks: "local-disk " + ceil(size(inputSAM, "GB")*3 + 10) + " HDD"
+        disks: "local-disk " + ceil(size(inputBAM, "GB")*3 + 10) + " HDD"
         docker: docker
     }
 }
 
 
-task concatenateGTFsTask {
+task concatenateSqantiOutputsTask {
     input {
         String sampleName
-        Array[File] files
+        Array[File] classificationFiles
+        Array[File] junctionFiles
+        Array[File] correctedFastaFiles
+        Array[File] correctedGTFFiles
         Int memoryGB = 16
         # Int diskSizeGB
         String docker
@@ -154,11 +203,17 @@ task concatenateGTFsTask {
     command <<<
         bash ~{monitoringScript} > monitoring.log &
 
-        /scripts/concate_gtfs_and_tag_duplicates.py -o ~{sampleName}.gtf '~{sep="' '" files}'
+        cat '~{sep="' '" classificationFiles}' | gzip > ~{sampleName}_classification.tsv.gz
+        cat '~{sep="' '" junctionFiles}' | gzip > ~{sampleName}_junctions.tsv.gz
+        cat '~{sep="' '" correctedFastaFiles}' | gzip > ~{sampleName}_corrected.fasta.gz
+        cat '~{sep="' '" correctedGTFFiles}' | gzip > ~{sampleName}_corrected.gtf.gz
     >>>
 
     output {
-        File concatenatedGTF = "~{sampleName}.gtf"
+        File concatenatedClassification = "~{sampleName}_classification.tsv.gz"
+        File concatenatedJunctions = "~{sampleName}_junctions.tsv.gz"
+        File concatenatedCorrectedFasta = "~{sampleName}_corrected.fasta.gz"
+        File concatenatedCorrectedGTF = "~{sampleName}_corrected.gtf.gz"
         File monitoringLog = "monitoring.log"
     }
 
@@ -178,7 +233,6 @@ task sqantiTask {
         File referenceFasta
         File cagePeak
         File polyAMotifs
-        Int cpu
         Int memoryGB
         Int diskSizeGB
         String docker
@@ -191,7 +245,6 @@ task sqantiTask {
 
         sqanti3_qc.py \
             --report skip \
-            --chunks ~{cpu} \
             --dir sqanti_out_dir \
             --CAGE_peak ~{cagePeak} \
             --polyA_motif_list ~{polyAMotifs} \
@@ -202,19 +255,20 @@ task sqantiTask {
             ~{referenceGTF} \
             ~{referenceFasta}
 
-            find sqanti_out_dir/ -maxdepth 1 -type f ! -name "*.pdf" -exec gzip {} +
+            # find sqanti_out_dir/ -maxdepth 1 -type f ! -name "*.pdf" -exec gzip {} +
     >>>
 
     output {
         Array[File] sqantiOutputs = glob("sqanti_out_dir/*")
-        File sqantiClassificationTSV = select_first(glob("sqanti_out_dir/*_classification.txt.gz"))
-        File sqantiJunctionsTSV = select_first(glob("sqanti_out_dir/*_junctions.txt.gz"))
-        # File sqantiReportPDF = select_first(glob("sqanti_out_dir/*_SQANTI3_report.pdf"))
+        File sqantiClassificationTSV = select_first(glob("sqanti_out_dir/*_classification.txt"))
+        File sqantiJunctionsTSV = select_first(glob("sqanti_out_dir/*_junctions.txt"))
+        File sqantiCorrectedFasta = select_first(glob("sqanti_out_dir/*_corrected.fasta"))
+        File sqantiCorrectedGTF = select_first(glob("sqanti_out_dir/*_corrected.gtf"))
         File monitoringLog = "monitoring.log"
     }
 
     runtime {
-        cpu: cpu
+        cpu: 1
         memory: "~{memoryGB} GiB"
         disks: "local-disk ~{diskSizeGB} HDD"
         docker: docker
@@ -232,87 +286,84 @@ workflow sqanti3FromBam {
         String sampleName
         File inputBAM
         File inputBAMIndex
+        String chromosomesList # comma seprarated
         String conversionMethod = "cDNACupcake"
         File referenceGTF
         File referenceFasta
         File cagePeak
         File polyAMotifs
         Boolean allowNonPrimary = true
-        Int cpu = 8
-        Int memoryGB = 128
+        Int memoryGB = 32
         Int diskSizeGB = 256
     }
 
-    String docker = "us-east4-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:0da748835f3b95056aa4be3a831c57950a8587c67c17b214a95a53cc94dc3805"
+    String docker = "us-east4-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:b338322dac603ea6a73901603524ec522c39df90cb18b7eb7e1a92c359779c69"
 
-    String outputType = if (conversionMethod == "cDNACupcake") then "sam" else "bam" 
-    call splitBAMPerChromosomeTask {
+    if (conversionMethod == "CTAT-LR") {
+        call convertSAMtoGTF_CTATLRTask {
+            input:
+                inputBAM = inputBAM,
+                inputBAMIndex = inputBAMIndex,
+                # memoryGB = memoryGB,
+                allowNonPrimary = allowNonPrimary,
+                docker = docker
+        }
+    }
+
+    if (conversionMethod == "cDNACupcake") {
+        call convertSAMtoGTF_cDNACupcakeTask {
+            input:
+                inputBAM = inputBAM,
+                inputBAMIndex = inputBAMIndex,
+                referenceFasta = referenceFasta,
+                # memoryGB = memoryGB,
+                docker = docker
+        }
+    }
+
+    File convertedGTF = select_first([convertSAMtoGTF_CTATLRTask.alignmentGTF, convertSAMtoGTF_cDNACupcakeTask.alignmentGTF])
+    
+    call splitGTFPerChromosomeTask {
         input:
-            inputBAM = inputBAM,
-            inputBAMIndex = inputBAMIndex,
-            outputType = outputType,
+            inputGTF = convertedGTF,
+            chromosomesList = chromosomesList,
             # memoryGB = memoryGB,
             docker = docker
     }
 
-    
-    scatter(chromosomeBAM in splitBAMPerChromosomeTask.chromosomeBAMs) {
-        if (conversionMethod == "CTAT-LR") {
-            call backformatBAMTask {
-                input:
-                    inputBAM = chromosomeBAM,
-                    # memoryGB = memoryGB,
-                    docker = docker
-            }
 
-            call convertSAMtoGTF_CTATLRTask {
-                input:
-                    inputSAM = backformatBAMTask.backformatedBAM,
-                    # memoryGB = memoryGB,
-                    allowNonPrimary = allowNonPrimary,
-                    docker = docker
-            }
+    scatter(chromosomeGTF in splitGTFPerChromosomeTask.chromosomeGTFs) {
+        call sqantiTask {
+            input:
+                inputGTF = chromosomeGTF,
+                referenceGTF = referenceGTF,
+                referenceFasta = referenceFasta,
+                cagePeak = cagePeak,
+                polyAMotifs = polyAMotifs,
+                memoryGB = memoryGB,
+                diskSizeGB = diskSizeGB,
+                docker = docker
         }
-
-        if (conversionMethod == "cDNACupcake") {
-            call convertSAMtoGTF_cDNACupcakeTask {
-                input:
-                    inputSAM = chromosomeBAM,
-                    referenceFasta = referenceFasta,
-                    # memoryGB = memoryGB,
-                    docker = docker
-            }
-        }
-
-        File convertedGTF = select_first([convertSAMtoGTF_CTATLRTask.alignmentGTF, convertSAMtoGTF_cDNACupcakeTask.alignmentGTF])
     }
 
-    call concatenateGTFsTask {
+
+    call concatenateSqantiOutputsTask {
         input:
             sampleName = sampleName,
-            files = convertedGTF,
-            memoryGB = 16,
+            classificationFiles = sqantiTask.sqantiClassificationTSV,
+            junctionFiles = sqantiTask.sqantiJunctionsTSV,
+            correctedFastaFiles = sqantiTask.sqantiCorrectedFasta,
+            correctedGTFFiles = sqantiTask.sqantiCorrectedGTF,
+            memoryGB = 8,
             docker = docker
     }
 
-    call sqantiTask {
-        input:
-            inputGTF = concatenateGTFsTask.concatenatedGTF,
-            referenceGTF = referenceGTF,
-            referenceFasta = referenceFasta,
-            cagePeak = cagePeak,
-            polyAMotifs = polyAMotifs,
-            cpu = cpu,
-            memoryGB = memoryGB,
-            diskSizeGB = diskSizeGB,
-            docker = docker
-    }
 
     output {
-        Array[File] sqantiOutputs = sqantiTask.sqantiOutputs
-        File sqantiClassificationTSV = sqantiTask.sqantiClassificationTSV
-        File sqantiJunctionsTSV = sqantiTask.sqantiJunctionsTSV
-        # File sqantiReportPDF = sqantiTask.sqantiReportPDF
+        File sqantiClassificationTSV = concatenateSqantiOutputsTask.concatenatedClassification
+        File sqantiJunctionsTSV = concatenateSqantiOutputsTask.concatenatedJunctions
+        File sqantiCorrectedFasta = concatenateSqantiOutputsTask.concatenatedCorrectedFasta
+        File sqantiCorrectedGTF = concatenateSqantiOutputsTask.concatenatedCorrectedGTF
     }
 }
 
