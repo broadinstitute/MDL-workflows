@@ -159,10 +159,10 @@ task convertSAMtoGTF_cDNACupcakeTask {
     command <<<
         bash ~{monitoringScript} > monitoring.log &
 
-        samtools view "$input_bam" > "$output_file"
+        samtools view ~{inputBAM} > tmp.sam
 
         convert_SAM_to_GTF_for_SQANTI3.py \
-            --sam_file ~{inputBAM} \
+            --sam_file  tmp.sam \
             --output_prefix ~{baseBamName} \
             --reference_genome ~{referenceFasta} ~{extra_arg}
 
