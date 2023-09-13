@@ -297,7 +297,7 @@ workflow sqanti3FromBam {
         Int diskSizeGB = 256
     }
 
-    String docker = "us-east4-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:6bb25c5e9fa1f989ecdc1644d3e2ab07770ad83ad0824ec36d3cb6ffcad1f7c5"
+    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:6bb25c5e9fa1f989ecdc1644d3e2ab07770ad83ad0824ec36d3cb6ffcad1f7c5"
 
     if (conversionMethod == "CTAT-LR") {
         call convertSAMtoGTF_CTATLRTask {
