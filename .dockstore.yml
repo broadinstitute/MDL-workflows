@@ -15,10 +15,10 @@ workflows:
     primaryDescriptorPath: /LR-tools/LIQA/liqaQuantify.wdl
     authors:
       - orcid: 0000-0002-2603-1660
-  - name: pacbioRnaseqcFromBAM
+  - name: LongRNAqcFromBAM
     subclass: WDL
     primaryDescriptorPath: /LR-tools/rnaseqc/pacbioRnaseqcFromBAM.wdl
-  - name: LongRNAqc+FromBAM
+  - name: LongRNAqcPlusFromBAM
     subclass: WDL
     primaryDescriptorPath: /LR-tools/rnaseqc/pacbioRnaseqcPlusFromBAM.wdl
     authors:
