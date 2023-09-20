@@ -1,7 +1,7 @@
 version 1.0
 
 
-task rnaseqcTask {
+task LongRNAqcTask {
     input {
         String sampleName
         File collapsedReferenceGTF
@@ -55,7 +55,7 @@ task rnaseqcTask {
     }
 }
    
-workflow pacbioRnaseqc {
+workflow LongRNAqc {
 
     input {
         String sampleName
@@ -71,7 +71,7 @@ workflow pacbioRnaseqc {
         Float diskSpaceMultiplier = 3.0
     }
 
-    call rnaseqcTask {
+    call LongRNAqcTask {
         input:
            sampleName = sampleName,
            collapsedReferenceGTF = collapsedReferenceGTF,
@@ -88,12 +88,12 @@ workflow pacbioRnaseqc {
     }
 
     output {
-        File rnaseqc_gene_reads_gct = rnaseqcTask.rnaseqc_gene_reads_gct
-        File rnaseqc_gene_fragments_gct = rnaseqcTask.rnaseqc_gene_fragments_gct
-        File rnaseqc_gene_tpm_gct = rnaseqcTask.rnaseqc_gene_tpm_gct
-        File rnaseqc_exon_reads_gct = rnaseqcTask.rnaseqc_exon_reads_gct
-        File rnaseqc_exon_cv_tsv = rnaseqcTask.rnaseqc_exon_cv_tsv
-        File rnaseqc_metrics_tsv = rnaseqcTask.rnaseqc_metrics_tsv
+        File rnaseqc_gene_reads_gct = LongRNAqcTask.rnaseqc_gene_reads_gct
+        File rnaseqc_gene_fragments_gct = LongRNAqcTask.rnaseqc_gene_fragments_gct
+        File rnaseqc_gene_tpm_gct = LongRNAqcTask.rnaseqc_gene_tpm_gct
+        File rnaseqc_exon_reads_gct = LongRNAqcTask.rnaseqc_exon_reads_gct
+        File rnaseqc_exon_cv_tsv = LongRNAqcTask.rnaseqc_exon_cv_tsv
+        File rnaseqc_metrics_tsv = LongRNAqcTask.rnaseqc_metrics_tsv
     }
 }
  

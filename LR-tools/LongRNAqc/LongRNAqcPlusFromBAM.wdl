@@ -2,7 +2,7 @@ version 1.0
 
 
 import "../sqanti3/sqanti3FromBAM.wdl" as sqanti3FromBAMWorkflow
-import "pacbioRnaseqcFromBAM.wdl" as pacbioRnaseqcFromBAMWorkflow
+import "LongRNAqcFromBAM.wdl" as LongRNAqcFromBAMWorkflow
 import "../IsoQuant/IsoQuantMakeDB.wdl" as IsoQuantMakeDBWorkflow
 import "../IsoQuant/IsoQuantQuantify.wdl" as IsoQuantQuantifyWorkflow
 
@@ -75,7 +75,7 @@ workflow rnaseqcPlusFromBam {
 
     # scatter(sample in createStructTask.sampleBamAndIndex) {
     scatter(sample in sampleBamAndIndex) {
-        call pacbioRnaseqcFromBAMWorkflow.pacbioRnaseqc as pacbioRnaseqc {
+        call LongRNAqcFromBAMWorkflow.LongRNAqc as LongRNAqc {
             input:
                 sampleName = sample.sample_name,
                 inputBAM = sample.bam,
@@ -113,12 +113,12 @@ workflow rnaseqcPlusFromBam {
 
     output {
         # Array[SampleBamAndIndex] sampleBamAndIndex = createStructTask.sampleBamAndIndex
-        Array[File] rnaseqc_gene_reads_gct = pacbioRnaseqc.rnaseqc_gene_reads_gct
-        Array[File] rnaseqc_gene_fragments_gct = pacbioRnaseqc.rnaseqc_gene_fragments_gct
-        Array[File] rnaseqc_gene_tpm_gct = pacbioRnaseqc.rnaseqc_gene_tpm_gct
-        Array[File] rnaseqc_exon_reads_gct = pacbioRnaseqc.rnaseqc_exon_reads_gct
-        Array[File] rnaseqc_exon_cv_tsv = pacbioRnaseqc.rnaseqc_exon_cv_tsv
-        Array[File] rnaseqc_metrics_tsv = pacbioRnaseqc.rnaseqc_metrics_tsv
+        Array[File] rnaseqc_gene_reads_gct = LongRNAqc.rnaseqc_gene_reads_gct
+        Array[File] rnaseqc_gene_fragments_gct = LongRNAqc.rnaseqc_gene_fragments_gct
+        Array[File] rnaseqc_gene_tpm_gct = LongRNAqc.rnaseqc_gene_tpm_gct
+        Array[File] rnaseqc_exon_reads_gct = LongRNAqc.rnaseqc_exon_reads_gct
+        Array[File] rnaseqc_exon_cv_tsv = LongRNAqc.rnaseqc_exon_cv_tsv
+        Array[File] rnaseqc_metrics_tsv = LongRNAqc.rnaseqc_metrics_tsv
         Array[File] sqantiClassificationTSV = sqanti3FromBam.sqantiClassificationTSV
         Array[File] sqantiJunctionsTSV = sqanti3FromBam.sqantiJunctionsTSV
         Array[File] sqantiCorrectedFasta = sqanti3FromBam.sqantiCorrectedFasta
