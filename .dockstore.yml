@@ -18,7 +18,7 @@ workflows:
   - name: pacbioRnaseqcFromBAM
     subclass: WDL
     primaryDescriptorPath: /LR-tools/rnaseqc/pacbioRnaseqcFromBAM.wdl
-  - name: pacbioRnaseqcPlusFromBAM
+  - name: LongRNAqc+FromBAM
     subclass: WDL
     primaryDescriptorPath: /LR-tools/rnaseqc/pacbioRnaseqcPlusFromBAM.wdl
     authors:
