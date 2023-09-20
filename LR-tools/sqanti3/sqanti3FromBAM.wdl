@@ -248,7 +248,6 @@ task sqantiTask {
             --dir sqanti_out_dir \
             --CAGE_peak ~{cagePeak} \
             --polyA_motif_list ~{polyAMotifs} \
-            --skipORF \
             --window 20 \
             --isoform_hits \
             ~{inputGTF} \
