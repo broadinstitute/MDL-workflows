@@ -17,10 +17,10 @@ workflows:
       - orcid: 0000-0002-2603-1660
   - name: LongRNAqcFromBAM
     subclass: WDL
-    primaryDescriptorPath: /LR-tools/rnaseqc/pacbioRnaseqcFromBAM.wdl
+    primaryDescriptorPath: /LR-tools/LongRNAqc/LongRNAqcFromBAM.wdl
   - name: LongRNAqcPlusFromBAM
     subclass: WDL
-    primaryDescriptorPath: /LR-tools/rnaseqc/pacbioRnaseqcPlusFromBAM.wdl
+    primaryDescriptorPath: /LR-tools/LongRNAqc/LongRNAqcPlusFromBAM.wdl
     authors:
       - orcid: 0000-0002-2603-1660
   - name: Sqanti3FromBAM
