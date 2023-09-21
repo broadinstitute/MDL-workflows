@@ -67,7 +67,7 @@ task convertSAMtoGTF_CTATLRTask {
     runtime {
         cpu: 1
         memory: "~{memoryGB} GiB"
-        disks: "local-disk " + ceil(size(inputBAM, "GB")*12 + 10) + " HDD"
+        disks: "local-disk " + ceil(size(inputBAM, "GB")*20 + 10) + " HDD"
         docker: docker
     }
 }
@@ -80,7 +80,7 @@ task convertSAMtoGTF_cDNACupcakeTask {
         File referenceFasta
         Boolean correctFasta = false
         Boolean allowNonPrimary = true
-        Int memoryGB = 16
+        Int memoryGB = 32
         # Int diskSizeGB
         String docker
         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
@@ -114,7 +114,7 @@ task convertSAMtoGTF_cDNACupcakeTask {
     runtime {
         cpu: 1
         memory: "~{memoryGB} GiB"
-        disks: "local-disk " + ceil(size(inputBAM, "GB")*12 + 10) + " HDD"
+        disks: "local-disk " + ceil(size(inputBAM, "GB")*20 + 10) + " HDD"
         docker: docker
     }
 }
