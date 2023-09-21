@@ -1,38 +1,6 @@
 version 1.0
 
 
-# task splitBAMPerChromosomeTask {
-#     input {
-#         File inputBAM
-#         File inputBAMIndex
-#         String chromosomesList
-#         Int memoryGB = 16
-#         String outputType
-#         String docker
-#         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
-#     }
-# 
-#     command <<<
-#         bash ~{monitoringScript} > monitoring.log &
-#         
-#         mkdir -p split_dir
-#         split_bam_per_chromosome.sh ~{inputBAM} split_dir ~{outputType} ~{chromosomesList}
-#     >>>
-# 
-#     output {
-#         Array[File] chromosomeBAMs = glob("split_dir/*.*am")
-#         File monitoringLog = "monitoring.log"
-#     }
-# 
-#     runtime {
-#         cpu: 1
-#         memory: "~{memoryGB} GiB"
-#         disks: "local-disk " + ceil(size(inputBAM, "GB")*20 + 10) + " HDD"
-#         docker: docker
-#     }
-# }
-
-
 task splitGTFPerChromosomeTask {
     input {
         File inputGTF
@@ -61,41 +29,6 @@ task splitGTFPerChromosomeTask {
         docker: docker
     }
 }
-
-
-# task backformatBAMTask {
-#     input {
-#         File inputBAM
-#         String outputType = "sam"       # sam or bam
-#         Int memoryGB = 16
-#         # Int diskSizeGB
-#         String docker
-#         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
-#     }
-# 
-#     command <<<
-#         bash ~{monitoringScript} > monitoring.log &
-# 
-#         baseBamName=$(basename ~{inputBAM} | sed 's/\(.*\)\..*/\1/')
-# 
-#         reformat.sh \
-#             in=~{inputBAM} \
-#             out=${baseBamName}.backformatted.~{outputType} \
-#             sam=1.3
-#     >>>
-# 
-#     output {
-#         File backformatedBAM = select_first(glob("*.backformatted.~{outputType}"))
-#         File monitoringLog = "monitoring.log"
-#     }
-# 
-#     runtime {
-#         cpu: 1
-#         memory: "~{memoryGB} GiB"
-#         disks: "local-disk " + ceil(size(inputBAM, "GB")*10 + 10) + " HDD"
-#         docker: docker
-#     }
-# }
 
 
 task convertSAMtoGTF_CTATLRTask {
@@ -134,7 +67,7 @@ task convertSAMtoGTF_CTATLRTask {
     runtime {
         cpu: 1
         memory: "~{memoryGB} GiB"
-        disks: "local-disk " + ceil(size(inputBAM, "GB")*3 + 10) + " HDD"
+        disks: "local-disk " + ceil(size(inputBAM, "GB")*12 + 10) + " HDD"
         docker: docker
     }
 }
@@ -181,7 +114,7 @@ task convertSAMtoGTF_cDNACupcakeTask {
     runtime {
         cpu: 1
         memory: "~{memoryGB} GiB"
-        disks: "local-disk " + ceil(size(inputBAM, "GB")*3 + 10) + " HDD"
+        disks: "local-disk " + ceil(size(inputBAM, "GB")*12 + 10) + " HDD"
         docker: docker
     }
 }
@@ -220,7 +153,7 @@ task concatenateSqantiOutputsTask {
     runtime {
         cpu: 1
         memory: "~{memoryGB} GiB"
-        disks: "local-disk 100 HDD"
+        disks: "local-disk 500 HDD"
         docker: docker
     }
 }

@@ -15,7 +15,7 @@ struct SampleBamAndIndex {
 
 
 
-workflow rnaseqcPlusFromBam {
+workflow LongRNAqcPlusFromBam {
 
     meta {
         description: "Using a BAM as input, run the pacbio adapted version of rnaseqc, Sqanti3, and IsoQuant."
