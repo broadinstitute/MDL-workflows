@@ -86,7 +86,8 @@ task convertSAMtoGTF_cDNACupcakeTask {
         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
-    String extra_arg = if correctFasta then "--fasta_correction" else ""
+    String extra_arg = if allowNonPrimary then "--allow_non_primary" else ""
+    String extra_arg2 = if correctFasta then "--fasta_correction" else ""
     String baseBamName = basename("~{inputBAM}", ".bam")
 
     command <<<
@@ -97,12 +98,8 @@ task convertSAMtoGTF_cDNACupcakeTask {
         convert_SAM_to_GTF_for_SQANTI3.py \
             --sam_file  tmp.sam \
             --output_prefix ~{baseBamName} \
-            --reference_genome ~{referenceFasta} ~{extra_arg}
+            --reference_genome ~{referenceFasta} ~{extra_arg} ~{extra_arg2}
 
-        if ! ~{allowNonPrimary}; then
-            mv ~{baseBamName}.gtf tmp.gtf
-            grep -v "_dup" tmp.gtf > ~{baseBamName}.gtf
-        fi
     >>>
 
     output {
@@ -114,7 +111,7 @@ task convertSAMtoGTF_cDNACupcakeTask {
     runtime {
         cpu: 1
         memory: "~{memoryGB} GiB"
-        disks: "local-disk " + ceil(size(inputBAM, "GB")*20 + 10) + " HDD"
+        disks: "local-disk " + ceil(size(inputBAM, "GB")*30 + 10) + " SSD"
         docker: docker
     }
 }
@@ -229,7 +226,7 @@ workflow sqanti3FromBam {
         Int diskSizeGB = 256
     }
 
-    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:6bb25c5e9fa1f989ecdc1644d3e2ab07770ad83ad0824ec36d3cb6ffcad1f7c5"
+    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:a7f116572bc67f5c80165ab90b9baea0cb284d3a0b1b7196601784c781108d92"
 
     if (conversionMethod == "CTAT-LR") {
         call convertSAMtoGTF_CTATLRTask {
