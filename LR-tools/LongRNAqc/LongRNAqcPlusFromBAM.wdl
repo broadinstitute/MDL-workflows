@@ -36,6 +36,7 @@ workflow LongRNAqcPlusFromBam {
         String BAMToGTFConversionMethod
         Boolean allowNonPrimary
         Int cpu = 4
+        Int preemptible_tries = 3
 
     }
 
@@ -56,7 +57,8 @@ workflow LongRNAqcPlusFromBam {
             call IsoQuantMakeDBWorkflow.isoquantMakeGeneDB as isoquantMakeGeneDB_fromDB {
                 input:
                     gtfToDB = select_first([referenceGTF_DB]),
-                    isCompleteGeneDB = false
+                    isCompleteGeneDB = false,
+                    preemptible_tries = preemptible_tries
             }
         }
         #if (sub(db_filename, "gtf", "") == db_filename) {
@@ -67,7 +69,8 @@ workflow LongRNAqcPlusFromBam {
         call IsoQuantMakeDBWorkflow.isoquantMakeGeneDB as isoquantMakeGeneDB_fromRef {
             input:
                 gtfToDB = referenceGTF,
-                isCompleteGeneDB = true
+                isCompleteGeneDB = true,
+                preemptible_tries = preemptible_tries
         }
     }
 
@@ -80,7 +83,8 @@ workflow LongRNAqcPlusFromBam {
                 sampleName = sample.sample_name,
                 inputBAM = sample.bam,
                 inputBAMIndex = sample.bam_index,
-                collapsedReferenceGTF = collapsedReferenceGTF
+                collapsedReferenceGTF = collapsedReferenceGTF,
+                maxRetries = preemptible_tries
         }
 
         call sqanti3FromBAMWorkflow.sqanti3FromBam as sqanti3FromBam {
@@ -94,7 +98,8 @@ workflow LongRNAqcPlusFromBam {
                 cagePeak = cagePeak,
                 polyAMotifs = polyAMotifs,
                 conversionMethod = BAMToGTFConversionMethod,
-                allowNonPrimary = allowNonPrimary
+                allowNonPrimary = allowNonPrimary,
+                preemptible_tries = preemptible_tries
         }
 
         call IsoQuantQuantifyWorkflow.isoquantQuantify as isoquantQuantify {
@@ -105,7 +110,8 @@ workflow LongRNAqcPlusFromBam {
                 referenceFasta = referenceFasta,
                 geneDB = isoquantDB,
                 dataType = dataType,
-                noModelConstruction = true
+                noModelConstruction = true,
+                preemptible_tries = preemptible_tries
         }
     }
 

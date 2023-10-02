@@ -9,6 +9,7 @@ task isoquantMakeGeneDBTask {
         Int memoryGB = 16
         Int diskSizeGB = 50
         String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-isoquant/lrtools-isoquant-plus@sha256:bbad9d6cb47bcaa6de76c04d425bd3815d7f4b12f5679dac2eb894aa4ee3f81f"
+        Int preemptible_tries
         # File monitoringScript = "gs://broad-dsde-methods-tbrookin/cromwell_monitoring_script2.sh"
     }
 
@@ -31,6 +32,8 @@ task isoquantMakeGeneDBTask {
         memory: "~{memoryGB} GiB"
         disks: "local-disk ~{diskSizeGB} HDD"
         docker: docker
+        preemptible: preemptible_tries
+
     }
 }
 
@@ -43,12 +46,14 @@ workflow isoquantMakeGeneDB {
     input {
         File gtfToDB
         Boolean isCompleteGeneDB = false
+        Int preemptible_tries = 3
     }
 
     call isoquantMakeGeneDBTask {
         input:
             gtfToDB = gtfToDB,
             isCompleteGeneDB = isCompleteGeneDB,
+            preemptible_tries = preemptible_tries
     }
 
     output {

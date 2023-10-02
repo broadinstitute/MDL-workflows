@@ -15,6 +15,7 @@ task isoquantQuantifyTask {
         Int memoryGB = 128
         Int diskSizeGB = 500
         String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-isoquant/lrtools-isoquant-plus@sha256:bbad9d6cb47bcaa6de76c04d425bd3815d7f4b12f5679dac2eb894aa4ee3f81f"
+        Int preemptible_tries
         # File monitoringScript = "gs://broad-dsde-methods-tbrookin/cromwell_monitoring_script2.sh"
     }
 
@@ -49,6 +50,7 @@ task isoquantQuantifyTask {
         memory: "~{memoryGB} GiB"
         disks: "local-disk ~{diskSizeGB} HDD"
         docker: docker
+        preemptible: preemptible_tries
     }
 }
 
@@ -66,6 +68,7 @@ workflow isoquantQuantify {
         File geneDB
         String dataType = "pacbio_ccs"
         Boolean noModelConstruction = false
+        Int preemptible_tries = 3
     }
 
     call isoquantQuantifyTask {
@@ -76,7 +79,8 @@ workflow isoquantQuantify {
             geneDB = geneDB,
             referenceFasta = referenceFasta,
             dataType = dataType,
-            noModelConstruction = noModelConstruction
+            noModelConstruction = noModelConstruction,
+            preemptible_tries = preemptible_tries
     }
 
     output {

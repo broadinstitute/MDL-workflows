@@ -7,6 +7,7 @@ task splitGTFPerChromosomeTask {
         String chromosomesList
         Int memoryGB = 16
         String docker
+        Int preemptible_tries
         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
@@ -27,6 +28,7 @@ task splitGTFPerChromosomeTask {
         memory: "~{memoryGB} GiB"
         disks: "local-disk " + ceil(size(inputGTF, "GB")*2 + 10) + " HDD"
         docker: docker
+        preemptible: preemptible_tries
     }
 }
 
@@ -39,6 +41,7 @@ task convertSAMtoGTF_CTATLRTask {
         Boolean allowNonPrimary
         # Int diskSizeGB
         String docker
+        Int preemptible_tries
         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
@@ -69,6 +72,7 @@ task convertSAMtoGTF_CTATLRTask {
         memory: "~{memoryGB} GiB"
         disks: "local-disk " + ceil(size(inputBAM, "GB")*20 + 10) + " HDD"
         docker: docker
+        preemptible: preemptible_tries
     }
 }
 
@@ -80,9 +84,10 @@ task convertSAMtoGTF_cDNACupcakeTask {
         File referenceFasta
         Boolean correctFasta = false
         Boolean allowNonPrimary = true
-        Int memoryGB = 32
+        Int memoryGB = 4
         # Int diskSizeGB
         String docker
+        Int preemptible_tries
         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
@@ -113,6 +118,7 @@ task convertSAMtoGTF_cDNACupcakeTask {
         memory: "~{memoryGB} GiB"
         disks: "local-disk " + ceil(size(inputBAM, "GB")*30 + 10) + " SSD"
         docker: docker
+        preemptible: preemptible_tries
     }
 }
 
@@ -124,17 +130,20 @@ task concatenateSqantiOutputsTask {
         Array[File] junctionFiles
         Array[File] correctedFastaFiles
         Array[File] correctedGTFFiles
-        Int memoryGB = 16
+        Int memoryGB = 4
         # Int diskSizeGB
         String docker
+        Int preemptible_tries
         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
     command <<<
         bash ~{monitoringScript} > monitoring.log &
 
-        cat '~{sep="' '" classificationFiles}' | gzip > ~{sampleName}_classification.tsv.gz
-        cat '~{sep="' '" junctionFiles}' | gzip > ~{sampleName}_junctions.tsv.gz
+        gunzip -c '~{sep="' '" classificationFiles}' | head -1 > ~{sampleName}_classification.tsv.gz
+        gunzip -c '~{sep="' '" classificationFiles}' | grep -v "^isoform" | gzip >> ~{sampleName}_classification.tsv.gz
+        gunzip -c '~{sep="' '" junctionFiles}' | head -1 > ~{sampleName}_junctions.tsv.gz
+        gunzip -c '~{sep="' '" junctionFiles}' | grep -v "^isoform" | gzip >> ~{sampleName}_junctions.tsv.gz
         cat '~{sep="' '" correctedFastaFiles}' | gzip > ~{sampleName}_corrected.fasta.gz
         cat '~{sep="' '" correctedGTFFiles}' | gzip > ~{sampleName}_corrected.gtf.gz
     >>>
@@ -152,6 +161,7 @@ task concatenateSqantiOutputsTask {
         memory: "~{memoryGB} GiB"
         disks: "local-disk 500 HDD"
         docker: docker
+        preemptible: preemptible_tries
     }
 }
 
@@ -163,12 +173,14 @@ task sqantiTask {
         File referenceFasta
         File cagePeak
         File polyAMotifs
-        Int memoryGB
+        Int ?memoryGB
         Int diskSizeGB
         String docker
+        Int preemptible_tries
         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
+    Int estimated_memory = ceil(size(inputGTF, "MB")*0.07 + 8)
 
     command <<<
         bash ~{monitoringScript} > monitoring.log &
@@ -185,23 +197,24 @@ task sqantiTask {
             ~{referenceGTF} \
             ~{referenceFasta}
 
-            # find sqanti_out_dir/ -maxdepth 1 -type f ! -name "*.pdf" -exec gzip {} +
+            find sqanti_out_dir/ -maxdepth 1 -type f ! -name "*.pdf" -exec gzip {} +
     >>>
 
     output {
         Array[File] sqantiOutputs = glob("sqanti_out_dir/*")
-        File sqantiClassificationTSV = select_first(glob("sqanti_out_dir/*_classification.txt"))
-        File sqantiJunctionsTSV = select_first(glob("sqanti_out_dir/*_junctions.txt"))
-        File sqantiCorrectedFasta = select_first(glob("sqanti_out_dir/*_corrected.fasta"))
-        File sqantiCorrectedGTF = select_first(glob("sqanti_out_dir/*_corrected.gtf"))
+        File sqantiClassificationTSV = select_first(glob("sqanti_out_dir/*_classification.txt.gz"))
+        File sqantiJunctionsTSV = select_first(glob("sqanti_out_dir/*_junctions.txt.gz"))
+        File sqantiCorrectedFasta = select_first(glob("sqanti_out_dir/*_corrected.fasta.gz"))
+        File sqantiCorrectedGTF = select_first(glob("sqanti_out_dir/*_corrected.gtf.gz"))
         File monitoringLog = "monitoring.log"
     }
 
     runtime {
         cpu: 1
-        memory: "~{memoryGB} GiB"
+        memory: if defined(memoryGB) then "~{memoryGB} GiB" else "~{estimated_memory} GiB"
         disks: "local-disk ~{diskSizeGB} HDD"
         docker: docker
+        preemptible: preemptible_tries
     }
 }
 
@@ -223,11 +236,12 @@ workflow sqanti3FromBam {
         File cagePeak
         File polyAMotifs
         Boolean allowNonPrimary = true
-        Int memoryGB = 32
+        Int ?memoryGB
         Int diskSizeGB = 256
+        Int preemptible_tries = 3
     }
 
-    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:a7f116572bc67f5c80165ab90b9baea0cb284d3a0b1b7196601784c781108d92"
+    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:62e628a65f5285681b1991de0e521c1ce20823ccb82147c70c77619bda239019"
 
     if (conversionMethod == "CTAT-LR") {
         call convertSAMtoGTF_CTATLRTask {
@@ -236,7 +250,8 @@ workflow sqanti3FromBam {
                 inputBAMIndex = inputBAMIndex,
                 # memoryGB = memoryGB,
                 allowNonPrimary = allowNonPrimary,
-                docker = docker
+                docker = docker,
+                preemptible_tries = preemptible_tries
         }
     }
 
@@ -247,7 +262,8 @@ workflow sqanti3FromBam {
                 inputBAMIndex = inputBAMIndex,
                 referenceFasta = referenceFasta,
                 # memoryGB = memoryGB,
-                docker = docker
+                docker = docker,
+                preemptible_tries = preemptible_tries
         }
     }
 
@@ -258,7 +274,8 @@ workflow sqanti3FromBam {
             inputGTF = convertedGTF,
             chromosomesList = chromosomesList,
             # memoryGB = memoryGB,
-            docker = docker
+            docker = docker,
+            preemptible_tries = preemptible_tries
     }
 
 
@@ -272,7 +289,8 @@ workflow sqanti3FromBam {
                 polyAMotifs = polyAMotifs,
                 memoryGB = memoryGB,
                 diskSizeGB = diskSizeGB,
-                docker = docker
+                docker = docker,
+                preemptible_tries = preemptible_tries
         }
     }
 
@@ -284,8 +302,9 @@ workflow sqanti3FromBam {
             junctionFiles = sqantiTask.sqantiJunctionsTSV,
             correctedFastaFiles = sqantiTask.sqantiCorrectedFasta,
             correctedGTFFiles = sqantiTask.sqantiCorrectedGTF,
-            memoryGB = 8,
-            docker = docker
+            memoryGB = 4,
+            docker = docker,
+            preemptible_tries = preemptible_tries
     }
 
 
