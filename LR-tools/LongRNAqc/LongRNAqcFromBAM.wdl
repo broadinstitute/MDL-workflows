@@ -14,12 +14,15 @@ task LongRNAqcTask {
         Int preemptible
         Int maxRetries
         Float diskSpaceMultiplier
+        File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
 
     Int disk_space = ceil( (size(inputBAM, "GB") + size(collapsedReferenceGTF, "GB") ) * diskSpaceMultiplier)
 
     command <<<
+        bash ~{monitoringScript} > monitoring.log &
+
         ln -s ~{inputBAM} ~{sampleName}.bam
         ln -s ~{inputBAMIndex} ~{sampleName}.bam.bai
 
@@ -43,6 +46,7 @@ task LongRNAqcTask {
         File rnaseqc_exon_reads_gct = "~{sampleName}.rnaseqc.exon_reads.gct.gz"
         File rnaseqc_exon_cv_tsv = "~{sampleName}.rnaseqc.exon_cv.tsv.gz"
         File rnaseqc_metrics_tsv = "~{sampleName}.rnaseqc.metrics.tsv.gz"
+        File monitoringLog = "monitoring.log"
     }
 
     runtime {

@@ -16,13 +16,15 @@ task isoquantQuantifyTask {
         Int diskSizeGB = 500
         String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-isoquant/lrtools-isoquant-plus@sha256:bbad9d6cb47bcaa6de76c04d425bd3815d7f4b12f5679dac2eb894aa4ee3f81f"
         Int preemptible_tries
-        # File monitoringScript = "gs://broad-dsde-methods-tbrookin/cromwell_monitoring_script2.sh"
+        File monitoringScript = "gs://broad-dsde-methods-tbrookin/cromwell_monitoring_script2.sh"
     }
 
     # String file_name = basename("~{inputBAM}", ".bam")
     String extra_args = if noModelConstruction then "--no_model_construction" else ""
 
     command <<<
+        bash ~{monitoringScript} > monitoring.log &
+
         /usr/local/src/IsoQuant-3.3.1/isoquant.py \
             --reference ~{referenceFasta} \
             --genedb ~{geneDB} \
@@ -42,7 +44,7 @@ task isoquantQuantifyTask {
     output {
         Array[File] isoquantOutputs = glob("isoquant_output/~{sampleName}/*.gz")
         File readAssignmentsTSV = select_first(glob("isoquant_output/~{sampleName}/*.read_assignments.tsv.gz"))
-        # File monitoringLog = "monitoring.log"
+        File monitoringLog = "monitoring.log"
     }
 
     runtime {
