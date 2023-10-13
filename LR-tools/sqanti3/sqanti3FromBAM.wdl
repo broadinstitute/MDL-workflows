@@ -140,12 +140,14 @@ task concatenateSqantiOutputsTask {
     command <<<
         bash ~{monitoringScript} > monitoring.log &
 
-        gunzip -c '~{sep="' '" classificationFiles}' | head -1 > ~{sampleName}_classification.tsv.gz
-        gunzip -c '~{sep="' '" classificationFiles}' | grep -v "^isoform" | gzip >> ~{sampleName}_classification.tsv.gz
+        gunzip -c '~{sep="' '" classificationFiles}' | head -1 > ~{sampleName}_classification.tsv
+        gunzip -c '~{sep="' '" classificationFiles}' | grep -v "^isoform" >> ~{sampleName}_classification.tsv
+        gzip ~{sampleName}_classification.tsv
         gunzip -c '~{sep="' '" junctionFiles}' | head -1 > ~{sampleName}_junctions.tsv.gz
-        gunzip -c '~{sep="' '" junctionFiles}' | grep -v "^isoform" | gzip >> ~{sampleName}_junctions.tsv.gz
-        cat '~{sep="' '" correctedFastaFiles}' | gzip > ~{sampleName}_corrected.fasta.gz
-        cat '~{sep="' '" correctedGTFFiles}' | gzip > ~{sampleName}_corrected.gtf.gz
+        gunzip -c '~{sep="' '" junctionFiles}' | grep -v "^isoform" >> ~{sampleName}_junctions.tsv
+        gzip ~{sampleName}_junctions.tsv
+        gunzip -c '~{sep="' '" correctedFastaFiles}' | gzip > ~{sampleName}_corrected.fasta.gz
+        gunzip -c '~{sep="' '" correctedGTFFiles}' | gzip > ~{sampleName}_corrected.gtf.gz
     >>>
 
     output {
@@ -241,7 +243,7 @@ workflow sqanti3FromBam {
         Int preemptible_tries = 3
     }
 
-    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:62e628a65f5285681b1991de0e521c1ce20823ccb82147c70c77619bda239019"
+    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:645158994470dcc4657069906ea8ea086e892751d6d5abab3e45aeccbebb648a"
 
     if (conversionMethod == "CTAT-LR") {
         call convertSAMtoGTF_CTATLRTask {
