@@ -41,6 +41,10 @@ task Minimap2Task {
 }
 
 workflow Minimap2_LR {
+    meta {
+        description: "Run Minimap2 from an unaligned BAM of PacBio long reads to generate an aligned sorted BAM and BAM index."
+    }
+
     input {
         File inputBAM
         File referenceGenome
