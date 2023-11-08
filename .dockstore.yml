@@ -23,6 +23,11 @@ workflows:
     primaryDescriptorPath: /LR-tools/LongRNAqc/LongRNAqcPlusFromBAM.wdl
     authors:
       - orcid: 0000-0002-2603-1660
+  - name: Minimap2_LR
+    subclass: WDL
+    primaryDescriptorPath: /LR-tools/minimap2_LR/minimap2_LR.wdl
+    authors:
+      - orcid: 0000-0002-2603-1660
   - name: Sqanti3FromBAM
     subclass: WDL
     primaryDescriptorPath: /LR-tools/sqanti3/sqanti3FromBAM.wdl
