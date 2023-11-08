@@ -48,7 +48,6 @@ workflow Minimap2_LR {
     input {
         File inputBAM
         File referenceGenome
-        File referenceGenomeIndex
         File juncBED
         String sampleName
         Int preemptible_tries = 3
