@@ -21,8 +21,8 @@ task Minimap2Task {
 
         minimap2 --sam-hit-only -ax splice:hq -uf --junc-bed ~{juncBED} --secondary=no -t ~{cpu}  -G 1000 ~{referenceGenome} temp.fastq > temp.sam
 
-        samtools sort temp.sam > ~{sampleName}.aligned.sorted.bam
-        samtools index ~{sampleName}.aligned.sorted.bam
+        samtools sort -@ ~{cpu} temp.sam > ~{sampleName}.aligned.sorted.bam
+        samtools index -@ ~{cpu} ~{sampleName}.aligned.sorted.bam
     >>>
 
     output {
@@ -34,7 +34,7 @@ task Minimap2Task {
     runtime {
         cpu: cpu
         memory: "~{memoryGB} GiB"
-        disks: "local-disk ~{diskSizeGB} HDD"
+        disks: "local-disk ~{diskSizeGB} SSD"
         docker: docker
         preemptible: preemptible_tries
     }
