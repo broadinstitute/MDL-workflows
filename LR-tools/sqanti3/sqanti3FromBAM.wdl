@@ -5,7 +5,7 @@ task splitGTFPerChromosomeTask {
     input {
         File inputGTF
         String chromosomesList
-        Int memoryGB = 16
+        Int memoryGB = 2
         String docker
         Int preemptible_tries
         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
@@ -26,7 +26,7 @@ task splitGTFPerChromosomeTask {
     runtime {
         cpu: 1
         memory: "~{memoryGB} GiB"
-        disks: "local-disk " + ceil(size(inputGTF, "GB")*2 + 10) + " HDD"
+        disks: "local-disk " + ceil(size(inputGTF, "GB")*2 + 10) + " SSD"
         docker: docker
         preemptible: preemptible_tries
     }
@@ -182,7 +182,7 @@ task sqantiTask {
         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
-    Int estimated_memory = ceil(size(inputGTF, "MB")*0.007 + 8)
+    Int estimated_memory = ceil(size(inputGTF, "MB")*0.007 + 10)
 
     command <<<
         bash ~{monitoringScript} > monitoring.log &
