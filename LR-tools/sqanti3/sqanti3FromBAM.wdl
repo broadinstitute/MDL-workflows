@@ -143,7 +143,7 @@ task concatenateSqantiOutputsTask {
         gunzip -c '~{sep="' '" classificationFiles}' | head -1 > ~{sampleName}_classification.tsv
         gunzip -c '~{sep="' '" classificationFiles}' | grep -v "^isoform" >> ~{sampleName}_classification.tsv
         gzip ~{sampleName}_classification.tsv
-        gunzip -c '~{sep="' '" junctionFiles}' | head -1 > ~{sampleName}_junctions.tsv.gz
+        gunzip -c '~{sep="' '" junctionFiles}' | head -1 > ~{sampleName}_junctions.tsv
         gunzip -c '~{sep="' '" junctionFiles}' | grep -v "^isoform" >> ~{sampleName}_junctions.tsv
         gzip ~{sampleName}_junctions.tsv
         gunzip -c '~{sep="' '" correctedFastaFiles}' | gzip > ~{sampleName}_corrected.fasta.gz
