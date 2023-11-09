@@ -16,7 +16,7 @@ task isoquantQuantifyTask {
         Int diskSizeGB = 500
         String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-isoquant/lrtools-isoquant-plus@sha256:bbad9d6cb47bcaa6de76c04d425bd3815d7f4b12f5679dac2eb894aa4ee3f81f"
         Int preemptible_tries
-        File monitoringScript = "gs://broad-dsde-methods-tbrookin/cromwell_monitoring_script2.sh"
+        File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
     # String file_name = basename("~{inputBAM}", ".bam")

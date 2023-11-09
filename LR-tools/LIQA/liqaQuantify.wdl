@@ -12,7 +12,7 @@ task run_liqa_quantify {
         Int memoryGB = 128
         Int diskSizeGB = 500
         String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-liqa/lrtools-liqa@sha256:c0fb62e176893bb30d63c43bd9d108a3d6e3c8a24c3ba5c0110b4d4ff2b73476"
-        File monitoringScript = "gs://broad-dsde-methods-tbrookin/cromwell_monitoring_script2.sh"
+        File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
     String file_name = basename("~{inputBAM}", ".bam")
