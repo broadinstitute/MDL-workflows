@@ -6,6 +6,8 @@ task Minimap2Task {
         File juncBED
         File referenceGenome
         String sampleName
+        Boolean keepUnmapped = true
+        Boolean allowSecondary = true
         Int cpu = 8
         Int memoryGB = 32
         Int diskSizeGB = 200
@@ -14,12 +16,15 @@ task Minimap2Task {
         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
+    String extra_arg = if allowSecondary then "" else "--secondary=no"
+    String extra_arg2 = if keepUnmapped then "" else "--sam-hit-only"
+
     command <<<
         bash ~{monitoringScript} > monitoring.log &
 
         samtools fastq ~{inputBAM} > temp.fastq
 
-        minimap2 --sam-hit-only -ax splice:hq -uf --junc-bed ~{juncBED} --secondary=no -t ~{cpu}  -G 1000 ~{referenceGenome} temp.fastq > temp.sam
+        minimap2 ~{extra_arg2} -ax splice:hq -uf --junc-bed ~{juncBED} ~{extra_arg} -t ~{cpu}  -G 1000 ~{referenceGenome} temp.fastq > temp.sam
 
         samtools sort -@ ~{cpu} temp.sam > ~{sampleName}.aligned.sorted.bam
         samtools index -@ ~{cpu} ~{sampleName}.aligned.sorted.bam
@@ -50,6 +55,8 @@ workflow Minimap2_LR {
         File referenceGenome
         File juncBED
         String sampleName
+        Boolean keepUnmapped = true
+        Boolean allowSecondary = true
         Int preemptible_tries = 3
     }
 
@@ -59,6 +66,8 @@ workflow Minimap2_LR {
             juncBED = juncBED,
             referenceGenome = referenceGenome,
             sampleName = sampleName,
+            keepUnmapped = keepUnmapped,
+            allowSecondary = allowSecondary,
             preemptible_tries = preemptible_tries
     }
 
