@@ -4,13 +4,15 @@ version 1.0
 task stringtie_merge {
     input {
         Array[File] gtf_assemblies
-        File reference_annotation
+        File ?reference_annotation
         Int cpu
         Int memoryGB
         Int numThreads
         Int diskSizeGB
         String docker
     }
+
+    String ref_annotation_arg = if defined(reference_annotation) then "-G ~{reference_annotation}" else ""
 
     command <<<
         echo output_assemblies > assembly_GTF_list.txt
@@ -20,8 +22,7 @@ task stringtie_merge {
             -p ~{numThreads} \
             -i \
             -o stringtie_merged.gtf \
-            -G ~{reference_annotation} \
-            '~{sep="' '" gtf_assemblies}'
+            ~{ref_annotation_arg} '~{sep="' '" gtf_assemblies}'
     >>>
 
     output {
@@ -82,7 +83,7 @@ workflow stringtie_merge {
     }
 
     input {
-        File reference_annotation       # this.samples.reference_annotation or any of them, which should all be the same, ideally as a workspace.referenceData_mm38_ field
+        File ?reference_annotation       # this.samples.reference_annotation or any of them, which should all be the same, ideally as a workspace.referenceData_mm38_ field
         Array[String] sample_names      # this.samples.sample_id
         Array[File] gtf_assemblies      # this.samples.stringTieGTF
         Array[File] bam_alignments      # this.samples.input_bam
