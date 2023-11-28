@@ -182,7 +182,7 @@ task sqantiTask {
         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
 
-    Int estimated_memory = ceil(size(inputGTF, "MB")*0.013 + 6)
+    Int estimated_memory = ceil(size(inputGTF, "MB")*0.013 + 8)
 
     command <<<
         bash ~{monitoringScript} > monitoring.log &
