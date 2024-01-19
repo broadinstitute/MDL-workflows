@@ -6,16 +6,17 @@ task sample_bam {
         File inputBAMindex
         String sampleName
         Float samplingRate
+        Int preemptible_tries
     }
 
-    String output_bam_name = sample_name + ".sampled." + (if (sampling_rate > 1.0) then "estimated_" else "") + sampling_rate + ".bam"
+    String output_bam_name = sampleName + ".sampled." + (if (samplingRate > 1.0) then "estimated_" else "") + samplingRate + ".bam"
 
     command <<<
         # Calculate total read count if necessary
-        total_reads=$(if [[ ~{sampling_rate} > 1 ]]; then samtools view -c ~{inputBAM}; else echo 0; fi)
+        total_reads=$(if [[ ~{samplingRate} > 1 ]]; then samtools view -c ~{inputBAM}; else echo 0; fi)
 
         # Calculate effective sampling rate
-        effective_rate=$(if [[ ~{sampling_rate} > 1 ]]; then awk "BEGIN{print ~{sampling_rate} / $total_reads}"; else echo ~{sampling_rate}; fi)
+        effective_rate=$(if [[ ~{samplingRate} > 1 ]]; then awk "BEGIN{print ~{samplingRate} / $total_reads}"; else echo ~{samplingRate}; fi)
 
         # Subsample BAM file
         samtools view -bh --subsample $effective_rate ~{inputBAM} > ~{output_bam_name}
