@@ -6,7 +6,7 @@ task sample_bam {
         File inputBAMindex
         String sampleName
         Float samplingRate
-        Int preemptible_tries
+        Int maxRetries
     }
 
     String output_bam_name = sampleName + ".sampled." + (if (samplingRate > 1.0) then "estimated_" else "") + samplingRate + ".bam"
@@ -33,6 +33,6 @@ task sample_bam {
         cpu: 1
         memory: "4GiB"
         disks: "local-disk " + ceil(size(inputBAM, "GB")*2 + 5) + " SSD"
-        preemptible: preemptible_tries
+        preemptible: maxRetries
     }
 }

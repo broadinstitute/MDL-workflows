@@ -82,24 +82,26 @@ workflow LongRNAqcPlusFromBam {
 
     # scatter(sample in createStructTask.sampleBamAndIndex) {
     scatter(sample in sampleBamAndIndex) {
-        if (defined(samplingRate))
-            call sampleBAM.subsample_bam as sampleBam {
+        if (defined(samplingRate)) {
+            Float sampling_rate = select_first([samplingRate])
+            call sampleBAM.sample_bam as sampleBam {
                 input:
                     sampleName = sample.sample_name,
                     inputBAM = sample.bam,
                     inputBAMindex = sample.bam_index,
-                    samplingRate = samplingRate
+                    samplingRate = sampling_rate,
                     maxRetries = preemptible_tries
             }
+        }
 
-        bam_file = select_first(sampleBam.sample_bam, sample.bam)
-        bam_file_index = select_first(sampleBam.sample_bam_index, sample.bam_index)
+        File bam_file = select_first([sampleBam.sampled_bam, sample.bam])
+        File bam_file_index = select_first([sampleBam.sampled_bam_index, sample.bam_index])
 
         call LongRNAqcFromBAMWorkflow.LongRNAqc as LongRNAqc {
             input:
                 sampleName = sample.sample_name,
                 inputBAM = bam_file,
-                inputBAMIndex = bam_file_indexbam_file_index,
+                inputBAMIndex = bam_file_index,
                 collapsedReferenceGTF = collapsedReferenceGTF,
                 maxRetries = preemptible_tries
         }
