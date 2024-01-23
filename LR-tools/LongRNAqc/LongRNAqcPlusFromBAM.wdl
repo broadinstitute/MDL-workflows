@@ -79,6 +79,7 @@ workflow LongRNAqcPlusFromBam {
     File isoquantDB = select_first([isoquantMakeGeneDB_fromRef.geneDB, isoquantMakeGeneDB_fromDB.geneDB, referenceGTF_DB])
 
 ### add option to subsample
+### might need to prefilter based on allowNonPrimary in case they can get sampled
 
     # scatter(sample in createStructTask.sampleBamAndIndex) {
     scatter(sample in sampleBamAndIndex) {
