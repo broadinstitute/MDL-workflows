@@ -11,7 +11,7 @@ task LongRNAqcPlottingTask {
     }
 
     # Calculate total memory required
-    Int total_file_size = size(classificationFile, "GiB") + size(junctionFile, "GiB") + 8
+    Int total_file_size = ceil(size(classificationFile, "GiB") + size(junctionFile, "GiB") + 8)
     
     command {
         report_multisample_shortform.R \
