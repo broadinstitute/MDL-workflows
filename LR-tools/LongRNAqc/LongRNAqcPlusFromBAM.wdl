@@ -1,6 +1,7 @@
 version 1.0
 
 
+import "../utilities/sampleBAM.wdl" as sampleBAM
 import "../sqanti3/sqanti3FromBAM.wdl" as sqanti3FromBAMWorkflow
 import "LongRNAqcFromBAM.wdl" as LongRNAqcFromBAMWorkflow
 import "../IsoQuant/IsoQuantMakeDB.wdl" as IsoQuantMakeDBWorkflow
@@ -33,6 +34,7 @@ workflow LongRNAqcPlusFromBam {
         File collapsedReferenceGTF
         File cagePeak
         File polyAMotifs
+        Float ?samplingRate
         String BAMToGTFConversionMethod
         Boolean allowNonPrimary
         Int cpu = 4
@@ -76,13 +78,31 @@ workflow LongRNAqcPlusFromBam {
 
     File isoquantDB = select_first([isoquantMakeGeneDB_fromRef.geneDB, isoquantMakeGeneDB_fromDB.geneDB, referenceGTF_DB])
 
+### add option to subsample
+### might need to prefilter based on allowNonPrimary in case they can get sampled
+
     # scatter(sample in createStructTask.sampleBamAndIndex) {
     scatter(sample in sampleBamAndIndex) {
+        if (defined(samplingRate)) {
+            Float sampling_rate = select_first([samplingRate])
+            call sampleBAM.sample_bam as sampleBam {
+                input:
+                    sampleName = sample.sample_name,
+                    inputBAM = sample.bam,
+                    inputBAMindex = sample.bam_index,
+                    samplingRate = sampling_rate,
+                    maxRetries = preemptible_tries
+            }
+        }
+
+        File bam_file = select_first([sampleBam.sampled_bam, sample.bam])
+        File bam_file_index = select_first([sampleBam.sampled_bam_index, sample.bam_index])
+
         call LongRNAqcFromBAMWorkflow.LongRNAqc as LongRNAqc {
             input:
                 sampleName = sample.sample_name,
-                inputBAM = sample.bam,
-                inputBAMIndex = sample.bam_index,
+                inputBAM = bam_file,
+                inputBAMIndex = bam_file_index,
                 collapsedReferenceGTF = collapsedReferenceGTF,
                 maxRetries = preemptible_tries
         }
@@ -90,8 +110,8 @@ workflow LongRNAqcPlusFromBam {
         call sqanti3FromBAMWorkflow.sqanti3FromBam as sqanti3FromBam {
             input:
                 sampleName = sample.sample_name,
-                inputBAM = sample.bam,
-                inputBAMIndex = sample.bam_index,
+                inputBAM = bam_file,
+                inputBAMIndex = bam_file_index,
                 chromosomesList = chromosomesList,
                 referenceGTF = referenceGTF,
                 referenceFasta = referenceFasta,
@@ -105,8 +125,8 @@ workflow LongRNAqcPlusFromBam {
         call IsoQuantQuantifyWorkflow.isoquantQuantify as isoquantQuantify {
             input:
                 sampleName = sample.sample_name,
-                inputBAM = sample.bam,
-                inputBAMIndex = sample.bam_index,
+                inputBAM = bam_file,
+                inputBAMIndex = bam_file_index,
                 referenceFasta = referenceFasta,
                 geneDB = isoquantDB,
                 dataType = dataType,
@@ -119,6 +139,8 @@ workflow LongRNAqcPlusFromBam {
 
     output {
         # Array[SampleBamAndIndex] sampleBamAndIndex = createStructTask.sampleBamAndIndex
+        Array[File] sampledBAM = bam_file
+        Array[File] sampledBAMindex= bam_file_index
         Array[File] rnaseqc_gene_reads_gct = LongRNAqc.rnaseqc_gene_reads_gct
         Array[File] rnaseqc_gene_fragments_gct = LongRNAqc.rnaseqc_gene_fragments_gct
         Array[File] rnaseqc_gene_tpm_gct = LongRNAqc.rnaseqc_gene_tpm_gct
