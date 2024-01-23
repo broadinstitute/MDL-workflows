@@ -17,7 +17,7 @@ task LongRNAqcPlottingTask {
         report_multisample_shortform.R \
             '~{sep="," sampleName}' \
             '~{sep="," classificationFile}' \
-            '~{sep="," junctionFile}'
+            '~{sep="," junctionFile}' \
             ~{outputPrefix} \
             ~{includeSaturation}
     }
