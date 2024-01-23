@@ -50,7 +50,7 @@ workflow LongRNAqcPlotting {
         Int maxRetries = 3
     }
 
-    call QCPlottingTask {
+    call LongRNAqcPlottingTask {
         input:
             sampleName = sampleName,
             classificationFile = classificationFile,
@@ -61,7 +61,7 @@ workflow LongRNAqcPlotting {
     }
 
     output {
-        File QC_plots = QCPlottingTask.plots
+        File QC_plots = LongRNAqcPlottingTask.plots
     }
 }
 
