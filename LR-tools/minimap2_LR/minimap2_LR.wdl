@@ -38,7 +38,7 @@ task Minimap2Task {
 
     runtime {
         cpu: cpu
-        memory: "~{memoryGB} GiB"
+        memory: "~{memoryGB} GB"
         disks: "local-disk ~{diskSizeGB} SSD"
         docker: docker
         preemptible: preemptible_tries
