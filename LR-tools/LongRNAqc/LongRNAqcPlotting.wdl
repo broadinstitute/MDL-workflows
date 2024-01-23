@@ -1,6 +1,6 @@
 version 1.0
 
-task QCPlottingTask {
+task LongRNAqcPlottingTask {
     input {
         Array[String] sampleName
         Array[File] classificationFile
@@ -36,7 +36,7 @@ task QCPlottingTask {
 }
 
 
-workflow QCPlotting {
+workflow LongRNAqcPlotting {
     input {
         Array[String] sampleName
         Array[File] classificationFile
