@@ -37,6 +37,10 @@ task LongRNAqcPlottingTask {
 
 
 workflow LongRNAqcPlotting {
+    meta {
+        description: "Generate multi-sample QC plots using Sqanti3 outputs."
+    }
+
     input {
         Array[String] sampleName
         Array[File] classificationFile
