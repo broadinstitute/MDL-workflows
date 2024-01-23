@@ -12,6 +12,7 @@ task LongRNAqcPlottingTask {
 
     # Calculate total memory required
     Int total_file_size = ceil(size(classificationFile, "GiB") + size(junctionFile, "GiB") + 8)
+    String saturation_arg = if includeSaturation then "True" else "False"
     
     command {
         report_multisample_shortform.R \
@@ -19,7 +20,7 @@ task LongRNAqcPlottingTask {
             '~{sep="," classificationFile}' \
             '~{sep="," junctionFile}' \
             ~{outputPrefix} \
-            ~{includeSaturation}
+            ~{saturation_arg}
     }
 
     output {
