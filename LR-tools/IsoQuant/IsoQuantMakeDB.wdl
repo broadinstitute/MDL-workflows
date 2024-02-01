@@ -8,7 +8,7 @@ task isoquantMakeGeneDBTask {
         Int cpu = 1
         Int memoryGB = 16
         Int diskSizeGB = 50
-        String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-isoquant/lrtools-isoquant-plus@sha256:bbad9d6cb47bcaa6de76c04d425bd3815d7f4b12f5679dac2eb894aa4ee3f81f"
+        String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-isoquant/lrtools-isoquant-plus@sha256:46554ca6d93d3b84d06faf493f07dd484e8300c6961ea1277483666b20e9cbcf"
         Int preemptible_tries
         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
