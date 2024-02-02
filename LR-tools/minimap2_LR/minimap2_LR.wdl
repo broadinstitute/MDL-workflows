@@ -42,9 +42,18 @@ task Minimap2Task {
             exit 1
         fi
 
-        samtools fastq ~{inputBAM} > temp.fastq
+        file_extension="${inputBAM##*.}"
+        fastq_name="temp.fastq"
+        if [[ "$file_extension" == "bam" ]] || [[ "$file_extension" == "ubam" ]]; then
+            samtools fastq ~{inputBAM} > temp.fastq
+        elif [[ "$file_extension" == "gz" ]]; then
+            mv ~{inputBAM} temp.fastq.gz
+            fastq_name="temp.fastq.gz"
+        elif [[ "$file_extension" == "fastq" ]]; then
+            mv ~{inputBAM} temp.fastq
+        fi
 
-        minimap2 ~{extra_arg2} -ax ${minimap2_preset} ~{extra_arg} -t ~{cpu} -G 1000 ~{referenceGenome} temp.fastq > temp.sam
+        minimap2 ~{extra_arg2} -ax ${minimap2_preset} ~{extra_arg} -t ~{cpu} -G 1000 ~{referenceGenome} ${fastq_name} > temp.sam
 
         # minimap2 ~{extra_arg2} -ax splice:hq -uf --junc-bed ~{juncBED} ~{extra_arg} -t ~{cpu}  -G 1000 ~{referenceGenome} temp.fastq > temp.sam
 
