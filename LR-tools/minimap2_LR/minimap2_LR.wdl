@@ -54,7 +54,7 @@ task Minimap2Task {
             mv ~{inputFile} temp.fastq
         fi
 
-        minimap2 ~{extra_arg2} -ax ${minimap2_preset} ~{extra_arg} -t ~{cpu} -G 1000 ~{referenceGenome} ${fastq_name} > temp.sam
+        minimap2 ~{extra_arg2} -ax ${minimap2_preset} ~{extra_arg} -t ~{cpu} -G 1000K ~{referenceGenome} ${fastq_name} > temp.sam
 
         # minimap2 ~{extra_arg2} -ax splice:hq -uf --junc-bed ~{juncBED} ~{extra_arg} -t ~{cpu}  -G 1000 ~{referenceGenome} temp.fastq > temp.sam
 
