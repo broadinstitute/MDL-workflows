@@ -7,7 +7,7 @@ task Minimap2Task {
         File juncBED
         File referenceGenome
         String sampleName
-        String readType = "PacBioIsoSeq"
+        String readType
         Boolean keepUnmapped = true
         Boolean allowSecondary = true
         Int cpu = 8
@@ -87,9 +87,9 @@ workflow Minimap2_LR {
         File referenceGenome
         File juncBED
         String sampleName
-        String readType = "PacBioIsoSeq"
+        String readType
         Boolean keepUnmapped = true
-        Boolean allowSecondary = true
+        Boolean allowSecondary = false
         Int preemptible_tries = 3
     }
 
@@ -103,6 +103,7 @@ workflow Minimap2_LR {
                 juncBED = juncBED,
                 referenceGenome = referenceGenome,
                 sampleName = sampleName,
+                readType = readType,
                 keepUnmapped = keepUnmapped,
                 allowSecondary = allowSecondary,
                 preemptible_tries = preemptible_tries
@@ -116,6 +117,7 @@ workflow Minimap2_LR {
                 juncBED = juncBED,
                 referenceGenome = referenceGenome,
                 sampleName = sampleName,
+                readType = readType,
                 keepUnmapped = keepUnmapped,
                 allowSecondary = allowSecondary,
                 preemptible_tries = preemptible_tries
@@ -129,6 +131,7 @@ workflow Minimap2_LR {
                 juncBED = juncBED,
                 referenceGenome = referenceGenome,
                 sampleName = sampleName,
+                readType = readType,
                 keepUnmapped = keepUnmapped,
                 allowSecondary = allowSecondary,
                 preemptible_tries = preemptible_tries
