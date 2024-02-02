@@ -6,6 +6,7 @@ task Minimap2Task {
         File juncBED
         File referenceGenome
         String sampleName
+        String readType = "PacBioIsoSeq"
         Boolean keepUnmapped = true
         Boolean allowSecondary = true
         Int cpu = 8
@@ -22,9 +23,30 @@ task Minimap2Task {
     command <<<
         bash ~{monitoringScript} > monitoring.log &
 
+        minimap2_preset=""
+
+        if [ "~{readType}" == "PacBioCLR" ]; then
+            minimap2_preset="map-pb"
+        elif [ "~{readType}" == "ONTGenomic" ]; then
+            minimap2_preset="map-ont"
+        elif [ "~{readType}" == "PacBioHiFi" ]; then
+            minimap2_preset="map-hifi"
+        elif [ "~{readType}" == "SplicedLongReads" ]; then
+            minimap2_preset="splice"
+        elif [ "~{readType}" == "ONTDirectRNA" ]; then
+            minimap2_preset="splice -uf -k14"
+        elif [ "~{readType}" == "PacBioIsoSeq" ]; then
+            minimap2_preset="splice:hq -uf"
+        else
+            echo "Invalid readType: ~{readType}"
+            exit 1
+        fi
+
         samtools fastq ~{inputBAM} > temp.fastq
 
-        minimap2 ~{extra_arg2} -ax splice:hq -uf --junc-bed ~{juncBED} ~{extra_arg} -t ~{cpu}  -G 1000 ~{referenceGenome} temp.fastq > temp.sam
+        minimap2 ~{extra_arg2} -ax ${minimap2_preset} ~{extra_arg} -t ~{cpu} -G 1000 ~{referenceGenome} temp.fastq > temp.sam
+
+        # minimap2 ~{extra_arg2} -ax splice:hq -uf --junc-bed ~{juncBED} ~{extra_arg} -t ~{cpu}  -G 1000 ~{referenceGenome} temp.fastq > temp.sam
 
         samtools sort -@ ~{cpu} temp.sam > ~{sampleName}.aligned.sorted.bam
         samtools index -@ ~{cpu} ~{sampleName}.aligned.sorted.bam
@@ -55,6 +77,7 @@ workflow Minimap2_LR {
         File referenceGenome
         File juncBED
         String sampleName
+        String readType = "PacBioIsoSeq"
         Boolean keepUnmapped = true
         Boolean allowSecondary = true
         Int preemptible_tries = 3
