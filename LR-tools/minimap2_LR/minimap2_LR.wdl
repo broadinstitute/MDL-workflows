@@ -2,7 +2,8 @@ version 1.0
 
 task Minimap2Task {
     input {
-        File inputBAM
+        File inputFile
+        String inputExtension
         File juncBED
         File referenceGenome
         String sampleName
@@ -19,6 +20,7 @@ task Minimap2Task {
 
     String extra_arg = if allowSecondary then "" else "--secondary=no"
     String extra_arg2 = if keepUnmapped then "" else "--sam-hit-only"
+
 
     command <<<
         bash ~{monitoringScript} > monitoring.log &
@@ -42,15 +44,14 @@ task Minimap2Task {
             exit 1
         fi
 
-        file_extension="${inputBAM##*.}"
         fastq_name="temp.fastq"
-        if [[ "$file_extension" == "bam" ]] || [[ "$file_extension" == "ubam" ]]; then
-            samtools fastq ~{inputBAM} > temp.fastq
-        elif [[ "$file_extension" == "gz" ]]; then
-            mv ~{inputBAM} temp.fastq.gz
+        if [[ "~{inputExtension}" == "bam" ]] || [[ "$file_extension" == "ubam" ]]; then
+            samtools fastq ~{inputFile} > temp.fastq
+        elif [[ "~{inputExtension}" == "fastq.gz" ]]; then
+            mv ~{inputFile} temp.fastq.gz
             fastq_name="temp.fastq.gz"
-        elif [[ "$file_extension" == "fastq" ]]; then
-            mv ~{inputBAM} temp.fastq
+        elif [[ "~{inputExtension}" == "fastq" ]]; then
+            mv ~{inputFile} temp.fastq
         fi
 
         minimap2 ~{extra_arg2} -ax ${minimap2_preset} ~{extra_arg} -t ~{cpu} -G 1000 ~{referenceGenome} ${fastq_name} > temp.sam
@@ -82,7 +83,7 @@ workflow Minimap2_LR {
     }
 
     input {
-        File inputBAM
+        File inputReads
         File referenceGenome
         File juncBED
         String sampleName
@@ -92,20 +93,58 @@ workflow Minimap2_LR {
         Int preemptible_tries = 3
     }
 
-    call Minimap2Task {
-        input:
-            inputBAM = inputBAM,
-            juncBED = juncBED,
-            referenceGenome = referenceGenome,
-            sampleName = sampleName,
-            keepUnmapped = keepUnmapped,
-            allowSecondary = allowSecondary,
-            preemptible_tries = preemptible_tries
+
+    String file_extension = basename(inputReads)
+    if (sub(file_extension, "fastq$", "") != file_extension) {
+        call Minimap2Task as minimap2_fastq {
+            input:
+                inputFile = inputReads,
+                inputExtension = "fastq",
+                juncBED = juncBED,
+                referenceGenome = referenceGenome,
+                sampleName = sampleName,
+                keepUnmapped = keepUnmapped,
+                allowSecondary = allowSecondary,
+                preemptible_tries = preemptible_tries
+        }
+    }
+    if (sub(file_extension, "fastq.gz$", "") != file_extension) {
+        call Minimap2Task as minimap2_fastqgz {
+            input:
+                inputFile = inputReads,
+                inputExtension = "fastq.gz",
+                juncBED = juncBED,
+                referenceGenome = referenceGenome,
+                sampleName = sampleName,
+                keepUnmapped = keepUnmapped,
+                allowSecondary = allowSecondary,
+                preemptible_tries = preemptible_tries
+        }
+    }
+    if (sub(file_extension, "ubam$", "") != file_extension) {
+        call Minimap2Task as minimap2_ubam {
+            input:
+                inputFile = inputReads,
+                inputExtension = "ubam",
+                juncBED = juncBED,
+                referenceGenome = referenceGenome,
+                sampleName = sampleName,
+                keepUnmapped = keepUnmapped,
+                allowSecondary = allowSecondary,
+                preemptible_tries = preemptible_tries
+        }
     }
 
+    #File minimap2_bam = select_first(minimap2_fastq.minimap2_bam, minimap2_fastqgz.minimap2_bam, minimap2_ubam.minimap2_bam)
+    #File minimap2_bam_index = select_first(minimap2_fastq.minimap2_bam_index, minimap2_fastqgz.minimap2_bam_index, minimap2_ubam.minimap2_bam_index)
+    #File monitoringLog = select_first(minimap2_fastq.monitoringLog, minimap2_fastqgz.monitoringLog, minimap2_ubam.minimap2_bam_index)
+
     output {
-        File minimap2_bam = Minimap2Task.minimap2_bam
-        File minimap2_bam_index = Minimap2Task.minimap2_bam_index
-        File monitoringLog = Minimap2Task.monitoringLog
+        # File minimap2_bam = Minimap2Task.minimap2_bam
+        File minimap2_bam = select_first([minimap2_fastq.minimap2_bam, minimap2_fastqgz.minimap2_bam, minimap2_ubam.minimap2_bam])
+        # File minimap2_bam_index = Minimap2Task.minimap2_bam_index
+        File minimap2_bam_index = select_first([minimap2_fastq.minimap2_bam_index, minimap2_fastqgz.minimap2_bam_index, minimap2_ubam.minimap2_bam_index])
+        # File monitoringLog = Minimap2Task.monitoringLog
+        File monitoringLog = select_first([minimap2_fastq.monitoringLog, minimap2_fastqgz.monitoringLog, minimap2_ubam.minimap2_bam_index])
     }
 }
