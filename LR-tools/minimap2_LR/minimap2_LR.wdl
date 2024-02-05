@@ -8,6 +8,7 @@ task Minimap2Task {
         File referenceGenome
         String sampleName
         String readType
+        String ?customArguments
         Boolean keepUnmapped = true
         Boolean allowSecondary = true
         Int cpu = 8
@@ -54,7 +55,7 @@ task Minimap2Task {
             mv ~{inputFile} temp.fastq
         fi
 
-        minimap2 ~{extra_arg2} -ax ${minimap2_preset} ~{extra_arg} -t ~{cpu} -G 1000K ~{referenceGenome} ${fastq_name} > temp.sam
+        minimap2 ~{extra_arg2} -ax ${minimap2_preset} ~{extra_arg} -t ~{cpu} ~{customArguments} ~{referenceGenome} ${fastq_name} > temp.sam
 
         # minimap2 ~{extra_arg2} -ax splice:hq -uf --junc-bed ~{juncBED} ~{extra_arg} -t ~{cpu}  -G 1000 ~{referenceGenome} temp.fastq > temp.sam
 
@@ -88,6 +89,7 @@ workflow Minimap2_LR {
         File juncBED
         String sampleName
         String readType
+        String ?customArguments
         Boolean keepUnmapped = true
         Boolean allowSecondary = false
         Int preemptible_tries = 3
@@ -104,6 +106,7 @@ workflow Minimap2_LR {
                 referenceGenome = referenceGenome,
                 sampleName = sampleName,
                 readType = readType,
+                customArguments = customArguments,
                 keepUnmapped = keepUnmapped,
                 allowSecondary = allowSecondary,
                 preemptible_tries = preemptible_tries
@@ -118,6 +121,7 @@ workflow Minimap2_LR {
                 referenceGenome = referenceGenome,
                 sampleName = sampleName,
                 readType = readType,
+                customArguments = customArguments,
                 keepUnmapped = keepUnmapped,
                 allowSecondary = allowSecondary,
                 preemptible_tries = preemptible_tries
@@ -132,6 +136,7 @@ workflow Minimap2_LR {
                 referenceGenome = referenceGenome,
                 sampleName = sampleName,
                 readType = readType,
+                customArguments = customArguments,
                 keepUnmapped = keepUnmapped,
                 allowSecondary = allowSecondary,
                 preemptible_tries = preemptible_tries
