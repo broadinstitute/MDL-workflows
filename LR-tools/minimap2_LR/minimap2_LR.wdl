@@ -127,11 +127,11 @@ workflow Minimap2_LR {
                 preemptible_tries = preemptible_tries
         }
     }
-    if (sub(file_extension, "ubam$", "") != file_extension) {
+    if (sub(file_extension, "bam$", "") != file_extension) {
         call Minimap2Task as minimap2_ubam {
             input:
                 inputFile = inputReads,
-                inputExtension = "ubam",
+                inputExtension = "bam",
                 juncBED = juncBED,
                 referenceGenome = referenceGenome,
                 sampleName = sampleName,
