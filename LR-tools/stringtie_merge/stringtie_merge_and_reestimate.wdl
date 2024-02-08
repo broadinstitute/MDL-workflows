@@ -90,7 +90,7 @@ task stringtie_re_estimate {
 
     output {
         File reestimated_assembly = "~{outputName}"
-        File? coverageOutput = "~{sample_name}.gene_abund.tab"
+        File? coverageOutput = "StringTie_out_reestimated_~{sample_name}.gene_abund.tab"
         Array[File]? ctabOutputs =  glob("*.ctab")
     }
 
