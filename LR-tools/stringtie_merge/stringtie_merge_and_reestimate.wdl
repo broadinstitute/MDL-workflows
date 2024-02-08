@@ -12,17 +12,38 @@ task stringtie_merge {
         String docker
     }
 
-    String ref_annotation_arg = if defined(reference_annotation) then "-G ~{reference_annotation}" else ""
-
     command <<<
-        echo output_assemblies > assembly_GTF_list.txt
+        # Initialize variable for reference annotation argument
+        ref_annotation_arg=""
+
+        # Check if reference_annotation is provided and is a .gz file
+        if [ -n "~{reference_annotation}" ]; then
+            if [[ "~{reference_annotation}" == *.gz ]]; then
+                # Extract the .gz file and update reference_annotation variable
+                gunzip -c "~{reference_annotation}" > temp_reference_annotation.gtf
+                ref_annotation_arg="-G temp_reference_annotation.gtf"
+            else
+                # Use the provided reference_annotation file directly
+                ${ref_annotation_arg}="-G ~{reference_annotation}"
+            fi
+        fi
+
+        # Generate a new list of filenames, decompressing if necessary
+        for gtf in '~{sep="' '" gtf_assemblies}'; do
+            if [[ "$gtf" == *.gz ]]; then
+                gunzip -c "$gtf" > "${gtf%.gz}"
+                echo "${gtf%.gz}" >> assembly_GTF_list.txt
+            else
+                echo "$gtf" >> assembly_GTF_list.txt
+            fi
+        done
 
         stringtie \
             --merge \
             -p ~{numThreads} \
             -i \
             -o stringtie_merged.gtf \
-            ~{ref_annotation_arg} '~{sep="' '" gtf_assemblies}'
+            ${ref_annotation_arg} $(cat assembly_GTF_list.txt)
     >>>
 
     output {
@@ -44,6 +65,8 @@ task stringtie_re_estimate {
         File bam_alignment      # single file because called through scatter()
         String reads_type
         File merged_assembly
+        Boolean outputCoverage
+        Boolean outputGeneAbundances
         Int cpu
         Int memoryGB
         Int numThreads
@@ -52,19 +75,23 @@ task stringtie_re_estimate {
     }
 
     String outputName = "StringTie_out_reestimated_~{sample_name}.gtf"
+    String ballgown_out = if outputCoverage then "-B" else ""
+    String gene_abundance = if outputGeneAbundances then "-A StringTie_out_reestimated_~{sample_name}.gene_abund.tab" else ""
 
     command <<<
         stringtie \
-            -e \
+            -e ~{ballgown_out} \
             -G ~{merged_assembly} \
             -p ~{numThreads} \
-            -o ~{outputName} \
+            -o ~{outputName} ~{gene_abundance} \
             ~{reads_type} \
             ~{bam_alignment}
     >>>
 
     output {
         File reestimated_assembly = "~{outputName}"
+        File? coverageOutput = "~{sample_name}.gene_abund.tab"
+        Array[File]? ctabOutputs =  glob("*.ctab")
     }
 
     runtime {
@@ -87,6 +114,8 @@ workflow stringtie_merge {
         Array[String] sample_names      # this.samples.sample_id
         Array[File] gtf_assemblies      # this.samples.stringTieGTF
         Array[File] bam_alignments      # this.samples.input_bam
+        Boolean outputCoverage
+        Boolean outputGeneAbundances
         # ideally these 2 Boolean could be Arrays[Boolean] in case of different types of runs being merged, but maybe a single Array[String] with the option to use directly would work too, using Array requires nested zip() calls for scatter() however
         Boolean has_longreads               # true/false
         Boolean has_shortreads              # true/false
@@ -123,6 +152,8 @@ workflow stringtie_merge {
                 bam_alignment = pair.right,
                 reads_type = reads_type,
                 merged_assembly = stringtie_merge.merged_assembly,
+                outputCoverage = outputCoverage,
+                outputGeneAbundances = outputGeneAbundances,
                 numThreads = cpus*2,
                 cpu = cpus,
                 memoryGB = memoryGB,
@@ -132,8 +163,10 @@ workflow stringtie_merge {
     }
 
     output {
-        Array[File] reestimated_assemblies = stringtie_re_estimate.reestimated_assembly
         File merged_assembly = stringtie_merge.merged_assembly
+        Array[File] reestimated_assemblies = stringtie_re_estimate.reestimated_assembly
+        Array[File?] coverageOutput = stringtie_re_estimate.coverageOutput
+        Array[Array[File]?] ctabOutputs = stringtie_re_estimate.ctabOutputs
     }
 }
 
