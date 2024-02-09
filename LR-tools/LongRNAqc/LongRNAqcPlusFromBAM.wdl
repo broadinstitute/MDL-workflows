@@ -25,6 +25,7 @@ workflow LongRNAqcPlusFromBam {
     input {
         Array[String] sampleName
         String dataType
+        String ?strandedness
         Array[File] inputBAM
         Array[File] inputBAMIndex
         String chromosomesList # comma seprarated
@@ -78,7 +79,6 @@ workflow LongRNAqcPlusFromBam {
 
     File isoquantDB = select_first([isoquantMakeGeneDB_fromRef.geneDB, isoquantMakeGeneDB_fromDB.geneDB, referenceGTF_DB])
 
-### add option to subsample
 ### might need to prefilter based on allowNonPrimary in case they can get sampled
 
     # scatter(sample in createStructTask.sampleBamAndIndex) {
@@ -128,8 +128,9 @@ workflow LongRNAqcPlusFromBam {
                 inputBAM = bam_file,
                 inputBAMIndex = bam_file_index,
                 referenceFasta = referenceFasta,
-                geneDB = isoquantDB,
+                referenceAnnotation = isoquantDB,
                 dataType = dataType,
+                strandedness = strandedness,
                 noModelConstruction = true,
                 preemptible_tries = preemptible_tries
         }
