@@ -28,7 +28,7 @@ task isoquantQuantifyTask {
     String ref_annotation_arg = if defined(referenceAnnotation) then "--genedb ~{referenceAnnotation}" else ""
 
     String strandedness_present = if defined(strandedness) then select_first([strandedness]) else ""
-    String stranded_arg = if defined(strandedness) then "--stranded {strandedness_present}" else ""
+    String stranded_arg = if defined(strandedness) then "--stranded ~{strandedness_present}" else ""
 
     Boolean is_complete_gene_db = if defined(isCompleteGeneDB) then select_first([isCompleteGeneDB]) else false
     String complete_gene_db_arg = if is_complete_gene_db then "--complete_genedb" else ""
