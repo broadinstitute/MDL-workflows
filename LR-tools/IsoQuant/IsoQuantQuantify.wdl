@@ -55,7 +55,7 @@ task isoquantQuantifyTask {
 
     output {
         Array[File] isoquantOutputs = glob("isoquant_output/~{sampleName}/*.gz")
-        File readAssignmentsTSV = select_first(glob("isoquant_output/~{sampleName}/*.read_assignments.tsv.gz"))
+        File ?readAssignmentsTSV = "isoquant_output/~{sampleName}/~{sampleName}.read_assignments.tsv.gz"
         File monitoringLog = "monitoring.log"
     }
 
@@ -107,7 +107,7 @@ workflow isoquantQuantify {
 
     output {
         Array[File] isoquantOutputs = isoquantQuantifyTask.isoquantOutputs
-        File readAssignmentsTSV = isoquantQuantifyTask.readAssignmentsTSV
+        File ?readAssignmentsTSV = isoquantQuantifyTask.readAssignmentsTSV
         # File monitoringLog = isoquantQuantifyTask.monitoringLog
     }
 }
