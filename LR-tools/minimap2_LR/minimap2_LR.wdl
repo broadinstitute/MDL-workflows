@@ -40,6 +40,8 @@ task Minimap2Task {
             minimap2_preset="splice -uf -k14"
         elif [ "~{readType}" == "PacBioIsoSeq" ]; then
             minimap2_preset="splice:hq -uf"
+        elif [ "~{readType}" == "None" ]; then
+            minimap2_preset=""
         else
             echo "Invalid readType: ~{readType}"
             exit 1
@@ -55,7 +57,7 @@ task Minimap2Task {
             mv ~{inputFile} temp.fastq
         fi
 
-        minimap2 ~{extra_arg2} -ax ${minimap2_preset} ~{extra_arg} -t ~{cpu} ~{customArguments} ~{referenceGenome} ${fastq_name} > temp.sam
+        minimap2 ~{extra_arg2} -ax ${minimap2_preset} ~{customArguments} ~{extra_arg} -t ~{cpu} ~{referenceGenome} ${fastq_name} > temp.sam
 
         # minimap2 ~{extra_arg2} -ax splice:hq -uf --junc-bed ~{juncBED} ~{extra_arg} -t ~{cpu}  -G 1000 ~{referenceGenome} temp.fastq > temp.sam
 
