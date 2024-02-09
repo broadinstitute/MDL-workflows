@@ -7,8 +7,12 @@ task isoquantQuantifyTask {
         File inputBAM
         File inputBAMIndex
         File referenceFasta
-        File geneDB
+        File ?referenceAnnotation
+        Boolean ?isCompleteGeneDB
         String dataType
+        String ?strandedness
+        String transcriptQuantification = "with_ambiguous"
+        String geneQuantification = "with_inconsistent"
         Boolean noModelConstruction
         Int cpu = 16
         Int numThreads = 32
@@ -20,20 +24,28 @@ task isoquantQuantifyTask {
     }
 
     # String file_name = basename("~{inputBAM}", ".bam")
-    String extra_args = if noModelConstruction then "--no_model_construction" else ""
+    String model_reconstruction_arg = if noModelConstruction then "--no_model_construction" else ""
+    String ref_annotation_arg = if defined(referenceAnnotation) then "--genedb ~{referenceAnnotation}" else ""
+
+    String strandedness_present = if defined(strandedness) then select_first([strandedness_present]) else ""
+    String stranded_arg = if defined(strandedness) then "--stranded ~{strandedness_present}" else ""
+
+    Boolean is_complete_gene_db = if defined(isCompleteGeneDB) then select_first([isCompleteGeneDB]) else false
+    String complete_gene_db_arg = if is_complete_gene_db then "--complete_genedb" else ""
+
 
     command <<<
         bash ~{monitoringScript} > monitoring.log &
 
         /usr/local/src/IsoQuant-3.3.1/isoquant.py \
             --reference ~{referenceFasta} \
-            --genedb ~{geneDB} \
+            ~{ref_annotation_arg} ~{complete_gene_db_arg} \
             --bam ~{inputBAM} \
             --data_type ~{dataType} \
-            --stranded forward \
-            --transcript_quantification all \
-            --gene_quantification all \
-            --threads ~{numThreads} ~{extra_args} \
+            ~{stranded_arg} \
+            --transcript_quantification ~{transcriptQuantification} \
+            --gene_quantification ~{geneQuantification} \
+            --threads ~{numThreads} ~{model_reconstruction_arg} \
             --labels ~{sampleName} \
             --prefix ~{sampleName} \
             -o isoquant_output
@@ -67,8 +79,12 @@ workflow isoquantQuantify {
         File inputBAM
         File inputBAMIndex
         File referenceFasta
-        File geneDB
+        File ?referenceAnnotation
+        Boolean ?isCompleteGeneDB
         String dataType = "pacbio_ccs"
+        String ?strandedness = "forward"
+        String transcriptQuantification = "with_ambiguous"
+        String geneQuantification = "with_inconsistent"
         Boolean noModelConstruction = false
         Int preemptible_tries = 3
     }
@@ -78,9 +94,13 @@ workflow isoquantQuantify {
             sampleName = sampleName,
             inputBAM = inputBAM,
             inputBAMIndex = inputBAMIndex,
-            geneDB = geneDB,
             referenceFasta = referenceFasta,
+            referenceAnnotation = referenceAnnotation,
+            isCompleteGeneDB = isCompleteGeneDB,
             dataType = dataType,
+            strandedness = strandedness,
+            transcriptQuantification = transcriptQuantification,
+            geneQuantification = geneQuantification,
             noModelConstruction = noModelConstruction,
             preemptible_tries = preemptible_tries
     }
