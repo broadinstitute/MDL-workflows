@@ -33,6 +33,11 @@ workflows:
     primaryDescriptorPath: /LR-tools/LongRNAqc/LongRNAqcPlotting.wdl
     authors:
       - orcid: 0000-0002-2603-1660
+  - name: LongRNAqc_readAccuracyAnalyzer
+    subclass: WDL
+    primaryDescriptorPath: /LR-tools/LongRNAqc/LongRNAqc_readAccuracyAnalyzer.wdl
+    authors:
+      - orcid: 0000-0002-2603-1660
   - name: Sqanti3FromBAM
     subclass: WDL
     primaryDescriptorPath: /LR-tools/sqanti3/sqanti3FromBAM.wdl
