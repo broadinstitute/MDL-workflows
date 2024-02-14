@@ -31,7 +31,7 @@ task LongRNAqcPlottingTask {
         docker: "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plotting"
         disks: "local-disk " + total_file_size*2 + " HDD"
         cpu: 1
-        memory: total_file_size + " GiB"
+        memory: total_file_size*2 + " GiB"
         preemptible: maxRetries
     }
 }
