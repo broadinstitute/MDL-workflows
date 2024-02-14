@@ -12,6 +12,7 @@ task LongRNAqcPlottingTask {
 
     # Calculate total memory required
     Int total_file_size = ceil(size(classificationFile, "GiB") + size(junctionFile, "GiB") + 8)
+    Int total_classification_file_size = ceil(size(classificationFile, "GiB") + size(junctionFile, "GiB"))
     String saturation_arg = if includeSaturation then "True" else "False"
     
     command {
@@ -31,7 +32,7 @@ task LongRNAqcPlottingTask {
         docker: "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plotting"
         disks: "local-disk " + total_file_size*2 + " HDD"
         cpu: 1
-        memory: total_file_size*2 + " GiB"
+        memory: total_classification_file_size*5 + 8 + " GiB"
         preemptible: maxRetries
     }
 }
