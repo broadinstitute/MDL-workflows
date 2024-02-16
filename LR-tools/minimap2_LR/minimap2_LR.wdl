@@ -4,7 +4,7 @@ task Minimap2Task {
     input {
         File inputFile
         String inputExtension
-        File juncBED
+        File ?juncBED
         File referenceGenome
         String sampleName
         String readType
@@ -21,6 +21,7 @@ task Minimap2Task {
 
     String extra_arg = if allowSecondary then "" else "--secondary=no"
     String extra_arg2 = if keepUnmapped then "" else "--sam-hit-only"
+    String juncbed_arg = if defined(juncBED) then "--juncBED ~{juncBED}" else ""
 
 
     command <<<
@@ -57,7 +58,7 @@ task Minimap2Task {
             mv ~{inputFile} temp.fastq
         fi
 
-        minimap2 ~{extra_arg2} -ax ${minimap2_preset} ~{customArguments} ~{extra_arg} -t ~{cpu} ~{referenceGenome} ${fastq_name} > temp.sam
+        minimap2 ~{extra_arg2} -ax ${minimap2_preset} ~{customArguments} ~{juncbed_arg} ~{extra_arg} -t ~{cpu} ~{referenceGenome} ${fastq_name} > temp.sam
 
         # minimap2 ~{extra_arg2} -ax splice:hq -uf --junc-bed ~{juncBED} ~{extra_arg} -t ~{cpu}  -G 1000 ~{referenceGenome} temp.fastq > temp.sam
 
@@ -91,7 +92,7 @@ workflow Minimap2_LR {
     input {
         File inputReads
         File referenceGenome
-        File juncBED
+        File ?juncBED
         String sampleName
         String readType
         String ?customArguments
