@@ -37,6 +37,8 @@ workflow LongRNAqcPlusFromBam {
         File polyAMotifs
         Float ?samplingRate
         String BAMToGTFConversionMethod
+        String transcriptQuantification = "with_ambiguous"
+        String geneQuantification = "with_inconsistent"
         Boolean allowNonPrimary
         Int cpu = 4
         Int preemptible_tries = 3
@@ -131,6 +133,8 @@ workflow LongRNAqcPlusFromBam {
                 referenceAnnotation = isoquantDB,
                 dataType = dataType,
                 strandedness = strandedness,
+                transcriptQuantification = transcriptQuantification,
+                geneQuantification = geneQuantification,
                 noModelConstruction = true,
                 preemptible_tries = preemptible_tries
         }
