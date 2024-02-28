@@ -25,7 +25,6 @@ task isoquantQuantifyTask {
 
     # String file_name = basename("~{inputBAM}", ".bam")
     String model_reconstruction_arg = if noModelConstruction then "--no_model_construction" else ""
-    String ref_annotation_arg = if defined(referenceAnnotation) then "--genedb ~{referenceAnnotation}" else ""
 
     String strandedness_present = if defined(strandedness) then select_first([strandedness]) else ""
     String stranded_arg = if defined(strandedness) then "--stranded ~{strandedness_present}" else ""
@@ -37,9 +36,19 @@ task isoquantQuantifyTask {
     command <<<
         bash ~{monitoringScript} > monitoring.log &
 
+        # Check if reference_annotation is provided and is a .gz file
+        if [ -n "~{referenceAnnotation}" ]; then
+            ${ref_annotation_arg} = "--genedb ~{referenceAnnotation}"
+        else
+            # Use the provided reference_annotation file directly
+            ${ref_annotation_arg} = ""
+        fi
+
+
+
         /usr/local/src/IsoQuant-3.3.1/isoquant.py \
             --reference ~{referenceFasta} \
-            ~{ref_annotation_arg} ~{complete_gene_db_arg} \
+            ${ref_annotation_arg} ~{complete_gene_db_arg} \
             --bam ~{inputBAM} \
             --data_type ~{dataType} \
             ~{stranded_arg} \
