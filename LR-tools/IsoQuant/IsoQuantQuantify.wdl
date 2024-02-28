@@ -59,7 +59,10 @@ task isoquantQuantifyTask {
             --prefix ~{sampleName} \
             -o isoquant_output
 
+            ls -ltrR
+            echo "zipping"
             find isoquant_output/~{sampleName}/ -maxdepth 1 -type f -exec gzip {} +
+            ls -ltrR
     >>>
 
     output {
