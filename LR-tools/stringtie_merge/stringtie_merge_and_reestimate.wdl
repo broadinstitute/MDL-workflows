@@ -24,7 +24,7 @@ task stringtie_merge {
                 ref_annotation_arg="-G temp_reference_annotation.gtf"
             else
                 # Use the provided reference_annotation file directly
-                ${ref_annotation_arg}="-G ~{reference_annotation}"
+                ref_annotation_arg="-G ~{reference_annotation}"
             fi
         fi
 

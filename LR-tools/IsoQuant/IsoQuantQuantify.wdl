@@ -36,12 +36,10 @@ task isoquantQuantifyTask {
     command <<<
         bash ~{monitoringScript} > monitoring.log &
 
-        # Check if reference_annotation is provided and is a .gz file
+        # Check if reference_annotation is provided
+        ref_annotation_arg=""
         if [ -n "~{referenceAnnotation}" ]; then
-            ${ref_annotation_arg} = "--genedb ~{referenceAnnotation}"
-        else
-            # Use the provided reference_annotation file directly
-            ${ref_annotation_arg} = ""
+            ref_annotation_arg="--genedb ~{referenceAnnotation}"
         fi
 
 
