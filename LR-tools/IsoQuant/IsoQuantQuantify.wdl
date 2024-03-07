@@ -46,7 +46,7 @@ task isoquantQuantifyTask {
 
         /usr/local/src/IsoQuant-3.3.1/isoquant.py \
             --reference ~{referenceFasta} \
-            ${ref_annotation_arg} ~{complete_gene_db_arg} \
+            ~{ref_annotation_arg} ~{complete_gene_db_arg} \
             --bam ~{inputBAM} \
             --data_type ~{dataType} \
             ~{stranded_arg} \
