@@ -23,10 +23,19 @@ task LongRNAqcTask {
     command <<<
         bash ~{monitoringScript} > monitoring.log &
 
+        # Check if reference_annotation is provided as a .gz file
+        ref_annotation_arg="~{collapsedReferenceGTF}"
+        if [[ "~{collapsedReferenceGTF}" == *.gz ]]; then
+            # Extract the .gz file and update reference_annotation variable
+            gunzip -c "~{collapsedReferenceGTF}" > temp_reference_annotation.gtf
+            ref_annotation_arg="temp_reference_annotation.gtf"
+        fi
+
+
         ln -s ~{inputBAM} ~{sampleName}.bam
         ln -s ~{inputBAMIndex} ~{sampleName}.bam.bai
 
-        rnaseqc ~{collapsedReferenceGTF} ~{sampleName}.bam . -u
+        rnaseqc ${ref_annotation_arg} ~{sampleName}.bam . -u
 
 
         mv ~{sampleName}.bam.gene_reads.gct ~{sampleName}.rnaseqc.gene_reads.gct
@@ -72,7 +81,7 @@ workflow LongRNAqc {
         String memoryGB="50"
         Int preemptible = 0
         Int maxRetries = 0
-        Float diskSpaceMultiplier = 3.0
+        Float diskSpaceMultiplier = 4.0
     }
 
     call LongRNAqcTask {
