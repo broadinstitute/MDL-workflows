@@ -21,8 +21,7 @@ task Minimap2Task {
 
     String extra_arg = if allowSecondary then "" else "--secondary=no"
     String extra_arg2 = if keepUnmapped then "" else "--sam-hit-only"
-    String juncbed_arg = if defined(juncBED) then "--juncBED ~{juncBED}" else ""
-
+    Boolean has_junc_bed = defined(juncBED)
 
     command <<<
         bash ~{monitoringScript} > monitoring.log &
@@ -48,6 +47,8 @@ task Minimap2Task {
             exit 1
         fi
 
+        juncbed_arg = ${true="--juncBED ~{juncBED}" false="" has_junc_bed}
+
         fastq_name="temp.fastq"
         if [[ "~{inputExtension}" == "bam" ]] || [[ "$file_extension" == "ubam" ]]; then
             samtools fastq ~{inputFile} > temp.fastq
@@ -58,7 +59,7 @@ task Minimap2Task {
             mv ~{inputFile} temp.fastq
         fi
 
-        minimap2 ~{extra_arg2} -ax ${minimap2_preset} ~{customArguments} ~{juncbed_arg} ~{extra_arg} -t ~{cpu} ~{referenceGenome} ${fastq_name} > temp.sam
+        minimap2 ~{extra_arg2} -ax ${minimap2_preset} ~{customArguments} ${juncbed_arg} ~{extra_arg} -t ~{cpu} ~{referenceGenome} ${fastq_name} > temp.sam
 
         # minimap2 ~{extra_arg2} -ax splice:hq -uf --junc-bed ~{juncBED} ~{extra_arg} -t ~{cpu}  -G 1000 ~{referenceGenome} temp.fastq > temp.sam
 
