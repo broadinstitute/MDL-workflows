@@ -56,7 +56,7 @@ task Minimap2Task {
             mv ~{inputFile} temp.fastq
         fi
 
-        juncbed_arg = ~{if defined(juncBED) then "--juncBED ${juncBED}" else ""}
+        juncbed_arg=~{if defined(juncBED) then '"--juncBED ${juncBED}"' else '""'}
 
         minimap2 ~{extra_arg2} -ax ${minimap2_preset} ~{customArguments} ${juncbed_arg} ~{extra_arg} -t ~{cpu} ~{referenceGenome} ${fastq_name} > temp.sam
 
