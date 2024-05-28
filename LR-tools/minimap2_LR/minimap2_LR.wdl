@@ -16,10 +16,10 @@ task Minimap2Task {
         Int cpu = 8
         Int memoryGB = 32
         Int diskSizeGB
-        String docker = "trinityctat/minimap2_lr:latest"
         Int preemptible_tries
-        File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
+
+    String docker = "trinityctat/minimap2_lr:latest"
 
     String extra_arg = if allowSecondary then "" else "--secondary=no"
     String extra_arg2 = if keepUnmapped then "" else "--sam-hit-only"
@@ -28,8 +28,6 @@ task Minimap2Task {
     String extract_tags = if defined(tagsToExtract) && tagsToExtract != "" then "-T ~{tagsToExtract}" else ""
 
     command <<<
-        bash ~{monitoringScript} > monitoring.log &
-
         minimap2_preset=""
 
         if [ "~{readType}" == "PacBioCLR" ]; then
@@ -64,8 +62,6 @@ task Minimap2Task {
         juncbed_arg=~{if defined(juncBED) then '"--junc-bed ${juncBED}"' else '""'}
 
         minimap2 ~{extra_arg2} ~{extra_arg3} -ax ${minimap2_preset} ~{customArguments} ${juncbed_arg} ~{extra_arg} -t ~{cpu} ~{referenceGenome} ${fastq_name} > temp.sam
-
-        # minimap2 ~{extra_arg2} -ax splice:hq -uf --junc-bed ~{juncBED} ~{extra_arg} -t ~{cpu}  -G 1000 ~{referenceGenome} temp.fastq > temp.sam
 
         samtools sort -@ ~{cpu} temp.sam > ~{sampleName}.aligned.sorted.bam
         samtools index -@ ~{cpu} ~{sampleName}.aligned.sorted.bam
@@ -105,6 +101,8 @@ workflow Minimap2_LR {
         Boolean keepComments = true
         Boolean keepUnmapped = true
         Boolean allowSecondary = false
+        Int cpu = 8
+        Int memoryGB = 32
         Int ?diskSizeGB
         Int preemptible_tries = 3
     }
@@ -129,6 +127,8 @@ workflow Minimap2_LR {
                 keepUnmapped = keepUnmapped,
                 allowSecondary = allowSecondary,
                 diskSizeGB = effective_diskSizeGB_fastq,
+                cpu = cpu,
+                memoryGB = memoryGB,
                 preemptible_tries = preemptible_tries
         }
     }
@@ -150,6 +150,8 @@ workflow Minimap2_LR {
                 keepUnmapped = keepUnmapped,
                 allowSecondary = allowSecondary,
                 diskSizeGB = effective_diskSizeGB_fastqgz,
+                cpu = cpu,
+                memoryGB = memoryGB,
                 preemptible_tries = preemptible_tries
         }
     }
@@ -171,6 +173,8 @@ workflow Minimap2_LR {
                 keepUnmapped = keepUnmapped,
                 allowSecondary = allowSecondary,
                 diskSizeGB = effective_diskSizeGB_bam,
+                cpu = cpu,
+                memoryGB = memoryGB,
                 preemptible_tries = preemptible_tries
         }
     }
