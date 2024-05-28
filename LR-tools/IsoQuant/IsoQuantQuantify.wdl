@@ -11,9 +11,12 @@ task isoquantQuantifyTask {
         Boolean ?isCompleteGeneDB
         String dataType
         String ?strandedness
-        String transcriptQuantification = "with_ambiguous"
-        String geneQuantification = "with_inconsistent"
+        String transcriptQuantification = "unique_only"
+        String geneQuantification = "unique_splicing_consistent"
         Boolean noModelConstruction
+        String ?readGroup  # tag:BC  for single cell
+        String importedBamTags = "BC"  # comma separated
+        Boolean reportWhetherCanonical = false  # slower to set to true
         Int cpu = 16
         Int numThreads = 32
         Int memoryGB = 128
@@ -32,6 +35,9 @@ task isoquantQuantifyTask {
     Boolean is_complete_gene_db = if defined(isCompleteGeneDB) then select_first([isCompleteGeneDB]) else false
     String complete_gene_db_arg = if is_complete_gene_db then "--complete_genedb" else ""
 
+    String read_grouping = if defined(readGroup) && readGroup != "" then "--read_group ~{readGroup}" else ""
+    String report_canonicality = if reportWhetherCanonical then "--check_canonical" else ""
+    String bam_tags = if importedBamTags != "" then "--bam_tags ~{importedBamTags}" else ""
 
     command <<<
         bash ~{monitoringScript} > monitoring.log &
@@ -52,6 +58,9 @@ task isoquantQuantifyTask {
             ~{stranded_arg} \
             --transcript_quantification ~{transcriptQuantification} \
             --gene_quantification ~{geneQuantification} \
+            ~{read_grouping} \
+            ~{report_canonicality} \
+            ~{bam_tags} \
             --threads ~{numThreads} ~{model_reconstruction_arg} \
             --labels ~{sampleName} \
             --prefix ~{sampleName} \
@@ -96,7 +105,10 @@ workflow isoquantQuantify {
         String ?strandedness = "forward"
         String transcriptQuantification = "with_ambiguous"
         String geneQuantification = "with_inconsistent"
-        Boolean noModelConstruction = false
+        Boolean noModelConstruction
+        String ?readGroup  # tag:BC  for single cell
+        String importedBamTags = "BC"  # comma separated
+        Boolean reportWhetherCanonical = false # slower to set to true
         Int preemptible_tries = 3
     }
 
@@ -113,6 +125,9 @@ workflow isoquantQuantify {
             transcriptQuantification = transcriptQuantification,
             geneQuantification = geneQuantification,
             noModelConstruction = noModelConstruction,
+            readGroup = readGroup,
+            importedBamTags = importedBamTags,
+            reportWhetherCanonical = reportWhetherCanonical,
             preemptible_tries = preemptible_tries
     }
 
