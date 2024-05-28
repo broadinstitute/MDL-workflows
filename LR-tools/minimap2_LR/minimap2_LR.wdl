@@ -73,7 +73,6 @@ task Minimap2Task {
         File minimap2_bam = "~{sampleName}.aligned.sorted.bam"
         File minimap2_bam_index = "~{sampleName}.aligned.sorted.bam.bai"
         File alignment_flagstat = "~{sampleName}_alignment.flagstat.txt"
-        File monitoringLog = "monitoring.log"
     }
 
     runtime {
@@ -179,17 +178,9 @@ workflow Minimap2_LR {
         }
     }
 
-    #File minimap2_bam = select_first(minimap2_fastq.minimap2_bam, minimap2_fastqgz.minimap2_bam, minimap2_ubam.minimap2_bam)
-    #File minimap2_bam_index = select_first(minimap2_fastq.minimap2_bam_index, minimap2_fastqgz.minimap2_bam_index, minimap2_ubam.minimap2_bam_index)
-    #File monitoringLog = select_first(minimap2_fastq.monitoringLog, minimap2_fastqgz.monitoringLog, minimap2_ubam.minimap2_bam_index)
-
     output {
-        # File minimap2_bam = Minimap2Task.minimap2_bam
         File minimap2_bam = select_first([minimap2_fastq.minimap2_bam, minimap2_fastqgz.minimap2_bam, minimap2_ubam.minimap2_bam])
-        # File minimap2_bam_index = Minimap2Task.minimap2_bam_index
         File minimap2_bam_index = select_first([minimap2_fastq.minimap2_bam_index, minimap2_fastqgz.minimap2_bam_index, minimap2_ubam.minimap2_bam_index])
         File alignment_flagstat = select_first([minimap2_fastq.alignment_flagstat, minimap2_fastqgz.alignment_flagstat, minimap2_ubam.alignment_flagstat])
-        # File monitoringLog = Minimap2Task.monitoringLog
-        File monitoringLog = select_first([minimap2_fastq.monitoringLog, minimap2_fastqgz.monitoringLog, minimap2_ubam.minimap2_bam_index])
     }
 }
