@@ -21,12 +21,11 @@ task isoquantQuantifyTask {
         Int numThreads = 32
         Int memoryGB = 128
         Int diskSizeGB = 500
-        String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-isoquant/lrtools-isoquant-plus@sha256:b1f6d4e6db845372e31d81dfbf8cd5e06f6f68dd1b6cd605a7a2b5f6211f3aa1"
         Int preemptible_tries
-        File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
+    
+    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-isoquant/lrtools-isoquant-plus@sha256:b1f6d4e6db845372e31d81dfbf8cd5e06f6f68dd1b6cd605a7a2b5f6211f3aa1"
 
-    # String file_name = basename("~{inputBAM}", ".bam")
     String model_reconstruction_arg = if noModelConstruction then "--no_model_construction" else ""
 
     String strandedness_present = if defined(strandedness) then select_first([strandedness]) else ""
@@ -40,14 +39,12 @@ task isoquantQuantifyTask {
     String bam_tags = if importedBamTags != "" then "--bam_tags ~{importedBamTags}" else ""
 
     command <<<
-        bash ~{monitoringScript} > monitoring.log &
 
         # Check if reference_annotation is provided
         ref_annotation_arg=""
         if [ -n "~{referenceAnnotation}" ]; then
             ref_annotation_arg="--genedb ~{referenceAnnotation}"
         fi
-
 
 
         /usr/local/src/IsoQuant-3.4.1/isoquant.py \
@@ -73,10 +70,15 @@ task isoquantQuantifyTask {
     >>>
 
     output {
-        Array[File] isoquantOutputs = glob("isoquant_output/~{sampleName}/*.gz")
-        File ?transcriptModelsGTF = "isoquant_output/~{sampleName}/~{sampleName}.transcript_models.gtf.gz"
-        File ?readAssignmentsTSV = "isoquant_output/~{sampleName}/~{sampleName}.read_assignments.tsv.gz"
-        File monitoringLog = "monitoring.log"
+        Array[File] allIsoquantOutputs = glob("isoquant_output/~{sampleName}/*.gz")
+        File ?referenceTranscriptCountsTSV = "isoquant_output/~{sampleName}/~{sampleName}.transcript_counts.tsv.gz"
+        File ?referenceReadAssignmentsTSV = "isoquant_output/~{sampleName}/~{sampleName}.read_assignments.tsv.gz"
+        File ?constructedTranscriptModelsGTF = "isoquant_output/~{sampleName}/~{sampleName}.transcript_models.gtf.gz"
+        File ?constructedTranscriptCountsTSV = "isoquant_output/~{sampleName}/~{sampleName}.transcript_model_counts.tsv.Gz"
+        File ?constructedTranscriptReadsTSV = "isoquant_output/~{sampleName}/~{sampleName}.transcript_model_reads.tsv.gz"
+        File ?groupedReferenceGeneCountsTSV = "isoquant_output/~{sampleName}/~{sampleName}.gene_grouped_counts.tsv.gz"
+        File ?groupedReferenceTranscriptCountsTSV = "isoquant_output/~{sampleName}/~{sampleName}.transcript_grouped_counts.tsv.gz"
+        File ?groupedConstructedTranscriptCountsTSV = "isoquant_output/~{sampleName}/~{sampleName}.transcript_model_grouped_counts.tsv.gz"
     }
 
     runtime {
@@ -109,6 +111,10 @@ workflow isoquantQuantify {
         String ?readGroup  # tag:BC  for single cell
         String importedBamTags = "BC"  # comma separated
         Boolean reportWhetherCanonical = false # slower to set to true
+        Int cpu = 16
+        Int numThreads = 32
+        Int memoryGB = 128
+        Int diskSizeGB = 500
         Int preemptible_tries = 3
     }
 
@@ -128,13 +134,23 @@ workflow isoquantQuantify {
             readGroup = readGroup,
             importedBamTags = importedBamTags,
             reportWhetherCanonical = reportWhetherCanonical,
+            cpu = cpu,
+            numThreads = numThreads,
+            memoryGB = memoryGB,
+            diskSizeGB = diskSizeGB,
             preemptible_tries = preemptible_tries
     }
 
     output {
-        Array[File] isoquantOutputs = isoquantQuantifyTask.isoquantOutputs
-        File ?transcriptModelsGTF = isoquantQuantifyTask.transcriptModelsGTF
-        File ?readAssignmentsTSV = isoquantQuantifyTask.readAssignmentsTSV
-        # File monitoringLog = isoquantQuantifyTask.monitoringLog
+        Array[File] allIsoquantOutputs = isoquantQuantifyTask.allIsoquantOutputs
+        File ?referenceTranscriptCountsTSV = isoquantQuantifyTask.referenceTranscriptCountsTSV
+        File ?referenceReadAssignmentsTSV = isoquantQuantifyTask.referenceReadAssignmentsTSV
+        File ?constructedTranscriptModelsGTF = isoquantQuantifyTask.constructedTranscriptModelsGTF
+        File ?constructedTranscriptCountsTSV = isoquantQuantifyTask.constructedTranscriptCountsTSV
+        File ?constructedTranscriptReadsTSV = isoquantQuantifyTask.constructedTranscriptReadsTSV
+        File ?groupedReferenceGeneCountsTSV = isoquantQuantifyTask.groupedReferenceGeneCountsTSV
+        File ?groupedReferenceTranscriptCountsTSV = isoquantQuantifyTask.groupedReferenceTranscriptCountsTSV
+        File ?groupedConstructedTranscriptCountsTSV = isoquantQuantifyTask.groupedConstructedTranscriptCountsTSV
+
     }
 }
