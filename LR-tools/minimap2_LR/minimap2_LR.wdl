@@ -9,11 +9,12 @@ task Minimap2Task {
         String sampleName
         String readType
         String ?customArguments
+        Boolean keepComments = true
         Boolean keepUnmapped = true
         Boolean allowSecondary = true
         Int cpu = 8
         Int memoryGB = 32
-        Int diskSizeGB = 200
+        Int diskSizeGB
         String docker = "trinityctat/minimap2_lr:latest"
         Int preemptible_tries
         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
@@ -21,6 +22,7 @@ task Minimap2Task {
 
     String extra_arg = if allowSecondary then "" else "--secondary=no"
     String extra_arg2 = if keepUnmapped then "" else "--sam-hit-only"
+    String extra_arg3 = if keepComments then "-y" else ""
 
     command <<<
         bash ~{monitoringScript} > monitoring.log &
@@ -48,7 +50,7 @@ task Minimap2Task {
 
         fastq_name="temp.fastq"
         if [[ "~{inputExtension}" == "bam" ]] || [[ "$file_extension" == "ubam" ]]; then
-            samtools fastq ~{inputFile} > temp.fastq
+            samtools fastq -T BC ~{inputFile} > temp.fastq
         elif [[ "~{inputExtension}" == "fastq.gz" ]]; then
             mv ~{inputFile} temp.fastq.gz
             fastq_name="temp.fastq.gz"
@@ -58,7 +60,7 @@ task Minimap2Task {
 
         juncbed_arg=~{if defined(juncBED) then '"--junc-bed ${juncBED}"' else '""'}
 
-        minimap2 ~{extra_arg2} -ax ${minimap2_preset} ~{customArguments} ${juncbed_arg} ~{extra_arg} -t ~{cpu} ~{referenceGenome} ${fastq_name} > temp.sam
+        minimap2 ~{extra_arg2} ~{extra_arg3} -ax ${minimap2_preset} ~{customArguments} ${juncbed_arg} ~{extra_arg} -t ~{cpu} ~{referenceGenome} ${fastq_name} > temp.sam
 
         # minimap2 ~{extra_arg2} -ax splice:hq -uf --junc-bed ~{juncBED} ~{extra_arg} -t ~{cpu}  -G 1000 ~{referenceGenome} temp.fastq > temp.sam
 
@@ -98,12 +100,16 @@ workflow Minimap2_LR {
         String ?customArguments
         Boolean keepUnmapped = true
         Boolean allowSecondary = false
+        Int ?diskSizeGB
         Int preemptible_tries = 3
     }
 
 
     String file_extension = basename(inputReads)
     if (sub(file_extension, "fastq$", "") != file_extension) {
+
+        Int effective_diskSizeGB_fastq = select_first([diskSizeGB,  ceil(size(inputReads, "GB")*4 + size(referenceGenome, "GB") + 20)])
+
         call Minimap2Task as minimap2_fastq {
             input:
                 inputFile = inputReads,
@@ -115,10 +121,14 @@ workflow Minimap2_LR {
                 customArguments = customArguments,
                 keepUnmapped = keepUnmapped,
                 allowSecondary = allowSecondary,
+                diskSizeGB = effective_diskSizeGB_fastq,
                 preemptible_tries = preemptible_tries
         }
     }
     if (sub(file_extension, "fastq.gz$", "") != file_extension) {
+
+        Int effective_diskSizeGB_fastqgz = select_first([diskSizeGB,  ceil(size(inputReads, "GB")*20 + size(referenceGenome, "GB") + 20)])
+
         call Minimap2Task as minimap2_fastqgz {
             input:
                 inputFile = inputReads,
@@ -130,10 +140,14 @@ workflow Minimap2_LR {
                 customArguments = customArguments,
                 keepUnmapped = keepUnmapped,
                 allowSecondary = allowSecondary,
+                diskSizeGB = effective_diskSizeGB_fastqgz,
                 preemptible_tries = preemptible_tries
         }
     }
     if (sub(file_extension, "bam$", "") != file_extension) {
+        
+        Int effective_diskSizeGB_bam = select_first([diskSizeGB,  ceil(size(inputReads, "GB")*20 + size(referenceGenome, "GB") + 20)])
+        
         call Minimap2Task as minimap2_ubam {
             input:
                 inputFile = inputReads,
@@ -145,6 +159,7 @@ workflow Minimap2_LR {
                 customArguments = customArguments,
                 keepUnmapped = keepUnmapped,
                 allowSecondary = allowSecondary,
+                diskSizeGB = effective_diskSizeGB_bam,
                 preemptible_tries = preemptible_tries
         }
     }
