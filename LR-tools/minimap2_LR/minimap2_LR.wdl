@@ -9,6 +9,7 @@ task Minimap2Task {
         String sampleName
         String readType
         String ?customArguments
+        String ?tagsToExtract
         Boolean keepComments = true
         Boolean keepUnmapped = true
         Boolean allowSecondary = true
@@ -23,6 +24,8 @@ task Minimap2Task {
     String extra_arg = if allowSecondary then "" else "--secondary=no"
     String extra_arg2 = if keepUnmapped then "" else "--sam-hit-only"
     String extra_arg3 = if keepComments then "-y" else ""
+
+    String extract_tags = if defined(tagsToExtract) && tagsToExtract != "" then "-T ~{tagsToExtract}" else ""
 
     command <<<
         bash ~{monitoringScript} > monitoring.log &
@@ -50,7 +53,7 @@ task Minimap2Task {
 
         fastq_name="temp.fastq"
         if [[ "~{inputExtension}" == "bam" ]] || [[ "$file_extension" == "ubam" ]]; then
-            samtools fastq -T BC ~{inputFile} > temp.fastq
+            samtools fastq ~{extract_tags} ~{inputFile} > temp.fastq
         elif [[ "~{inputExtension}" == "fastq.gz" ]]; then
             mv ~{inputFile} temp.fastq.gz
             fastq_name="temp.fastq.gz"
@@ -98,6 +101,8 @@ workflow Minimap2_LR {
         String sampleName
         String readType
         String ?customArguments
+        String ?tagsToExtract
+        Boolean keepComments = true
         Boolean keepUnmapped = true
         Boolean allowSecondary = false
         Int ?diskSizeGB
@@ -119,6 +124,7 @@ workflow Minimap2_LR {
                 sampleName = sampleName,
                 readType = readType,
                 customArguments = customArguments,
+                keepComments = keepComments,
                 keepUnmapped = keepUnmapped,
                 allowSecondary = allowSecondary,
                 diskSizeGB = effective_diskSizeGB_fastq,
@@ -138,6 +144,7 @@ workflow Minimap2_LR {
                 sampleName = sampleName,
                 readType = readType,
                 customArguments = customArguments,
+                keepComments = keepComments,
                 keepUnmapped = keepUnmapped,
                 allowSecondary = allowSecondary,
                 diskSizeGB = effective_diskSizeGB_fastqgz,
@@ -157,6 +164,8 @@ workflow Minimap2_LR {
                 sampleName = sampleName,
                 readType = readType,
                 customArguments = customArguments,
+                tagsToExtract = tagsToExtract,
+                keepComments = keepComments,
                 keepUnmapped = keepUnmapped,
                 allowSecondary = allowSecondary,
                 diskSizeGB = effective_diskSizeGB_bam,
