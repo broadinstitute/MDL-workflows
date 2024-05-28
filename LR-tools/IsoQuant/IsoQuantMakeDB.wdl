@@ -8,7 +8,7 @@ task isoquantMakeGeneDBTask {
         Int cpu = 1
         Int memoryGB = 16
         Int diskSizeGB = 50
-        String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-isoquant/lrtools-isoquant-plus@sha256:46554ca6d93d3b84d06faf493f07dd484e8300c6961ea1277483666b20e9cbcf"
+        String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-isoquant/lrtools-isoquant-plus@sha256:b1f6d4e6db845372e31d81dfbf8cd5e06f6f68dd1b6cd605a7a2b5f6211f3aa1"
         Int preemptible_tries
         File monitoringScript = "gs://mdl-refs/util/cromwell_monitoring_script2.sh"
     }
@@ -18,7 +18,7 @@ task isoquantMakeGeneDBTask {
     command <<<
         bash ~{monitoringScript} > monitoring.log &
 
-        /usr/local/src/IsoQuant-3.3.1/isoquant_prepare_genedb.py \
+        /usr/local/src/IsoQuant-3.4.1/isoquant_prepare_genedb.py \
             --genedb ~{gtfToDB} \
             --genedb_output ./ \
             ~{extra_args}
