@@ -39,6 +39,7 @@ task isoquantQuantifyTask {
     String bam_tags = if importedBamTags != "" then "--bam_tags ~{importedBamTags}" else ""
 
     command <<<
+        set -ex
 
         # Check if reference_annotation is provided
         ref_annotation_arg=""
@@ -105,8 +106,8 @@ workflow isoquantQuantify {
         Boolean ?isCompleteGeneDB
         String dataType = "pacbio_ccs"
         String ?strandedness = "forward"
-        String transcriptQuantification = "with_ambiguous"
-        String geneQuantification = "with_inconsistent"
+        String transcriptQuantification = "unique_only"
+        String geneQuantification = "unique_splicing_consistent"
         Boolean noModelConstruction
         String ?readGroup  # tag:BC  for single cell
         String importedBamTags = "BC"  # comma separated
