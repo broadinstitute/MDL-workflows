@@ -151,6 +151,5 @@ workflow isoquantQuantify {
         File ?groupedReferenceGeneCountsTSV = isoquantQuantifyTask.groupedReferenceGeneCountsTSV
         File ?groupedReferenceTranscriptCountsTSV = isoquantQuantifyTask.groupedReferenceTranscriptCountsTSV
         File ?groupedConstructedTranscriptCountsTSV = isoquantQuantifyTask.groupedConstructedTranscriptCountsTSV
-
     }
 }

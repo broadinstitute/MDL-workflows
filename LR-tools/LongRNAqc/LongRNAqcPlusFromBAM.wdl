@@ -135,7 +135,7 @@ workflow LongRNAqcPlusFromBam {
                 strandedness = strandedness,
                 transcriptQuantification = transcriptQuantification,
                 geneQuantification = geneQuantification,
-                noModelConstruction = true,
+                noModelConstruction = false,
                 preemptible_tries = preemptible_tries
         }
     }
@@ -156,9 +156,15 @@ workflow LongRNAqcPlusFromBam {
         Array[File] sqantiJunctionsTSV = sqanti3FromBam.sqantiJunctionsTSV
         Array[File] sqantiCorrectedFasta = sqanti3FromBam.sqantiCorrectedFasta
         Array[File] sqantiCorrectedGTF = sqanti3FromBam.sqantiCorrectedGTF
-        Array[Array[File]] isoquantOutputs = isoquantQuantify.isoquantOutputs
-        Array[File?] isoquantTranscriptModelsGTF = isoquantQuantify.transcriptModelsGTF
-        Array[File?] isoquantReadAssignmentsTSV = isoquantQuantify.readAssignmentsTSV
+        Array[Array[File]] allIsoquantOutputs = isoquantQuantify.allIsoquantOutputs
+        Array[File?] referenceTranscriptCountsTSV = isoquantQuantify.referenceTranscriptCountsTSV
+        Array[File?] referenceReadAssignmentsTSV = isoquantQuantify.referenceReadAssignmentsTSV
+        Array[File?] constructedTranscriptModelsGTF = isoquantQuantify.constructedTranscriptModelsGTF
+        Array[File?] constructedTranscriptCountsTSV = isoquantQuantify.constructedTranscriptCountsTSV
+        Array[File?] constructedTranscriptReadsTSV = isoquantQuantify.constructedTranscriptReadsTSV
+        Array[File?] groupedReferenceGeneCountsTSV = isoquantQuantify.groupedReferenceGeneCountsTSV
+        Array[File?] groupedReferenceTranscriptCountsTSV = isoquantQuantify.groupedReferenceTranscriptCountsTSV
+        Array[File?] groupedConstructedTranscriptCountsTSV = isoquantQuantify.groupedConstructedTranscriptCountsTSV
     }
 
 }
