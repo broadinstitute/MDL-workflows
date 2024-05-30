@@ -48,3 +48,9 @@ workflows:
     primaryDescriptorPath: /LR-tools/stringtie_merge/stringtie_merge_and_reestimate.wdl
     authors:
       - orcid: 0000-0002-2603-1660
+  - name: BamToFastq
+    subclass: WDL
+    primaryDescriptorPath: /LR-tools/utilities/BamToFastq.wdl
+    authors:
+      - name: bhaas
+
