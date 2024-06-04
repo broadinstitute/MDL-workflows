@@ -1,1 +1,12 @@
-{"isoquantQuantify.dataType":"pacbio_ccs","isoquantQuantify.importedBamTags":"CB,XM","isoquantQuantify.inputBAM":"${this.minimap2_bam}","isoquantQuantify.inputBAMIndex":"${this.minimap2_bam_index}","isoquantQuantify.isCompleteGeneDB":"true","isoquantQuantify.noModelConstruction":"false","isoquantQuantify.readGroup":"tag:CB","isoquantQuantify.referenceAnnotation":"gs://mdl-refs/GRCh38/GRCh38.gencode.v39.annotation.gtf","isoquantQuantify.referenceFasta":"gs://mdl-refs/GRCh38/GRCh38_no_alt.fa","isoquantQuantify.sampleName":"${this.sample_id}"}
+{
+    "isoquantQuantify.readGroup": "${}",
+    "isoquantQuantify.noModelConstruction": "false",
+    "isoquantQuantify.inputBAMIndex": "${this.minimap2_bam_index}",
+    "isoquantQuantify.importedBamTags": "CB,XM",
+    "isoquantQuantify.sampleName": "${this.sample_id}",
+    "isoquantQuantify.isCompleteGeneDB": "true",
+    "isoquantQuantify.dataType": "pacbio_ccs",
+    "isoquantQuantify.referenceAnnotation": "gs://mdl-refs/GRCh38/GRCh38.gencode.v39.annotation.gtf",
+    "isoquantQuantify.inputBAM": "${this.minimap2_bam}",
+    "isoquantQuantify.referenceFasta": "gs://mdl-refs/GRCh38/GRCh38_no_alt.fa"
+}

@@ -1,1 +1,12 @@
-{"isoquantQuantify.dataType":"${}","isoquantQuantify.inputBAM":"${this.inputBAM}","isoquantQuantify.inputBAMIndex":"${this.inputBAMIndex}","isoquantQuantify.isoquantQuantifyTask.cpu":"${}","isoquantQuantify.isoquantQuantifyTask.diskSizeGB":"${}","isoquantQuantify.isoquantQuantifyTask.memoryGB":"${}","isoquantQuantify.isoquantQuantifyTask.numThreads":"${}","isoquantQuantify.noModelConstruction":"${false}","isoquantQuantify.referenceFasta":"gs://mdl-refs/GRCh38/GRCh38_no_alt.fa","isoquantQuantify.sampleName":"${this.sample_id}"}
+{
+    "isoquantQuantify.dataType": "${}",
+    "isoquantQuantify.inputBAM": "${this.inputBAM}",
+    "isoquantQuantify.inputBAMIndex": "${this.inputBAMIndex}",
+    "isoquantQuantify.isoquantQuantifyTask.cpu": "${}",
+    "isoquantQuantify.isoquantQuantifyTask.diskSizeGB": "${}",
+    "isoquantQuantify.isoquantQuantifyTask.memoryGB": "${}",
+    "isoquantQuantify.isoquantQuantifyTask.numThreads": "${}",
+    "isoquantQuantify.noModelConstruction": "${false}",
+    "isoquantQuantify.referenceFasta": "gs://mdl-refs/GRCh38/GRCh38_no_alt.fa",
+    "isoquantQuantify.sampleName": "${this.sample_id}"
+}
