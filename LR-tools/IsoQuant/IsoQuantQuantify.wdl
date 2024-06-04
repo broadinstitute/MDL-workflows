@@ -17,9 +17,9 @@ task isoquantQuantifyTask {
         String ?readGroup  # tag:BC  for single cell
         String importedBamTags = "BC"  # comma separated
         Boolean reportWhetherCanonical = false  # slower to set to true
-        Int cpu = 16
-        Int numThreads = 32
-        Int memoryGB = 128
+        Int cpu = 8
+        Int numThreads = 16
+        Int memoryGB = 52  # defaults to a n1-highmem-8
         Int diskSizeGB = 500
         Int preemptible_tries
     }
