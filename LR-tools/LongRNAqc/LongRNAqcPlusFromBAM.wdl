@@ -157,11 +157,11 @@ workflow LongRNAqcPlusFromBam {
         Array[File] sqantiCorrectedFasta = sqanti3FromBam.sqantiCorrectedFasta
         Array[File] sqantiCorrectedGTF = sqanti3FromBam.sqantiCorrectedGTF
         Array[Array[File]] allIsoquantOutputs = isoquantQuantify.allIsoquantOutputs
-        Array[File?] referenceTranscriptCountsTSV = isoquantQuantify.referenceTranscriptCountsTSV
+        Array[File?] referenceCountsTSV = isoquantQuantify.referenceCountsTSV
         Array[File?] referenceReadAssignmentsTSV = isoquantQuantify.referenceReadAssignmentsTSV
         Array[File?] constructedTranscriptModelsGTF = isoquantQuantify.constructedTranscriptModelsGTF
         Array[File?] constructedTranscriptCountsTSV = isoquantQuantify.constructedTranscriptCountsTSV
-        Array[File?] constructedTranscriptReadsTSV = isoquantQuantify.constructedTranscriptReadsTSV
+        Array[File?] constructedTranscriptReadAssignmentsTSV = isoquantQuantify.constructedTranscriptReadAssignmentsTSV
         Array[File?] groupedReferenceGeneCountsTSV = isoquantQuantify.groupedReferenceGeneCountsTSV
         Array[File?] groupedReferenceTranscriptCountsTSV = isoquantQuantify.groupedReferenceTranscriptCountsTSV
         Array[File?] groupedConstructedTranscriptCountsTSV = isoquantQuantify.groupedConstructedTranscriptCountsTSV

@@ -72,11 +72,11 @@ task isoquantQuantifyTask {
 
     output {
         Array[File] allIsoquantOutputs = glob("isoquant_output/~{sampleName}/*.gz")
-        File ?referenceTranscriptCountsTSV = "isoquant_output/~{sampleName}/~{sampleName}.transcript_counts.tsv.gz"
+        File ?referenceCountsTSV = "isoquant_output/~{sampleName}/~{sampleName}.transcript_counts.tsv.gz"
         File ?referenceReadAssignmentsTSV = "isoquant_output/~{sampleName}/~{sampleName}.read_assignments.tsv.gz"
         File ?constructedTranscriptModelsGTF = "isoquant_output/~{sampleName}/~{sampleName}.transcript_models.gtf.gz"
-        File ?constructedTranscriptCountsTSV = "isoquant_output/~{sampleName}/~{sampleName}.transcript_model_counts.tsv.Gz"
-        File ?constructedTranscriptReadsTSV = "isoquant_output/~{sampleName}/~{sampleName}.transcript_model_reads.tsv.gz"
+        File ?constructedTranscriptCountsTSV = "isoquant_output/~{sampleName}/~{sampleName}.transcript_model_counts.tsv.gz"
+        File ?constructedTranscriptReadAssignmentsTSV = "isoquant_output/~{sampleName}/~{sampleName}.transcript_model_reads.tsv.gz"
         File ?groupedReferenceGeneCountsTSV = "isoquant_output/~{sampleName}/~{sampleName}.gene_grouped_counts.tsv.gz"
         File ?groupedReferenceTranscriptCountsTSV = "isoquant_output/~{sampleName}/~{sampleName}.transcript_grouped_counts.tsv.gz"
         File ?groupedConstructedTranscriptCountsTSV = "isoquant_output/~{sampleName}/~{sampleName}.transcript_model_grouped_counts.tsv.gz"
