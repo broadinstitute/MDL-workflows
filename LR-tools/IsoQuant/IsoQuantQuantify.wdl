@@ -144,11 +144,11 @@ workflow isoquantQuantify {
 
     output {
         Array[File] allIsoquantOutputs = isoquantQuantifyTask.allIsoquantOutputs
-        File ?referenceTranscriptCountsTSV = isoquantQuantifyTask.referenceTranscriptCountsTSV
+        File ?referenceCountsTSV = isoquantQuantifyTask.referenceCountsTSV
         File ?referenceReadAssignmentsTSV = isoquantQuantifyTask.referenceReadAssignmentsTSV
         File ?constructedTranscriptModelsGTF = isoquantQuantifyTask.constructedTranscriptModelsGTF
         File ?constructedTranscriptCountsTSV = isoquantQuantifyTask.constructedTranscriptCountsTSV
-        File ?constructedTranscriptReadsTSV = isoquantQuantifyTask.constructedTranscriptReadsTSV
+        File ?constructedTranscriptReadAssignmentsTSV = isoquantQuantifyTask.constructedTranscriptReadAssignmentsTSV
         File ?groupedReferenceGeneCountsTSV = isoquantQuantifyTask.groupedReferenceGeneCountsTSV
         File ?groupedReferenceTranscriptCountsTSV = isoquantQuantifyTask.groupedReferenceTranscriptCountsTSV
         File ?groupedConstructedTranscriptCountsTSV = isoquantQuantifyTask.groupedConstructedTranscriptCountsTSV
