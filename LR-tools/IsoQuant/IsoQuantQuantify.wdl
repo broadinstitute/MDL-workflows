@@ -24,7 +24,7 @@ task isoquantQuantifyTask {
         Int preemptible_tries
     }
     
-    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-isoquant/lrtools-isoquant-plus@sha256:b1f6d4e6db845372e31d81dfbf8cd5e06f6f68dd1b6cd605a7a2b5f6211f3aa1"
+    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-isoquant/lrtools-isoquant-plus@sha256:2dc78397c1d1d1bf04eb503a388ebcd986db69eae93ad2b67ba49bf58e9ae4cf"
 
     String model_reconstruction_arg = if noModelConstruction then "--no_model_construction" else ""
 
