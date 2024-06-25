@@ -1,0 +1,7 @@
+{
+    "LongRNAqcPlotting.classificationFile":"${this.sqantiClassificationTSV}",
+    "LongRNAqcPlotting.junctionFile":"${this.sqantiJunctionsTSV}",
+    "LongRNAqcPlotting.includeSaturation":"${false}",
+    "LongRNAqcPlotting.outputPrefix":"LongRNAqcPlots",
+    "LongRNAqcPlotting.sampleName":"${this.samples.sample_id}"
+}
