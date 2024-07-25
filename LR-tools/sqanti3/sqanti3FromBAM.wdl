@@ -15,6 +15,13 @@ task splitGTFPerChromosomeTask {
         bash ~{monitoringScript} > monitoring.log &
         
         mkdir -p split_dir
+
+        for file in *.gz; do
+            mv "$file" "${file%.gz}.temp"
+            gunzip "${file%.gz}.temp"
+            mv "${file%.gz}.temp" "$file"
+        done
+
         split_gtf_per_chromosome.sh ~{inputGTF} split_dir ~{chromosomesList}
     >>>
 
