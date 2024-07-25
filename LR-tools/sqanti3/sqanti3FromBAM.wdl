@@ -269,7 +269,7 @@ workflow sqanti3FromBam {
         }
     }
 
-    File convertedGTF = select_first([convertSAMtoGTF_CTATLRTask.alignmentGTF, convertSAMtoGTF_cDNACupcakeTask.alignmentGTF])
+    File convertedGTF = select_first([convertSAMtoGTF_CTATLRTask.alignmentGTF, convertSAMtoGTF_cDNACupcakeTask.alignmentGTF, inputBAM])
     
     call splitGTFPerChromosomeTask {
         input:
