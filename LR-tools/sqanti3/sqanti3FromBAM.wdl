@@ -16,11 +16,11 @@ task splitGTFPerChromosomeTask {
         
         mkdir -p split_dir
 
-        for file in *.gz; do
-            mv "$file" "${file%.gz}.temp"
-            gunzip "${file%.gz}.temp"
-            mv "${file%.gz}.temp" "$file"
-        done
+        if [[ ~{inputGTF} == *.gz ]]; then
+            mv ~{inputGTF} gtf.temp.gz
+            gunzip gtf.temp.gz
+            mv gtf.temp ~{inputGTF}
+        fi
 
         split_gtf_per_chromosome.sh ~{inputGTF} split_dir ~{chromosomesList}
     >>>
