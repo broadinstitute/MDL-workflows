@@ -8,7 +8,7 @@ task LongRNAqcPlottingTask {
         String outputPrefix
         Boolean includeSaturation
         Int? memoryGB
-        Int maxRetries
+        Int preemptible
     }
 
     # Calculate total memory required
@@ -34,10 +34,11 @@ task LongRNAqcPlottingTask {
 
     runtime {
         docker: "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plotting"
+        bootDiskSizeGb: 30
         disks: "local-disk " + total_file_size*2 + " HDD"
         cpu: 1
         memory: memory_use + " GiB"
-        preemptible: maxRetries
+        preemptible: preemptible
     }
 }
 
@@ -53,7 +54,7 @@ workflow LongRNAqcPlotting {
         Array[File] junctionFile
         String outputPrefix
         Boolean includeSaturation
-        Int maxRetries = 3
+        Int preemptible = 1
     }
 
     call LongRNAqcPlottingTask {
@@ -63,7 +64,7 @@ workflow LongRNAqcPlotting {
             junctionFile = junctionFile,
             outputPrefix = outputPrefix,
             includeSaturation = includeSaturation,
-            maxRetries = maxRetries
+            preemptible = preemptible
     }
 
     output {
