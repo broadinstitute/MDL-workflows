@@ -34,14 +34,14 @@ task Fastq_read_stats_task {
     
     command <<<
 
-        python <<CODE
+        python3 <<CODE
 
         import gzip, re
-        sample_id = ~{sample_id}
-        fastq1 = ~{fastq1}
-        fastq2 = ~{fastq2}
+        sample_id = "~{sample_id}"
+        fastq1 = "~{fastq1}"
+        fastq2 = "~{fastq2}"
         
-        filenames = [ ~{fastq1} ]
+        filenames = [fastq1]
         if fastq2 is not None and fastq2 != "":
             filenames.append(fastq2)
 
@@ -69,8 +69,10 @@ task Fastq_read_stats_task {
 
 
         
-        with open(~{stats_filename}, "wt") as ofh:
-            print("num_SE_seqs:\t{}\tmean_seq_len:\t{}".format(num_SE_seqs, round(sum_seq_lens/num_seqs)
+        with open("~{stats_filename}", "wt") as ofh:
+            print("num_SE_seqs:\t{}\tsum_bases:\t{}\tmean_seq_len:\t{}".format(num_SE_seqs,
+                                                                               sum_seq_lens,
+                                                                               round(sum_seq_lens/num_seqs)), file=ofh)
 
         CODE
 
@@ -80,5 +82,7 @@ task Fastq_read_stats_task {
         File fastq_stats_file = "~{stats_filename}"
     }
 
+    
+    
 }
 
