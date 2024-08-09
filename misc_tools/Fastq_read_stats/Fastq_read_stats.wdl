@@ -6,6 +6,7 @@ workflow Fastq_read_stats_wf {
         String sample_id
         File fastq1
         File? fastq2
+        Int preemptible = 0
 
     }
 
@@ -28,9 +29,12 @@ task Fastq_read_stats_task {
         String sample_id
         File fastq1
         File? fastq2
+        Int preemptible = 0
     }
 
     String stats_filename = "~{sample_id}.fastq.read_stats.txt"
+    Int disk_space_multiplier = 3
+    Int disk_space = ceil(size(fastq1, "GB")*disk_space_multiplier)
     
     command <<<
 
@@ -82,6 +86,14 @@ task Fastq_read_stats_task {
         File fastq_stats_file = "~{stats_filename}"
     }
 
+   runtime {
+        docker:"ubuntu:20.04"
+        memory: "8GB"
+        bootDiskSizeGb: 12
+        disks: "local-disk ~{disk_space} HDD"
+        cpu: 1
+        preemptible: preemptible
+    }
     
     
 }
