@@ -75,7 +75,7 @@ task Fastq_read_stats_task {
 
         
         with open("~{stats_filename}", "wt") as ofh:
-            print("sample_id:\t{}\tPairedEnd:\t{}num_SE_seqs:\t{}\tsum_bases:\t{}\tmean_seq_len:\t{}".format(sample_id, PE, num_SE_seqs,
+            print("sample_id:\t{}\tPairedEnd:\t{}\tnum_SE_seqs:\t{}\tsum_bases:\t{}\tmean_seq_len:\t{}".format(sample_id, PE, num_SE_seqs,
                                                                                sum_seq_lens,
                                                                                round(sum_seq_lens/num_seqs)), file=ofh)
 
