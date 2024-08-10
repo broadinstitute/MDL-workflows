@@ -52,6 +52,7 @@ task Fastq_read_stats_task {
         sum_seq_lens = 0
         num_seqs = 0
         num_SE_seqs = 0
+        PE = True if len(filenames) > 1 else False
         
         for fastq in filenames:
             num_SE_seqs = 0
@@ -74,7 +75,7 @@ task Fastq_read_stats_task {
 
         
         with open("~{stats_filename}", "wt") as ofh:
-            print("num_SE_seqs:\t{}\tsum_bases:\t{}\tmean_seq_len:\t{}".format(num_SE_seqs,
+            print("sample_id:\t{}\tPairedEnd:\t{}num_SE_seqs:\t{}\tsum_bases:\t{}\tmean_seq_len:\t{}".format(sample_id, PE, num_SE_seqs,
                                                                                sum_seq_lens,
                                                                                round(sum_seq_lens/num_seqs)), file=ofh)
 
@@ -87,7 +88,7 @@ task Fastq_read_stats_task {
     }
 
    runtime {
-        docker:"ubuntu:20.04"
+        docker:"python"
         memory: "8GB"
         bootDiskSizeGb: 12
         disks: "local-disk ~{disk_space} HDD"
@@ -97,4 +98,3 @@ task Fastq_read_stats_task {
     
     
 }
-
