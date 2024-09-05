@@ -8,14 +8,6 @@ import "../IsoQuant/IsoQuantMakeDB.wdl" as IsoQuantMakeDBWorkflow
 import "../IsoQuant/IsoQuantQuantify.wdl" as IsoQuantQuantifyWorkflow
 
 
-struct SampleBamAndIndex {
-    String sample_name
-    File bam
-    File bam_index
-}
-
-
-
 workflow LongRNAqcPlusFromBam {
 
     meta {
@@ -23,11 +15,11 @@ workflow LongRNAqcPlusFromBam {
     }
 
     input {
-        Array[String] sampleName
+        String sampleName
         String dataType
         String ?strandedness
-        Array[File] inputBAM
-        Array[File] inputBAMIndex
+        File inputBAM
+        File inputBAMIndex
         String chromosomesList # comma seprarated
         File referenceFasta
         File referenceGTF
@@ -43,17 +35,7 @@ workflow LongRNAqcPlusFromBam {
         Boolean runLongRNAqc = true
         Boolean runSqanti = true
         Boolean runIsoQuant = false
-        Int cpu = 4
         Int preemptible_tries = 3
-
-    }
-
-    scatter(i in range(length(sampleName))) {
-        SampleBamAndIndex sampleBamAndIndex = object { 
-            sample_name: sampleName[i], 
-            bam: inputBAM[i],
-            bam_index: inputBAMIndex[i]
-        }
     }
 
 
@@ -86,94 +68,92 @@ workflow LongRNAqcPlusFromBam {
 
 ### might need to prefilter based on allowNonPrimary in case they can get sampled
 
-    # scatter(sample in createStructTask.sampleBamAndIndex) {
-    scatter(sample in sampleBamAndIndex) {
-        if (defined(samplingRate)) {
-            Float sampling_rate = select_first([samplingRate])
-            call sampleBAM.sample_bam as sampleBam {
-                input:
-                    sampleName = sample.sample_name,
-                    inputBAM = sample.bam,
-                    inputBAMindex = sample.bam_index,
-                    samplingRate = sampling_rate,
-                    maxRetries = preemptible_tries
-            }
-        }
 
-        File bam_file = select_first([sampleBam.sampled_bam, sample.bam])
-        File bam_file_index = select_first([sampleBam.sampled_bam_index, sample.bam_index])
-
-        if (runLongRNAqc) {
-            call LongRNAqcFromBAMWorkflow.LongRNAqc as LongRNAqc {
-                input:
-                    sampleName = sample.sample_name,
-                    inputBAM = bam_file,
-                    inputBAMIndex = bam_file_index,
-                    collapsedReferenceGTF = collapsedReferenceGTF,
-                    maxRetries = preemptible_tries
-            }
-        }
-
-        if (runSqanti) {
-            call sqanti3FromBAMWorkflow.sqanti3FromBam as sqanti3FromBam {
-                input:
-                    sampleName = sample.sample_name,
-                    inputBAM = bam_file,
-                    inputBAMIndex = bam_file_index,
-                    chromosomesList = chromosomesList,
-                    referenceGTF = referenceGTF,
-                    referenceFasta = referenceFasta,
-                    cagePeak = cagePeak,
-                    polyAMotifs = polyAMotifs,
-                    conversionMethod = BAMToGTFConversionMethod,
-                    allowNonPrimary = allowNonPrimary,
-                    preemptible_tries = preemptible_tries
-            }
-        }
-
-        if (runIsoQuant) {
-            call IsoQuantQuantifyWorkflow.isoquantQuantify as isoquantQuantify {
-                input:
-                    sampleName = sample.sample_name,
-                    inputBAM = bam_file,
-                    inputBAMIndex = bam_file_index,
-                    referenceFasta = referenceFasta,
-                    referenceAnnotation = isoquantDB,
-                    dataType = dataType,
-                    strandedness = strandedness,
-                    transcriptQuantification = transcriptQuantification,
-                    geneQuantification = geneQuantification,
-                    noModelConstruction = false,
-                    preemptible_tries = preemptible_tries
-            }
+    if (defined(samplingRate)) {
+        Float sampling_rate = select_first([samplingRate])
+        call sampleBAM.sample_bam as sampleBam {
+            input:
+                sampleName = sampleName,
+                inputBAM = inputBAM,
+                inputBAMindex = inputBAMIndex,
+                samplingRate = sampling_rate,
+                maxRetries = preemptible_tries
         }
     }
+
+    File bam_file = select_first([sampleBam.sampled_bam, inputBAM])
+    File bam_file_index = select_first([sampleBam.sampled_bam_index, inputBAM])
+
+    if (runLongRNAqc) {
+        call LongRNAqcFromBAMWorkflow.LongRNAqc as LongRNAqc {
+            input:
+                sampleName = sampleName,
+                inputBAM = bam_file,
+                inputBAMIndex = bam_file_index,
+                collapsedReferenceGTF = collapsedReferenceGTF,
+                maxRetries = preemptible_tries
+        }
+    }
+
+    if (runSqanti) {
+        call sqanti3FromBAMWorkflow.sqanti3FromBam as sqanti3FromBam {
+            input:
+                sampleName = sampleName,
+                inputBAM = bam_file,
+                inputBAMIndex = bam_file_index,
+                chromosomesList = chromosomesList,
+                referenceGTF = referenceGTF,
+                referenceFasta = referenceFasta,
+                cagePeak = cagePeak,
+                polyAMotifs = polyAMotifs,
+                conversionMethod = BAMToGTFConversionMethod,
+                allowNonPrimary = allowNonPrimary,
+                preemptible_tries = preemptible_tries
+        }
+    }
+
+    if (runIsoQuant) {
+        call IsoQuantQuantifyWorkflow.isoquantQuantify as isoquantQuantify {
+            input:
+                sampleName = sampleName,
+                inputBAM = bam_file,
+                inputBAMIndex = bam_file_index,
+                referenceFasta = referenceFasta,
+                referenceAnnotation = isoquantDB,
+                dataType = dataType,
+                strandedness = strandedness,
+                transcriptQuantification = transcriptQuantification,
+                geneQuantification = geneQuantification,
+                noModelConstruction = false,
+                preemptible_tries = preemptible_tries
+        }
+    }
+
 
     # Here is where the plotting would happen
 
     output {
-        # Array[SampleBamAndIndex] sampleBamAndIndex = createStructTask.sampleBamAndIndex
-        Array[File] sampledBAM = bam_file
-        Array[File] sampledBAMindex= bam_file_index
-        Array[File?] rnaseqc_gene_reads_gct = LongRNAqc.rnaseqc_gene_reads_gct
-        Array[File?] rnaseqc_gene_fragments_gct = LongRNAqc.rnaseqc_gene_fragments_gct
-        Array[File?] rnaseqc_gene_tpm_gct = LongRNAqc.rnaseqc_gene_tpm_gct
-        Array[File?] rnaseqc_exon_reads_gct = LongRNAqc.rnaseqc_exon_reads_gct
-        Array[File?] rnaseqc_exon_cv_tsv = LongRNAqc.rnaseqc_exon_cv_tsv
-        Array[File?] rnaseqc_metrics_tsv = LongRNAqc.rnaseqc_metrics_tsv
-        Array[File?] sqantiClassificationTSV = sqanti3FromBam.sqantiClassificationTSV
-        Array[File?] sqantiJunctionsTSV = sqanti3FromBam.sqantiJunctionsTSV
-        Array[File?] sqantiCorrectedFasta = sqanti3FromBam.sqantiCorrectedFasta
-        Array[File?] sqantiCorrectedGTF = sqanti3FromBam.sqantiCorrectedGTF
-        Array[Array[File]?] allIsoquantOutputs = isoquantQuantify.allIsoquantOutputs
-        Array[File?] referenceCountsTSV = isoquantQuantify.referenceCountsTSV
-        Array[File?] referenceReadAssignmentsTSV = isoquantQuantify.referenceReadAssignmentsTSV
-        Array[File?] constructedTranscriptModelsGTF = isoquantQuantify.constructedTranscriptModelsGTF
-        Array[File?] constructedTranscriptCountsTSV = isoquantQuantify.constructedTranscriptCountsTSV
-        Array[File?] constructedTranscriptReadAssignmentsTSV = isoquantQuantify.constructedTranscriptReadAssignmentsTSV
-        Array[File?] groupedReferenceGeneCountsTSV = isoquantQuantify.groupedReferenceGeneCountsTSV
-        Array[File?] groupedReferenceTranscriptCountsTSV = isoquantQuantify.groupedReferenceTranscriptCountsTSV
-        Array[File?] groupedConstructedTranscriptCountsTSV = isoquantQuantify.groupedConstructedTranscriptCountsTSV
+        File sampledBAM = bam_file
+        File sampledBAMindex = bam_file_index
+        File ?rnaseqc_gene_reads_gct = LongRNAqc.rnaseqc_gene_reads_gct
+        File ?rnaseqc_gene_fragments_gct = LongRNAqc.rnaseqc_gene_fragments_gct
+        File ?rnaseqc_gene_tpm_gct = LongRNAqc.rnaseqc_gene_tpm_gct
+        File ?rnaseqc_exon_reads_gct = LongRNAqc.rnaseqc_exon_reads_gct
+        File ?rnaseqc_exon_cv_tsv = LongRNAqc.rnaseqc_exon_cv_tsv
+        File ?rnaseqc_metrics_tsv = LongRNAqc.rnaseqc_metrics_tsv
+        File ?sqantiClassificationTSV = sqanti3FromBam.sqantiClassificationTSV
+        File ?sqantiJunctionsTSV = sqanti3FromBam.sqantiJunctionsTSV
+        File ?sqantiCorrectedFasta = sqanti3FromBam.sqantiCorrectedFasta
+        File ?sqantiCorrectedGTF = sqanti3FromBam.sqantiCorrectedGTF
+        Array[File] ?allIsoquantOutputs = isoquantQuantify.allIsoquantOutputs
+        File ?referenceCountsTSV = isoquantQuantify.referenceCountsTSV
+        File ?referenceReadAssignmentsTSV = isoquantQuantify.referenceReadAssignmentsTSV
+        File ?constructedTranscriptModelsGTF = isoquantQuantify.constructedTranscriptModelsGTF
+        File ?constructedTranscriptCountsTSV = isoquantQuantify.constructedTranscriptCountsTSV
+        File ?constructedTranscriptReadAssignmentsTSV = isoquantQuantify.constructedTranscriptReadAssignmentsTSV
+        File ?groupedReferenceGeneCountsTSV = isoquantQuantify.groupedReferenceGeneCountsTSV
+        File ?groupedReferenceTranscriptCountsTSV = isoquantQuantify.groupedReferenceTranscriptCountsTSV
+        File ?groupedConstructedTranscriptCountsTSV = isoquantQuantify.groupedConstructedTranscriptCountsTSV
     }
 
 }
