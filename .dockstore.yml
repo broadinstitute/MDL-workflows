@@ -54,3 +54,9 @@ workflows:
     authors:
       - name: bhaas
 
+  - name: Duplex_read_finder
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/duplex_read_finding/Duplex_read_finder.wdl
+    authors:
+      - name: bhaas
+
