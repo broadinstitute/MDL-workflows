@@ -173,8 +173,8 @@ task sqantiTask {
         File inputGTF
         File referenceGTF
         File referenceFasta
-        File cagePeak
-        File polyAMotifs
+        File ?cagePeak
+        File ?polyAMotifs
         Int ?memoryGB
         Int diskSizeGB
         String docker
@@ -183,15 +183,15 @@ task sqantiTask {
     }
 
     Int estimated_memory = ceil(size(inputGTF, "MB")*0.013 + 8)
+    String extra_arg = if defined(cagePeak) then " --CAGE_peak ~{cagePeak} " else ""
+    String extra_arg2 = if defined(polyAMotifs) then " --polyA_motif_list ~{polyAMotifs} " else ""
 
     command <<<
         bash ~{monitoringScript} > monitoring.log &
 
         sqanti3_qc.py \
             --report skip \
-            --dir sqanti_out_dir \
-            --CAGE_peak ~{cagePeak} \
-            --polyA_motif_list ~{polyAMotifs} \
+            --dir sqanti_out_dir  ~{extra_arg} ~{extra_arg2} \
             --skipORF \
             --window 20 \
             --isoform_hits \
@@ -235,8 +235,8 @@ workflow sqanti3FromBam {
         String conversionMethod = "cDNACupcake"
         File referenceGTF
         File referenceFasta
-        File cagePeak
-        File polyAMotifs
+        File ?cagePeak
+        File ?polyAMotifs
         Boolean allowNonPrimary = true
         Int ?memoryGB
         Int diskSizeGB = 256

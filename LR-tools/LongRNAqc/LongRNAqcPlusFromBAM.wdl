@@ -25,8 +25,8 @@ workflow LongRNAqcPlusFromBam {
         File referenceGTF
         File ?referenceGTF_DB
         File collapsedReferenceGTF
-        File cagePeak
-        File polyAMotifs
+        File ?cagePeak
+        File ?polyAMotifs
         Float ?samplingRate
         String BAMToGTFConversionMethod
         String transcriptQuantification = "unique_only"
