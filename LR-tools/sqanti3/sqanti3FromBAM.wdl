@@ -183,15 +183,17 @@ task sqantiTask {
     }
 
     Int estimated_memory = ceil(size(inputGTF, "MB")*0.013 + 8)
-    String extra_arg = if defined(cagePeak) then " --CAGE_peak ~{cagePeak} " else ""
-    String extra_arg2 = if defined(polyAMotifs) then " --polyA_motif_list ~{polyAMotifs} " else ""
+
 
     command <<<
         bash ~{monitoringScript} > monitoring.log &
 
+        extra_arg=~{if defined(cagePeak) then '" --CAGE_peak ~{cagePeak} "' else '""'}
+        extra_arg2=~{if defined(polyAMotifs) then '" --polyA_motif_list ~{polyAMotifs} "' else '""'}
+
         sqanti3_qc.py \
             --report skip \
-            --dir sqanti_out_dir  ~{extra_arg} ~{extra_arg2} \
+            --dir sqanti_out_dir  ${extra_arg} ${extra_arg2} \
             --skipORF \
             --window 20 \
             --isoform_hits \
