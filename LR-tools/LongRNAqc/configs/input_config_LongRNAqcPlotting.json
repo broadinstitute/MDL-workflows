@@ -1,7 +1,1 @@
-{
-    "LongRNAqcPlotting.classificationFile":"${this.sqantiClassificationTSV}",
-    "LongRNAqcPlotting.junctionFile":"${this.sqantiJunctionsTSV}",
-    "LongRNAqcPlotting.includeSaturation":"${false}",
-    "LongRNAqcPlotting.outputPrefix":"LongRNAqcPlots",
-    "LongRNAqcPlotting.sampleName":"${this.samples.sample_id}"
-}
+{"LongRNAqcPlotting.classificationFile":"${this.samples.sqantiClassificationTSV}","LongRNAqcPlotting.includeSaturation":"${false}","LongRNAqcPlotting.junctionFile":"${this.samples.sqantiJunctionsTSV}","LongRNAqcPlotting.outputPrefix":"gtex-human-kinnex","LongRNAqcPlotting.preemptible":"${0}","LongRNAqcPlotting.sampleName":"${this.samples.sample_id}"}
