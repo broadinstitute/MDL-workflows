@@ -19,7 +19,7 @@ task Minimap2Task {
         Int preemptible_tries
     }
 
-    String docker = "trinityctat/minimap2_lr:latest"
+    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/minimap2/minimap2:latest"
 
     String extra_arg = if allowSecondary then "" else "--secondary=no"
     String extra_arg2 = if keepUnmapped then "" else "--sam-hit-only"
