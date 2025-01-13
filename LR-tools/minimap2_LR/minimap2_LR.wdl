@@ -42,6 +42,8 @@ task Minimap2Task {
             minimap2_preset="splice -uf -k14"
         elif [ "~{readType}" == "PacBioIsoSeq" ]; then
             minimap2_preset="splice:hq -uf"
+        elif [ "~{readType}" == "ONTGenomicQ20" ]; then
+            minimap2_preset="lr:hq"
         elif [ "~{readType}" == "None" ]; then
             minimap2_preset=""
         else
