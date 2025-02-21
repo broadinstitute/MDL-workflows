@@ -70,7 +70,7 @@ task convertSAMtoGTF_CTATLRTask {
     runtime {
         cpu: 1
         memory: "~{memoryGB} GiB"
-        disks: "local-disk " + ceil(size(inputBAM, "GB")*20 + 10) + " HDD"
+        disks: "local-disk " + ceil(size(inputBAM, "GB")*20 + 10) + " SSD"
         docker: docker
         preemptible: preemptible_tries
     }
@@ -161,7 +161,7 @@ task concatenateSqantiOutputsTask {
     runtime {
         cpu: 1
         memory: "~{memoryGB} GiB"
-        disks: "local-disk 500 HDD"
+        disks: "local-disk 500 SSD"
         docker: docker
         preemptible: preemptible_tries
     }
@@ -245,7 +245,7 @@ workflow sqanti3FromBam {
         Int preemptible_tries = 3
     }
 
-    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:645158994470dcc4657069906ea8ea086e892751d6d5abab3e45aeccbebb648a"
+    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plus@sha256:796ba14856e0e2bc55b3e4770fdc8d2b18af48251fba2a08747144501041437b"
 
     if (conversionMethod == "CTAT-LR") {
         call convertSAMtoGTF_CTATLRTask {
