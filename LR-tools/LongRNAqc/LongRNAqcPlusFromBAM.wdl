@@ -6,6 +6,7 @@ import "../sqanti3/sqanti3FromBAM.wdl" as sqanti3FromBAMWorkflow
 import "LongRNAqcFromBAM.wdl" as LongRNAqcFromBAMWorkflow
 import "../IsoQuant/IsoQuantMakeDB.wdl" as IsoQuantMakeDBWorkflow
 import "../IsoQuant/IsoQuantQuantify.wdl" as IsoQuantQuantifyWorkflow
+import "https://raw.githubusercontent.com/MethodsDev/LongReadAlignmentAssembler/refs/heads/main/WDL/LRAA.wdl" as LRAAWorkflow
 
 
 workflow LongRNAqcPlusFromBam {
@@ -31,9 +32,16 @@ workflow LongRNAqcPlusFromBam {
         String BAMToGTFConversionMethod
         String transcriptQuantification = "unique_only"
         String geneQuantification = "unique_splicing_consistent"
+        Float? LRAA_min_per_id
+        Boolean LRAA_no_EM = false
+        Boolean LRAA_quant_only = false
+        Boolean LRAA_no_norm = false
+        Int? LRAA_min_mapping_quality
         Boolean allowNonPrimary
+        Boolean LowFi = false  # option for ONT data, used by LRAA
         Boolean runLongRNAqc = true
         Boolean runSqanti = true
+        Boolean runLRAA = false
         Boolean runIsoQuant = false
         Int preemptible_tries = 3
     }
@@ -83,6 +91,23 @@ workflow LongRNAqcPlusFromBam {
                 conversionMethod = BAMToGTFConversionMethod,
                 allowNonPrimary = allowNonPrimary,
                 preemptible_tries = preemptible_tries
+        }
+    }
+
+    if (runLRAA) {
+        call LRAAWorkflow.LRAA_wf as LRAA {
+            input:
+                sample_id = sampleName,
+                referenceGenome = referenceFasta,
+                inputBAM = inputBAM,
+                annot_gtf = referenceGTF,
+                LowFi = LowFi,
+                main_chromosomes = chromosomesList, # ex. "chr1 chr2 chr3 chr4 chr5 chr6 chr7 chr8 chr9 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19 chr20 chr21 chr22 chrX chrY"
+                min_per_id = LRAA_min_per_id,
+                no_EM = LRAA_no_EM,
+                quant_only = LRAA_quant_only,
+                no_norm = LRAA_no_norm,
+                min_mapping_quality = LRAA_min_mapping_quality,
         }
     }
 
@@ -136,25 +161,32 @@ workflow LongRNAqcPlusFromBam {
     output {
         File sampledBAM = bam_file
         File sampledBAMindex = bam_file_index
+
         File ?rnaseqc_gene_reads_gct = LongRNAqc.rnaseqc_gene_reads_gct
         File ?rnaseqc_gene_fragments_gct = LongRNAqc.rnaseqc_gene_fragments_gct
         File ?rnaseqc_gene_tpm_gct = LongRNAqc.rnaseqc_gene_tpm_gct
         File ?rnaseqc_exon_reads_gct = LongRNAqc.rnaseqc_exon_reads_gct
         File ?rnaseqc_exon_cv_tsv = LongRNAqc.rnaseqc_exon_cv_tsv
         File ?rnaseqc_metrics_tsv = LongRNAqc.rnaseqc_metrics_tsv
+
         File ?sqantiClassificationTSV = sqanti3FromBam.sqantiClassificationTSV
         File ?sqantiJunctionsTSV = sqanti3FromBam.sqantiJunctionsTSV
         File ?sqantiCorrectedFasta = sqanti3FromBam.sqantiCorrectedFasta
         File ?sqantiCorrectedGTF = sqanti3FromBam.sqantiCorrectedGTF
-        Array[File] ?allIsoquantOutputs = isoquantQuantify.allIsoquantOutputs
-        File ?referenceCountsTSV = isoquantQuantify.referenceCountsTSV
-        File ?referenceReadAssignmentsTSV = isoquantQuantify.referenceReadAssignmentsTSV
-        File ?constructedTranscriptModelsGTF = isoquantQuantify.constructedTranscriptModelsGTF
-        File ?constructedTranscriptCountsTSV = isoquantQuantify.constructedTranscriptCountsTSV
-        File ?constructedTranscriptReadAssignmentsTSV = isoquantQuantify.constructedTranscriptReadAssignmentsTSV
-        File ?groupedReferenceGeneCountsTSV = isoquantQuantify.groupedReferenceGeneCountsTSV
-        File ?groupedReferenceTranscriptCountsTSV = isoquantQuantify.groupedReferenceTranscriptCountsTSV
-        File ?groupedConstructedTranscriptCountsTSV = isoquantQuantify.groupedConstructedTranscriptCountsTSV
+
+        File ?LRAAmergedQuantExpr = LRAA.mergedQuantExpr
+        File ?LRAAmergedQuantTracking = LRAA.mergedQuantTracking
+        File ?LRAAmergedGTF = LRAA.mergedGTF
+
+        Array[File] ?IsoquantallOutputs = isoquantQuantify.allIsoquantOutputs
+        File ?IsoquantreferenceCountsTSV = isoquantQuantify.referenceCountsTSV
+        File ?IsoquantreferenceReadAssignmentsTSV = isoquantQuantify.referenceReadAssignmentsTSV
+        File ?IsoquantconstructedTranscriptModelsGTF = isoquantQuantify.constructedTranscriptModelsGTF
+        File ?IsoquantconstructedTranscriptCountsTSV = isoquantQuantify.constructedTranscriptCountsTSV
+        File ?IsoquantconstructedTranscriptReadAssignmentsTSV = isoquantQuantify.constructedTranscriptReadAssignmentsTSV
+        File ?IsoquantgroupedReferenceGeneCountsTSV = isoquantQuantify.groupedReferenceGeneCountsTSV
+        File ?IsoquantgroupedReferenceTranscriptCountsTSV = isoquantQuantify.groupedReferenceTranscriptCountsTSV
+        File ?IsoquantgroupedConstructedTranscriptCountsTSV = isoquantQuantify.groupedConstructedTranscriptCountsTSV
     }
 
 }
