@@ -39,32 +39,6 @@ workflow LongRNAqcPlusFromBam {
     }
 
 
-    if (defined(referenceGTF_DB)) {
-        String db_filename = basename(select_first([referenceGTF_DB]))
-
-        # If file has extension 'gtf', remove the extension such that the returned string does not match `db_filename`
-        if (sub(db_filename, "gtf", "") != db_filename) {
-            call IsoQuantMakeDBWorkflow.isoquantMakeGeneDB as isoquantMakeGeneDB_fromDB {
-                input:
-                    gtfToDB = select_first([referenceGTF_DB]),
-                    isCompleteGeneDB = false,
-                    preemptible_tries = preemptible_tries
-            }
-        }
-        #if (sub(db_filename, "gtf", "") == db_filename) {
-        #    File providedIsoquantDB = referenceGTF_DB
-        #}
-    }
-    if (!defined(referenceGTF_DB)) {
-        call IsoQuantMakeDBWorkflow.isoquantMakeGeneDB as isoquantMakeGeneDB_fromRef {
-            input:
-                gtfToDB = referenceGTF,
-                isCompleteGeneDB = true,
-                preemptible_tries = preemptible_tries
-        }
-    }
-
-    File isoquantDB = select_first([isoquantMakeGeneDB_fromRef.geneDB, isoquantMakeGeneDB_fromDB.geneDB, referenceGTF_DB])
 
 ### might need to prefilter based on allowNonPrimary in case they can get sampled
 
@@ -113,6 +87,33 @@ workflow LongRNAqcPlusFromBam {
     }
 
     if (runIsoQuant) {
+        if (defined(referenceGTF_DB)) {
+            String db_filename = basename(select_first([referenceGTF_DB]))
+
+            # If file has extension 'gtf', remove the extension such that the returned string does not match `db_filename`
+            if (sub(db_filename, "gtf", "") != db_filename) {
+                call IsoQuantMakeDBWorkflow.isoquantMakeGeneDB as isoquantMakeGeneDB_fromDB {
+                    input:
+                        gtfToDB = select_first([referenceGTF_DB]),
+                        isCompleteGeneDB = false,
+                        preemptible_tries = preemptible_tries
+                }
+            }
+            #if (sub(db_filename, "gtf", "") == db_filename) {
+            #    File providedIsoquantDB = referenceGTF_DB
+            #}
+        }
+        if (!defined(referenceGTF_DB)) {
+            call IsoQuantMakeDBWorkflow.isoquantMakeGeneDB as isoquantMakeGeneDB_fromRef {
+                input:
+                    gtfToDB = referenceGTF,
+                    isCompleteGeneDB = true,
+                    preemptible_tries = preemptible_tries
+            }
+        }
+
+        File isoquantDB = select_first([isoquantMakeGeneDB_fromRef.geneDB, isoquantMakeGeneDB_fromDB.geneDB, referenceGTF_DB])
+
         call IsoQuantQuantifyWorkflow.isoquantQuantify as isoquantQuantify {
             input:
                 sampleName = sampleName,
