@@ -15,7 +15,7 @@ task splitGTFPerChromosomeTask {
         bash ~{monitoringScript} > monitoring.log &
         
         mkdir -p split_dir
-        split_gtf_per_chromosome.sh ~{inputGTF} split_dir `cat ~{chromosomesList} | sed 's/ /,/g'`
+        split_gtf_per_chromosome.sh ~{inputGTF} split_dir `echo ~{chromosomesList} | sed 's/ /,/g'`
     >>>
 
     output {
