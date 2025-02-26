@@ -191,13 +191,19 @@ task sqantiTask {
         extra_arg=~{if defined(cagePeak) then '" --CAGE_peak ~{cagePeak} "' else '""'}
         extra_arg2=~{if defined(polyAMotifs) then '" --polyA_motif_list ~{polyAMotifs} "' else '""'}
 
+        if gzip -t ~{inputGTF} 2>/dev/null; then
+            gunzip -c ~{inputGTF} > inputGTF.gtf
+        else
+            mv ~{inputGTF} inputGTF.gtf
+        fi
+
         sqanti3_qc.py \
             --report skip \
             --dir sqanti_out_dir  ${extra_arg} ${extra_arg2} \
             --skipORF \
             --window 20 \
             --isoform_hits \
-            ~{inputGTF} \
+            inputGTF.gtf \
             ~{referenceGTF} \
             ~{referenceFasta}
 
