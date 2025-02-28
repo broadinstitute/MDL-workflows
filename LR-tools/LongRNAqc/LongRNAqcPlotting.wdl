@@ -4,40 +4,32 @@ task LongRNAqcPlottingTask {
     input {
         Array[String] sampleName
         Array[File] classificationFile
-        Array[File] junctionFile
         String outputPrefix
-        Boolean includeSaturation
-        Int? memoryGB
         Int preemptible
     }
 
     # Calculate total memory required
-    Int total_file_size = ceil(size(classificationFile, "GiB") + size(junctionFile, "GiB") + 8)
-    Int total_classification_file_size = ceil(size(classificationFile, "GiB") + size(junctionFile, "GiB"))
+    Int total_file_size = ceil(size(classificationFile, "GiB") + 8)
 
-    Int memory_use = select_first([memoryGB, total_classification_file_size*7 + 8])
-
-    String saturation_arg = if includeSaturation then "True" else "False"
-    
     command {
-        report_multisample_shortform.R \
+        /scripts/LongRNAqc_classification_plots.py \
             '~{sep="," sampleName}' \
             '~{sep="," classificationFile}' \
-            '~{sep="," junctionFile}' \
-            ~{outputPrefix} \
-            ~{saturation_arg}
+            '--output ' ~{outputPrefix} \
+            '--type sqanti'
     }
 
     output {
-        File plots = select_first(glob("~{outputPrefix}*"))
+        File QC_categories_plots = "~{outputPrefix}_categories.pdf"
+        File QC_read_lengths_plots = "~{outputPrefix}_read_length_distributions.pdf"
     }
 
     runtime {
-        docker: "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-sqanti3/lrtools-sqanti3-plotting"
+        docker: "us-central1-docker.pkg.dev/methods-dev-lab/lrtools-qc/lrtools-qc-plotting"
         bootDiskSizeGb: 30
         disks: "local-disk " + total_file_size*2 + " HDD"
         cpu: 1
-        memory: memory_use + " GiB"
+        memory: "4 GiB"
         preemptible: preemptible
     }
 }
@@ -51,9 +43,7 @@ workflow LongRNAqcPlotting {
     input {
         Array[String] sampleName
         Array[File] classificationFile
-        Array[File] junctionFile
         String outputPrefix
-        Boolean includeSaturation
         Int preemptible = 1
     }
 
@@ -61,14 +51,13 @@ workflow LongRNAqcPlotting {
         input:
             sampleName = sampleName,
             classificationFile = classificationFile,
-            junctionFile = junctionFile,
             outputPrefix = outputPrefix,
-            includeSaturation = includeSaturation,
             preemptible = preemptible
     }
 
     output {
-        File QC_plots = LongRNAqcPlottingTask.plots
+        File QC_categories_plots = LongRNAqcPlottingTask.QC_categories_plots
+        File QC_read_lengths_plots = LongRNAqcPlottingTask.QC_read_lengths_plots
     }
 }
 
