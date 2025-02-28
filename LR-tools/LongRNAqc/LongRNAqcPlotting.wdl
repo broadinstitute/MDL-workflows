@@ -13,10 +13,10 @@ task LongRNAqcPlottingTask {
 
     command {
         /scripts/LongRNAqc_classification_plots.py \
-            '--sample_names ~{sep="," sampleName}' \
-            '--classification_files ~{sep="," classificationFile}' \
-            '--output ~{outputPrefix}' \
-            '--type sqanti'
+            --sample_names '~{sep="," sampleName}' \
+            --classification_files '~{sep="," classificationFile}' \
+            --output ~{outputPrefix} \
+            --type sqanti
     }
 
     output {
