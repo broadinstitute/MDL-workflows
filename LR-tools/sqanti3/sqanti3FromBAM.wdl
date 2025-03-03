@@ -191,10 +191,10 @@ task sqantiTask {
         extra_arg=~{if defined(cagePeak) then '" --CAGE_peak ~{cagePeak} "' else '""'}
         extra_arg2=~{if defined(polyAMotifs) then '" --polyA_motif_list ~{polyAMotifs} "' else '""'}
 
-        if gzip -t ~{inputGTF} 2>/dev/null; then
-            gunzip -c ~{inputGTF} > inputGTF.gtf
+        if gzip -t ~{referenceGTF} 2>/dev/null; then
+            gunzip -c ~{referenceGTF} > referenceGTF.gtf
         else
-            mv ~{inputGTF} inputGTF.gtf
+            mv ~{referenceGTF} referenceGTF.gtf
         fi
 
         sqanti3_qc.py \
@@ -203,8 +203,8 @@ task sqantiTask {
             --skipORF \
             --window 20 \
             --isoform_hits \
-            inputGTF.gtf \
-            ~{referenceGTF} \
+            ~{inputGTF} \
+            referenceGTF.gtf \
             ~{referenceFasta}
 
             find sqanti_out_dir/ -maxdepth 1 -type f ! -name "*.pdf" -exec gzip {} +
