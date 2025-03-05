@@ -18,7 +18,6 @@ workflow LongRNAqcPlusFromBam {
     input {
         String sampleName
         String dataType
-        String ?strandedness
         File inputBAM
         File inputBAMIndex
         String chromosomesList # comma seprarated
@@ -30,8 +29,9 @@ workflow LongRNAqcPlusFromBam {
         File ?polyAMotifs
         Float ?samplingRate
         String BAMToGTFConversionMethod
-        String transcriptQuantification = "unique_only"
-        String geneQuantification = "unique_splicing_consistent"
+        String ?IsoQuantstrandedness
+        String IsoQuantTranscriptQuantification = "unique_only"
+        String IsoQuantGeneQuantification = "unique_splicing_consistent"
         Float? LRAA_min_per_id
         Boolean LRAA_no_EM = false
         Boolean LRAA_quant_only = false
@@ -147,9 +147,9 @@ workflow LongRNAqcPlusFromBam {
                 referenceFasta = referenceFasta,
                 referenceAnnotation = isoquantDB,
                 dataType = dataType,
-                strandedness = strandedness,
-                transcriptQuantification = transcriptQuantification,
-                geneQuantification = geneQuantification,
+                strandedness = IsoQuantstrandedness,
+                transcriptQuantification = IsoQuantTranscriptQuantification,
+                geneQuantification = IsoQuantGeneQuantification,
                 noModelConstruction = false,
                 preemptible_tries = preemptible_tries
         }
