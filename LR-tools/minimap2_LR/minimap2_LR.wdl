@@ -17,7 +17,7 @@ task splitReadsTask {
     command <<<
 
         # adding _splitReads to the output prefix so we can make the output glob more precise and avoid globbing the input back
-        python split_reads_in_chunks.py \
+        python /scripts/split_reads_in_chunks.py \
             --input_file ~{inputFile} \
             --output_prefix ~{sampleName}_splitReads \
             --chunk_size ~{reads_per_split}
