@@ -88,7 +88,7 @@ task Minimap2Task {
 
 workflow Minimap2_LR {
     meta {
-        description: "Run Minimap2 from an unaligned BAM of PacBio long reads to generate an aligned sorted BAM and BAM index."
+        description: "Run Minimap2 from an (unaligned) BAM or FASTQ of single end long reads to generate an aligned sorted BAM and BAM index."
     }
 
     input {
@@ -110,79 +110,51 @@ workflow Minimap2_LR {
 
 
     String file_extension = basename(inputReads)
+
     if (sub(file_extension, "fastq$", "") != file_extension) {
 
         Int effective_diskSizeGB_fastq = select_first([diskSizeGB,  ceil(size(inputReads, "GB")*4 + size(referenceGenome, "GB") + 20)])
+        String inputExtension_fastq = "fastq"
 
-        call Minimap2Task as minimap2_fastq {
-            input:
-                inputFile = inputReads,
-                inputExtension = "fastq",
-                juncBED = juncBED,
-                referenceGenome = referenceGenome,
-                sampleName = sampleName,
-                readType = readType,
-                customArguments = customArguments,
-                tagsToExtract = tagsToExtract,
-                keepComments = keepComments,
-                keepUnmapped = keepUnmapped,
-                allowSecondary = allowSecondary,
-                diskSizeGB = effective_diskSizeGB_fastq,
-                cpu = cpu,
-                memoryGB = memoryGB,
-                preemptible_tries = preemptible_tries
-        }
     }
     if (sub(file_extension, "fastq.gz$", "") != file_extension) {
 
         Int effective_diskSizeGB_fastqgz = select_first([diskSizeGB,  ceil(size(inputReads, "GB")*20 + size(referenceGenome, "GB") + 20)])
+        String inputExtension_fastqgz = "fastq.gz"
 
-        call Minimap2Task as minimap2_fastqgz {
-            input:
-                inputFile = inputReads,
-                inputExtension = "fastq.gz",
-                juncBED = juncBED,
-                referenceGenome = referenceGenome,
-                sampleName = sampleName,
-                readType = readType,
-                customArguments = customArguments,
-                tagsToExtract = tagsToExtract,
-                keepComments = keepComments,
-                keepUnmapped = keepUnmapped,
-                allowSecondary = allowSecondary,
-                diskSizeGB = effective_diskSizeGB_fastqgz,
-                cpu = cpu,
-                memoryGB = memoryGB,
-                preemptible_tries = preemptible_tries
-        }
     }
     if (sub(file_extension, "bam$", "") != file_extension) {
         
         Int effective_diskSizeGB_bam = select_first([diskSizeGB,  ceil(size(inputReads, "GB")*20 + size(referenceGenome, "GB") + 20)])
-        
-        call Minimap2Task as minimap2_ubam {
-            input:
-                inputFile = inputReads,
-                inputExtension = "bam",
-                juncBED = juncBED,
-                referenceGenome = referenceGenome,
-                sampleName = sampleName,
-                readType = readType,
-                customArguments = customArguments,
-                tagsToExtract = tagsToExtract,
-                keepComments = keepComments,
-                keepUnmapped = keepUnmapped,
-                allowSecondary = allowSecondary,
-                diskSizeGB = effective_diskSizeGB_bam,
-                cpu = cpu,
-                memoryGB = memoryGB,
-                preemptible_tries = preemptible_tries
-        }
+        String inputExtension_bam = "bam"
+
+    }
+
+    Int effective_diskSizeGB = select_first([effective_diskSizeGB_fastq, effective_diskSizeGB_fastqgz, effective_diskSizeGB_bam])
+    String inputExtension =  select_first([inputExtension_fastq, inputExtension_fastqgz , inputExtension_bam])
+
+    call Minimap2Task as minimap2_run {
+        input:
+            inputFile = inputReads,
+            inputExtension = inputExtension,
+            juncBED = juncBED,
+            referenceGenome = referenceGenome,
+            sampleName = sampleName,
+            readType = readType,
+            customArguments = customArguments,
+            tagsToExtract = tagsToExtract,
+            keepComments = keepComments,
+            keepUnmapped = keepUnmapped,
+            allowSecondary = allowSecondary,
+            diskSizeGB = effective_diskSizeGB,
+            cpu = cpu,
+            memoryGB = memoryGB,
+            preemptible_tries = preemptible_tries
     }
 
     output {
-        File minimap2_bam = select_first([minimap2_fastq.minimap2_bam, minimap2_fastqgz.minimap2_bam, minimap2_ubam.minimap2_bam])
-        File minimap2_bam_index = select_first([minimap2_fastq.minimap2_bam_index, minimap2_fastqgz.minimap2_bam_index, minimap2_ubam.minimap2_bam_index])
-        File alignment_flagstat = select_first([minimap2_fastq.alignment_flagstat, minimap2_fastqgz.alignment_flagstat, minimap2_ubam.alignment_flagstat])
+        File minimap2_bam = minimap2_run.minimap2_bam
+        File minimap2_bam_index = minimap2_run.minimap2_bam_index
+        File alignment_flagstat = minimap2_run.alignment_flagstat
     }
 }
