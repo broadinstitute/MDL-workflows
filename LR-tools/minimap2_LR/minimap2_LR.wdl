@@ -49,7 +49,7 @@ task mergeBAMs {
 
     command <<<
 
-        samtools merge -o ~{sampleName}.bam '~{sep="' '" bams_to_merge}'
+        samtools merge --threads 4 -o ~{sampleName}.bam '~{sep="' '" bams_to_merge}'
         samtools index  ~{sampleName}.bam
         samtools flagstats  ~{sampleName}.bam > ~{sampleName}.flagstat.txt
 
@@ -62,10 +62,10 @@ task mergeBAMs {
     }
 
     runtime {
-        cpu: 1
+        cpu: 4
         memory: "4 GB"
         disks: "local-disk ~{diskSizeGB} SSD"
-        docker: "mgibio/samtools:1.16.1"
+        docker: "mgibio/samtools:v1.21-noble"
         preemptible: preemptible_tries
     }
 }
