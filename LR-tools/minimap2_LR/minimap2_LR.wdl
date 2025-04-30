@@ -29,7 +29,7 @@ task splitReadsTask {
     }
 
     runtime {
-        cpu: 1
+        cpu: 4
         memory: "4 GB"
         disks: "local-disk ~{diskSizeGB} SSD"
         docker: docker
