@@ -1,94 +1,79 @@
 version 1.0
 
-task Minimap2Task {
+import "minimap2_wrapper.wdl" as minimap2_wrapper
+
+
+task splitReadsTask {
     input {
         File inputFile
-        String inputExtension
-        File ?juncBED
-        File referenceGenome
-        String sampleName
-        String readType
-        String ?customArguments
-        String ?tagsToExtract
-        Boolean keepComments = true
-        Boolean keepUnmapped = true
-        Boolean allowSecondary = true
-        Int cpu = 8
-        Int memoryGB = 32
-        Int diskSizeGB
-        Int preemptible_tries
+        String sampleName  # sampleName
+        Int reads_per_split
+        Int preemptible_tries = 3
     }
 
-    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/minimap2/minimap2:latest"
-
-    String extra_arg = if allowSecondary then "" else "--secondary=no"
-    String extra_arg2 = if keepUnmapped then "" else "--sam-hit-only"
-    String extra_arg3 = if keepComments then "-y" else ""
-
-    String extract_tags = if defined(tagsToExtract) && tagsToExtract != "" then "-T ~{tagsToExtract}" else ""
+    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/split-reads-in-chunks/split-reads-in-chunks:latest"
+    Int diskSizeGB = ceil(size(inputFile, "GB")*2.2) + 20
 
     command <<<
-        minimap2_preset=""
 
-        if [ "~{readType}" == "PacBioCLR" ]; then
-            minimap2_preset="map-pb"
-        elif [ "~{readType}" == "ONTGenomic" ]; then
-            minimap2_preset="map-ont"
-        elif [ "~{readType}" == "PacBioHiFi" ]; then
-            minimap2_preset="map-hifi"
-        elif [ "~{readType}" == "SplicedLongReads" ]; then
-            minimap2_preset="splice"
-        elif [ "~{readType}" == "ONTDirectRNA" ]; then
-            minimap2_preset="splice -uf -k14"
-        elif [ "~{readType}" == "PacBioIsoSeq" ]; then
-            minimap2_preset="splice:hq -uf"
-        elif [ "~{readType}" == "ONTGenomicQ20" ]; then
-            minimap2_preset="lr:hq"
-        elif [ "~{readType}" == "None" ]; then
-            minimap2_preset=""
-        else
-            echo "Invalid readType: ~{readType}"
-            exit 1
-        fi
+        # adding _splitReads to the output prefix so we can make the output glob more precise and avoid globbing the input back
+        python /scripts/split_reads_in_chunks.py \
+            --input_file ~{inputFile} \
+            --output_prefix ~{sampleName}_splitReads \
+            --chunk_size ~{reads_per_split}
 
-        fastq_name="temp.fastq"
-        if [[ "~{inputExtension}" == "bam" ]] || [[ "$file_extension" == "ubam" ]]; then
-            samtools fastq ~{extract_tags} ~{inputFile} > temp.fastq
-        elif [[ "~{inputExtension}" == "fastq.gz" ]]; then
-            mv ~{inputFile} temp.fastq.gz
-            fastq_name="temp.fastq.gz"
-        elif [[ "~{inputExtension}" == "fastq" ]]; then
-            mv ~{inputFile} temp.fastq
-        fi
-
-        juncbed_arg=~{if defined(juncBED) then '"--junc-bed ${juncBED}"' else '""'}
-
-        minimap2 ~{extra_arg2} ~{extra_arg3} -ax ${minimap2_preset} ~{customArguments} ${juncbed_arg} ~{extra_arg} -t ~{cpu} ~{referenceGenome} ${fastq_name} > temp.sam
-
-        samtools sort -@ ~{cpu} temp.sam > ~{sampleName}.aligned.sorted.bam
-        samtools index -@ ~{cpu} ~{sampleName}.aligned.sorted.bam
-
-        samtools flagstat ~{sampleName}.aligned.sorted.bam > ~{sampleName}_alignment.flagstat.txt
     >>>
 
     output {
-        File minimap2_bam = "~{sampleName}.aligned.sorted.bam"
-        File minimap2_bam_index = "~{sampleName}.aligned.sorted.bam.bai"
-        File alignment_flagstat = "~{sampleName}_alignment.flagstat.txt"
+        Array[File] split_inputs = glob("~{sampleName}_splitReads_*")
     }
 
     runtime {
-        cpu: cpu
-        memory: "~{memoryGB} GB"
+        cpu: 4
+        memory: "4 GB"
         disks: "local-disk ~{diskSizeGB} SSD"
         docker: docker
         preemptible: preemptible_tries
     }
 }
 
+
+task mergeBAMs {
+    input {
+        Array[File] bams_to_merge
+        String sampleName
+        Int preemptible_tries
+    }
+
+    Int diskSizeGB = ceil(size(bams_to_merge, "GB") * 3) + 20
+
+    command <<<
+
+        samtools merge --threads 4 -o ~{sampleName}.bam '~{sep="' '" bams_to_merge}'
+        samtools index  ~{sampleName}.bam
+        samtools flagstats  ~{sampleName}.bam > ~{sampleName}.flagstat.txt
+
+    >>>
+
+    output {
+        File merged_bam = "~{sampleName}.bam"
+        File merged_bam_index = "~{sampleName}.bam.bai"
+        File alignment_flagstat = "~{sampleName}.flagstat.txt"
+    }
+
+    runtime {
+        cpu: 4
+        memory: "4 GB"
+        disks: "local-disk ~{diskSizeGB} SSD"
+        docker: "mgibio/samtools:v1.21-noble"
+        preemptible: preemptible_tries
+    }
+}
+
+
 workflow Minimap2_LR {
     meta {
-        description: "Run Minimap2 from an unaligned BAM of PacBio long reads to generate an aligned sorted BAM and BAM index."
+        description: "Run Minimap2 from an (unaligned) BAM or FASTQ of single end long reads to generate an aligned sorted BAM and BAM index."
     }
 
     input {
@@ -102,6 +87,7 @@ workflow Minimap2_LR {
         Boolean keepComments = true
         Boolean keepUnmapped = true
         Boolean allowSecondary = false
+        Int? reads_per_shard
         Int cpu = 8
         Int memoryGB = 32
         Int ?diskSizeGB
@@ -109,17 +95,50 @@ workflow Minimap2_LR {
     }
 
 
-    String file_extension = basename(inputReads)
-    if (sub(file_extension, "fastq$", "") != file_extension) {
-
-        Int effective_diskSizeGB_fastq = select_first([diskSizeGB,  ceil(size(inputReads, "GB")*4 + size(referenceGenome, "GB") + 20)])
-
-        call Minimap2Task as minimap2_fastq {
+    if (defined(reads_per_shard)) {
+        call splitReadsTask {
             input:
                 inputFile = inputReads,
-                inputExtension = "fastq",
-                juncBED = juncBED,
+                sampleName = sampleName,
+                reads_per_split = select_first([reads_per_shard]),
+                preemptible_tries = preemptible_tries
+        }
+
+
+        scatter(split_input in splitReadsTask.split_inputs) {
+                call minimap2_wrapper.Minimap2_wrapper as minimap2_shard {
+                    input:
+                        inputReads = split_input,
+                        referenceGenome = referenceGenome,
+                        juncBED = juncBED,
+                        sampleName = basename(split_input),
+                        readType = readType,
+                        customArguments = customArguments,
+                        tagsToExtract = tagsToExtract,
+                        keepComments = keepComments,
+                        keepUnmapped = keepUnmapped,
+                        allowSecondary = allowSecondary,
+                        cpu = cpu,
+                        memoryGB = memoryGB,
+                        preemptible_tries = preemptible_tries
+                }
+        }
+
+        call mergeBAMs {
+            input:
+                bams_to_merge = minimap2_shard.minimap2_bam,
+                sampleName = sampleName,
+                preemptible_tries = preemptible_tries
+        }
+    }
+
+
+    if (!defined(reads_per_shard)) {
+        call minimap2_wrapper.Minimap2_wrapper as minimap2_whole {
+            input:
+                inputReads = inputReads,
                 referenceGenome = referenceGenome,
+                juncBED = juncBED,
                 sampleName = sampleName,
                 readType = readType,
                 customArguments = customArguments,
@@ -127,62 +146,17 @@ workflow Minimap2_LR {
                 keepComments = keepComments,
                 keepUnmapped = keepUnmapped,
                 allowSecondary = allowSecondary,
-                diskSizeGB = effective_diskSizeGB_fastq,
                 cpu = cpu,
                 memoryGB = memoryGB,
                 preemptible_tries = preemptible_tries
         }
     }
-    if (sub(file_extension, "fastq.gz$", "") != file_extension) {
 
-        Int effective_diskSizeGB_fastqgz = select_first([diskSizeGB,  ceil(size(inputReads, "GB")*20 + size(referenceGenome, "GB") + 20)])
-
-        call Minimap2Task as minimap2_fastqgz {
-            input:
-                inputFile = inputReads,
-                inputExtension = "fastq.gz",
-                juncBED = juncBED,
-                referenceGenome = referenceGenome,
-                sampleName = sampleName,
-                readType = readType,
-                customArguments = customArguments,
-                tagsToExtract = tagsToExtract,
-                keepComments = keepComments,
-                keepUnmapped = keepUnmapped,
-                allowSecondary = allowSecondary,
-                diskSizeGB = effective_diskSizeGB_fastqgz,
-                cpu = cpu,
-                memoryGB = memoryGB,
-                preemptible_tries = preemptible_tries
-        }
-    }
-    if (sub(file_extension, "bam$", "") != file_extension) {
-        
-        Int effective_diskSizeGB_bam = select_first([diskSizeGB,  ceil(size(inputReads, "GB")*20 + size(referenceGenome, "GB") + 20)])
-        
-        call Minimap2Task as minimap2_ubam {
-            input:
-                inputFile = inputReads,
-                inputExtension = "bam",
-                juncBED = juncBED,
-                referenceGenome = referenceGenome,
-                sampleName = sampleName,
-                readType = readType,
-                customArguments = customArguments,
-                tagsToExtract = tagsToExtract,
-                keepComments = keepComments,
-                keepUnmapped = keepUnmapped,
-                allowSecondary = allowSecondary,
-                diskSizeGB = effective_diskSizeGB_bam,
-                cpu = cpu,
-                memoryGB = memoryGB,
-                preemptible_tries = preemptible_tries
-        }
-    }
+ 
 
     output {
-        File minimap2_bam = select_first([minimap2_fastq.minimap2_bam, minimap2_fastqgz.minimap2_bam, minimap2_ubam.minimap2_bam])
-        File minimap2_bam_index = select_first([minimap2_fastq.minimap2_bam_index, minimap2_fastqgz.minimap2_bam_index, minimap2_ubam.minimap2_bam_index])
-        File alignment_flagstat = select_first([minimap2_fastq.alignment_flagstat, minimap2_fastqgz.alignment_flagstat, minimap2_ubam.alignment_flagstat])
+        File minimap2_bam = select_first([mergeBAMs.merged_bam, minimap2_whole.minimap2_bam])
+        File minimap2_bam_index = select_first([mergeBAMs.merged_bam_index, minimap2_whole.minimap2_bam_index])
+        File alignment_flagstat = select_first([mergeBAMs.alignment_flagstat, minimap2_whole.alignment_flagstat])
     }
 }
