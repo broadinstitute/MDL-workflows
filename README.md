@@ -7,3 +7,5 @@ This repo houses the production as well as test/dev workflows for the Methods De
 Dockstore integration enables automatic syncing of registered and published workflows once they are added to .dockstore.yml file here. If these chnages are launched with Terra through Dockstore, changes pushed to a branch in repo would be reflected within the associated Terra workspace simultaneously. 
 
 pre-commit-ci (https://pre-commit.ci/) was enabled at start up.  
+
+Dockerfiles for Docker images organized separately at: git@github.com:MethodsDev/mdl-dockers.git
