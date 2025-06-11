@@ -8,7 +8,7 @@ task splitReadsTask {
         File inputFile
         String sampleName  # sampleName
         Int reads_per_split
-        Int preemptible_tries = 3
+        Int preemptible_tries = 0
     }
 
     String docker = "us-central1-docker.pkg.dev/methods-dev-lab/split-reads-in-chunks/split-reads-in-chunks:latest"
