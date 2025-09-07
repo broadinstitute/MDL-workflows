@@ -52,7 +52,7 @@ task DownsampleBam_task {
     }
 
    runtime {
-        docker:"biocontainers/samtools"
+        docker:"us-central1-docker.pkg.dev/methods-dev-lab/samtools/samtools:latest"
         memory: "8GB"
         bootDiskSizeGb: 12
         disks: "local-disk ~{disk_space} HDD"
