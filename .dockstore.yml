@@ -60,3 +60,8 @@ workflows:
     authors:
       - name: bhaas
 
+  - name: Samtools_DownsampleBam
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/Samtools_DownsampleBam/Samtools_DownsampleBam.wdl
+    authors:
+      - name: bhaas
