@@ -34,7 +34,6 @@ task DownsampleBam_task {
         Int preemptible = 0
     }
 
-    String stats_filename = "~{sample_id}.flagstat.txt"
     Int disk_space_multiplier = 2
     Int disk_space = ceil(size(input_bam, "GB")*disk_space_multiplier)
     
