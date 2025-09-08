@@ -65,3 +65,9 @@ workflows:
     primaryDescriptorPath: /misc_tools/Samtools_DownsampleBam/Samtools_DownsampleBam.wdl
     authors:
       - name: bhaas
+
+  - name: BamToFastq
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/BamToFastq/BamToFastq.wdl
+    authors:
+      - name: bhaas
