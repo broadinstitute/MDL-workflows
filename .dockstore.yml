@@ -71,3 +71,9 @@ workflows:
     primaryDescriptorPath: /misc_tools/BamToFastq/BamToFastq.wdl
     authors:
       - name: bhaas
+
+  - name: BamErrorRates
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/bam_error_rates/BamErrorRates.wdl
+    authors:
+      - name: bhaas
