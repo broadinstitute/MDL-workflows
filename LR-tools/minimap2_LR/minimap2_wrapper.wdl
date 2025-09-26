@@ -53,8 +53,12 @@ task Minimap2Task {
         fi
 
         fastq_name="temp.fastq"
+        input_pipe=""
         if [[ "~{inputExtension}" == "bam" ]] || [[ "$file_extension" == "ubam" ]]; then
             samtools fastq ~{extract_tags} ~{inputFile} > temp.fastq
+        elif [[ "~{inputExtension}" == "fastq.zst" ]]; then
+            input_pipe = "zstd -d -c reads.fq.zst |"
+            fastq_name = ""
         elif [[ "~{inputExtension}" == "fastq.gz" ]]; then
             mv ~{inputFile} temp.fastq.gz
             fastq_name="temp.fastq.gz"
@@ -64,7 +68,7 @@ task Minimap2Task {
 
         juncbed_arg=~{if defined(juncBED) then '"--junc-bed ${juncBED}"' else '""'}
 
-        minimap2 ~{extra_arg2} ~{extra_arg3} -ax ${minimap2_preset} ~{customArguments} ${juncbed_arg} ~{extra_arg} -t ~{cpu} ~{referenceGenome} ${fastq_name} > temp.sam
+        ${input_pipe} minimap2 ~{extra_arg2} ~{extra_arg3} -ax ${minimap2_preset} ~{customArguments} ${juncbed_arg} ~{extra_arg} -t ~{cpu} ~{referenceGenome} ${fastq_name} > temp.sam
 
         samtools sort -@ ~{cpu} temp.sam > ~{sampleName}.aligned.sorted.bam
         samtools index -@ ~{cpu} ~{sampleName}.aligned.sorted.bam
@@ -125,6 +129,12 @@ workflow Minimap2_wrapper {
         String inputExtension_fastqgz = "fastq.gz"
 
     }
+    if (sub(file_name, "fastq.zst$", "") != file_name) {
+
+        Int effective_diskSizeGB_fastqzstd = select_first([diskSizeGB,  ceil(size(inputReads, "GB")*25 + size(referenceGenome, "GB") + 20)])
+        String inputExtension_fastqzstd = "fastq.zst"
+
+    }
     if (sub(file_name, "bam$", "") != file_name) {
         
         Int effective_diskSizeGB_bam = select_first([diskSizeGB,  ceil(size(inputReads, "GB")*20 + size(referenceGenome, "GB") + 20)])
@@ -132,8 +142,8 @@ workflow Minimap2_wrapper {
 
     }
 
-    Int effective_diskSizeGB = select_first([effective_diskSizeGB_fastq, effective_diskSizeGB_fastqgz, effective_diskSizeGB_bam])
-    String inputExtension =  select_first([inputExtension_fastq, inputExtension_fastqgz , inputExtension_bam])
+    Int effective_diskSizeGB = select_first([effective_diskSizeGB_fastq, effective_diskSizeGB_fastqgz, effective_diskSizeGB_fastqzstd, effective_diskSizeGB_bam])
+    String inputExtension =  select_first([inputExtension_fastq, inputExtension_fastqgz, inputExtension_fastqzstd, inputExtension_bam])
 
     call Minimap2Task as minimap2_run {
         input:
