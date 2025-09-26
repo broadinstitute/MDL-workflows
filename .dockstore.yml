@@ -77,3 +77,10 @@ workflows:
     primaryDescriptorPath: /misc_tools/bam_error_rates/BamErrorRates.wdl
     authors:
       - name: bhaas
+
+  - name: PartitionSCbamByID
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/partitioning_bam_by_id/partitioning_bam_by_id
+    authors:
+      - name: akhorgad
+  
