@@ -49,16 +49,16 @@ task mergeBAMs {
 
     command <<<
 
-        samtools merge --threads 4 -o ~{sampleName}.bam '~{sep="' '" bams_to_merge}'
-        samtools index  ~{sampleName}.bam
-        samtools flagstats  ~{sampleName}.bam > ~{sampleName}.flagstat.txt
+        samtools merge --threads 4 -o ~{sampleName}.sorted.bam '~{sep="' '" bams_to_merge}'
+        samtools index  ~{sampleName}.sorted.bam
+        samtools flagstats  ~{sampleName}.sorted.bam > ~{sampleName}.sorted.flagstat.txt
 
     >>>
 
     output {
-        File merged_bam = "~{sampleName}.bam"
-        File merged_bam_index = "~{sampleName}.bam.bai"
-        File alignment_flagstat = "~{sampleName}.flagstat.txt"
+        File merged_bam = "~{sampleName}.sorted.bam"
+        File merged_bam_index = "~{sampleName}.sorted.bam.bai"
+        File alignment_flagstat = "~{sampleName}.sorted.flagstat.txt"
     }
 
     runtime {
@@ -101,7 +101,7 @@ workflow Minimap2_LR {
                 inputFile = inputReads,
                 sampleName = sampleName,
                 reads_per_split = select_first([reads_per_shard]),
-                preemptible_tries = preemptible_tries
+                preemptible_tries = 0
         }
 
 
