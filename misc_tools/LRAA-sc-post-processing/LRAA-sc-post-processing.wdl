@@ -13,7 +13,7 @@ workflow LRAA_PostProcessing {
         File? LRAA_gtf_file          # Output from LRAA.wdl: mergedGTF (optional when refQuantsOnly=true)
         
         # Required for refQuantsOnly mode - standalone Python script
-        File? annotation_script      # annotate_sparse_matrices_with_ref_gene_symbols.py (required when refQuantsOnly=true)
+        File? annotation_script      # annotate_sparse_matrices_with_ref_gene_symbols.py (required when refQuantsOnly=true) ex:gs://mdl-data/NotebookAnalyses/01102025_BrCA_annotate_SC_sparseM/annotate_sparse_matrices_with_ref_gene_symbols.py
         
         String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lraa/lraa:latest"
         Int memoryGB = 128
