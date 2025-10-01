@@ -86,7 +86,7 @@ workflows:
       
   - name: LRAA_SC_generate_sparseM
     subclass: WDL
-    primaryDescriptorPath: misc_tools/LRAA-sc-post-processing/LRAA-sc-post-processing.wdl
+    primaryDescriptorPath: /misc_tools/LRAA-sc-post-processing/LRAA-sc-post-processing.wdl
     authors:
       - name: akhorgad
   
