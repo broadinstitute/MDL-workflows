@@ -80,7 +80,13 @@ workflows:
 
   - name: PartitionSCbamByID
     subclass: WDL
-    primaryDescriptorPath: /misc_tools/partitioning_bam_by_id/partitioning_bam_by_id
+    primaryDescriptorPath: /misc_tools/partitioning_bam_by_id/partitioning_bam_by_id.wdl
+    authors:
+      - name: akhorgad
+      
+  - name: LRAA_SC_generate_sparseM
+    subclass: WDL
+    primaryDescriptorPath: misc_tools/LRAA-sc-post-processing/LRAA-sc-post-processing.wdl
     authors:
       - name: akhorgad
   
