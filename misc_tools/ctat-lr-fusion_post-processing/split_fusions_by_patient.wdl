@@ -28,6 +28,7 @@ task SplitFusions {
     }
 
     command <<<
+        set -euxo pipefail
         # Install pandas
         pip install pandas
         
