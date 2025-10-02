@@ -95,3 +95,10 @@ workflows:
     primaryDescriptorPath: /misc_tools/ctat-lr-fusion_post-processing/fusion_barcode_processing.wdl
     authors:
       - name: akhorgad
+
+  - name: split_fusions_by_id
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/ctat-lr-fusion_post-processing/split_fusions_by_patient.wdl
+    authors:
+      - name: akhorgad
+      
