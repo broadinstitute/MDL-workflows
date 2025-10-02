@@ -90,3 +90,8 @@ workflows:
     authors:
       - name: akhorgad
   
+  - name: CTAT_LRF_add_metadata
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/ctat-lr-fusion_post-processing/fusion_barcode_processing.wdl
+    authors:
+      - name: akhorgad
