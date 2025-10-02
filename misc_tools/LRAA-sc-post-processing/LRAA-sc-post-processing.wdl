@@ -18,7 +18,7 @@ workflow LRAA_PostProcessing {
         String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lraa/lraa:latest"
         String annotation_docker = "us-central1-docker.pkg.dev/methods-dev-lab/lraa/sparse-matrix-annotator:latest"
 
-        Int memoryGB = 128
+        Int memoryGB = 256
         Int diskSizeGB = 1024
         Int numThreads = 16
     }
@@ -147,7 +147,7 @@ task singlecell_tracking_to_sparse_matrix {
 
     runtime {
         docker: docker
-        cpu: 2
+        cpu: 8
         memory: "~{memoryGB} GiB"
         disks: "local-disk ~{diskSizeGB} HDD"
     }
@@ -356,7 +356,7 @@ task annotate_ref_sparse_matrices {
     runtime {
         docker: docker
         cpu: 2
-        memory: "~{memoryGB} GiB"
-        disks: "local-disk ~{diskSizeGB} HDD"
+        memory: "64 GiB"
+        disks: "local-disk 128 SSD"
     }
 }
