@@ -11,8 +11,6 @@ python3 annotate_sparse_matrices_with_ref_gene_symbols.py \
     --gene_mappings_output gene_symbol_mappings.tsv
 '''
 
-
-
 import sys
 import os
 import re
@@ -34,35 +32,44 @@ def extract_gene_symbols_from_gtf(gtf_file):
     
     print(f"Processing reference GTF for gene symbols: {gtf_file}")
     
-    with open_file(gtf_file) as fh:
-        for line in fh:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
+    try:
+        with open_file(gtf_file) as fh:
+            for line_num, line in enumerate(fh, 1):
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                    
+                fields = line.split('\t')
+                if len(fields) < 9:
+                    continue
+                    
+                feature_type = fields[2]
+                if feature_type not in ['gene', 'transcript']:
+                    continue
+                    
+                attributes = fields[8]
                 
-            fields = line.split('\t')
-            if len(fields) < 9:
-                continue
+                gene_id_match = re.search(r'gene_id "([^"]+)"', attributes)
+                gene_name_match = re.search(r'gene_name "([^"]+)"', attributes)
+                transcript_id_match = re.search(r'transcript_id "([^"]+)"', attributes)
                 
-            feature_type = fields[2]
-            if feature_type not in ['gene', 'transcript']:
-                continue
+                if gene_id_match:
+                    gene_id = gene_id_match.group(1)
+                    gene_name = gene_name_match.group(1) if gene_name_match else gene_id
+                    gene_id_to_symbol[gene_id] = gene_name
+                    
+                    # Also map transcript ID to gene symbol for transcript-level matrices
+                    if transcript_id_match:
+                        transcript_id = transcript_id_match.group(1)
+                        gene_id_to_symbol[transcript_id] = gene_name
                 
-            attributes = fields[8]
-            
-            gene_id_match = re.search(r'gene_id "([^"]+)"', attributes)
-            gene_name_match = re.search(r'gene_name "([^"]+)"', attributes)
-            transcript_id_match = re.search(r'transcript_id "([^"]+)"', attributes)
-            
-            if gene_id_match:
-                gene_id = gene_id_match.group(1)
-                gene_name = gene_name_match.group(1) if gene_name_match else gene_id
-                gene_id_to_symbol[gene_id] = gene_name
-                
-                # Also map transcript ID to gene symbol for transcript-level matrices
-                if transcript_id_match:
-                    transcript_id = transcript_id_match.group(1)
-                    gene_id_to_symbol[transcript_id] = gene_name
+                # Progress indicator for large files
+                if line_num % 100000 == 0:
+                    print(f"Processed {line_num} lines, found {len(gene_id_to_symbol)} mappings")
+                    
+    except Exception as e:
+        print(f"Error processing GTF file: {e}")
+        return {}
 
     print(f"Extracted {len(gene_id_to_symbol)} gene/transcript symbol mappings")
     return gene_id_to_symbol
@@ -86,6 +93,7 @@ def annotate_sparse_matrix(matrix_dir, gene_mapping, output_dir):
     
     if features_file is None:
         print(f"Error: No features file found in {matrix_dir}")
+        print(f"Available files: {os.listdir(matrix_dir) if os.path.exists(matrix_dir) else 'Directory does not exist'}")
         return False
     
     print(f"Reading features from: {features_file}")
@@ -106,7 +114,11 @@ def annotate_sparse_matrix(matrix_dir, gene_mapping, output_dir):
     # Ensure we have at least 2 columns
     if len(features.columns) == 1:
         features[1] = features[0]  # Duplicate first column as feature name
+    elif len(features.columns) == 0:
+        print("Error: Features file is empty")
+        return False
     
+    # Set column names
     features.columns = ['feature_id', 'feature_name'] + [f'col_{i}' for i in range(2, len(features.columns))]
     
     # Annotate with gene symbols
@@ -114,21 +126,30 @@ def annotate_sparse_matrix(matrix_dir, gene_mapping, output_dir):
     
     def get_gene_symbol(feature_id):
         """Get gene symbol for a feature ID"""
-        if feature_id in gene_mapping:
-            gene_symbol = gene_mapping[feature_id]
-            return f"{gene_symbol}^{feature_id}"
+        if pd.isna(feature_id) or feature_id == '':
+            return feature_id
+            
+        feature_id_str = str(feature_id)
+        
+        if feature_id_str in gene_mapping:
+            gene_symbol = gene_mapping[feature_id_str]
+            return f"{gene_symbol}^{feature_id_str}"
         else:
             # For transcript IDs, try to extract gene ID
-            if feature_id.startswith('ENST'):
+            if feature_id_str.startswith('ENST'):
                 # This is a transcript ID, we might not have direct mapping
                 # Keep original for now
-                return feature_id
-            return feature_id
+                return feature_id_str
+            return feature_id_str
     
     annotated_features['annotated_name'] = annotated_features['feature_id'].apply(get_gene_symbol)
     
     # Create output directory
-    os.makedirs(output_dir, exist_ok=True)
+    try:
+        os.makedirs(output_dir, exist_ok=True)
+    except Exception as e:
+        print(f"Error creating output directory {output_dir}: {e}")
+        return False
     
     # Copy all files from original directory except features files
     try:
@@ -216,6 +237,19 @@ def main():
     )
     
     args = parser.parse_args()
+    
+    # Validate input files and directories
+    if not os.path.exists(args.reference_gtf):
+        print(f"Error: Reference GTF file does not exist: {args.reference_gtf}")
+        sys.exit(1)
+    
+    if not os.path.exists(args.gene_sparse_dir):
+        print(f"Error: Gene sparse directory does not exist: {args.gene_sparse_dir}")
+        sys.exit(1)
+        
+    if not os.path.exists(args.isoform_sparse_dir):
+        print(f"Error: Isoform sparse directory does not exist: {args.isoform_sparse_dir}")
+        sys.exit(1)
     
     # Extract gene symbols from reference GTF
     print("=" * 60)
