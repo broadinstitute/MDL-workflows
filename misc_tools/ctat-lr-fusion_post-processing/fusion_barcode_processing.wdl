@@ -49,14 +49,20 @@ task add_metadata_to_fusion {
     String output_filename = "${pool_name}.fusion_calls.with_tags.meta.tsv"
 
     command <<<
+        set -euo pipefail
+        
         # Install required Python packages
         pip install pandas
 
         # Copy the script to working directory
         cp ~{path_add_metadata_py} add_metadata.py
 
-        # Run the Python script with arguments
-        python add_metadata.py "~{fusion_with_tags_tsv}" "~{metadata_tsv}" "~{output_filename}"
+        # Run the Python script with arguments (now includes pool_name)
+        echo "Starting metadata addition..."
+        python add_metadata.py "~{fusion_with_tags_tsv}" "~{metadata_tsv}" "~{output_filename}" "~{pool_name}"
+        
+        echo "Metadata addition completed successfully"
+        ls -lh "~{output_filename}"
     >>>
 
     output {
@@ -66,8 +72,9 @@ task add_metadata_to_fusion {
     runtime {
         docker: docker_image
         memory: "8 GB"
-        cpu: 1
-        disks: "local-disk 32 SSD"
+        cpu: 2
+        disks: "local-disk 50 SSD"
+        preemptible: 0
     }
 }
 
