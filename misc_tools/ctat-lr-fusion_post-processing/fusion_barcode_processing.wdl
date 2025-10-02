@@ -14,6 +14,8 @@ task extract_barcodes_and_update_fusion {
     String output_filename = "${pool_name}.fusion_calls.with_tags.tsv"
 
     command <<<
+        set -euxo pipefail
+
         # Install required Python packages
         pip install pysam pandas
 
