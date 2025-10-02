@@ -12,10 +12,10 @@ workflow LRAA_PostProcessing {
         # Required for isoform discovery mode (when refQuantsOnly=false)
         File? LRAA_gtf_file          # Output from LRAA.wdl: mergedGTF (optional when refQuantsOnly=true)
         
-        # Docker images
-        String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lraa/lraa:latest"
-        String annotation_docker = "us-central1-docker.pkg.dev/methods-dev-lab/lraa/sparse-matrix-annotator:latest"
+        # Required for refQuantsOnly mode - standalone Python script
+        File? annotation_script      # annotate_sparse_matrices_with_ref_gene_symbols.py (required when refQuantsOnly=true)
         
+        String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lraa/lraa:latest"
         Int memoryGB = 128
         Int diskSizeGB = 1024
         Int numThreads = 16
@@ -66,7 +66,8 @@ workflow LRAA_PostProcessing {
                 reference_gtf = reference_gtf_file,
                 gene_sparseM_dir = singlecell_tracking_to_sparse_matrix.gene_sparseM_dir,
                 isoform_sparseM_dir = singlecell_tracking_to_sparse_matrix.isoform_sparseM_dir,
-                docker = annotation_docker,
+                annotation_script = select_first([annotation_script]),
+                docker = docker,
                 memoryGB = memoryGB,
                 diskSizeGB = diskSizeGB
         }
@@ -233,13 +234,14 @@ task incorporate_gene_symbols {
     }
 }
 
-# UPDATED TASK: Annotate sparse matrices with reference gene symbols using dedicated Docker
+# Annotate sparse matrices with reference gene symbols (refQuantsOnly mode)
 task annotate_ref_sparse_matrices {
     input {
         String sample_name
         File reference_gtf
         File gene_sparseM_dir
         File isoform_sparseM_dir
+        File annotation_script
         String docker
         Int memoryGB
         Int diskSizeGB
@@ -249,7 +251,12 @@ task annotate_ref_sparse_matrices {
         set -euo pipefail
         
         echo "Starting reference gene symbol annotation for refQuantsOnly mode..."
-        echo "Using Docker image: ~{docker}"
+        
+        # Copy the annotation script to working directory
+        cp ~{annotation_script} ./annotate_sparse_matrices_with_ref_gene_symbols.py
+        chmod +x ./annotate_sparse_matrices_with_ref_gene_symbols.py
+        
+        echo "Using provided annotation script: ~{annotation_script}"
         
         # Extract sparse matrix directories
         tar -xzf ~{gene_sparseM_dir}
@@ -270,7 +277,7 @@ task annotate_ref_sparse_matrices {
         
         # Run the Python script to annotate sparse matrices
         echo "Running sparse matrix annotation script..."
-        python3 /app/annotate_sparse_matrices_with_ref_gene_symbols.py \
+        python3 ./annotate_sparse_matrices_with_ref_gene_symbols.py \
             --reference_gtf ~{reference_gtf} \
             --gene_sparse_dir "$gene_dir" \
             --isoform_sparse_dir "$isoform_dir" \
