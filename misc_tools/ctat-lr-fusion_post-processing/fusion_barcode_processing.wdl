@@ -71,8 +71,46 @@ task add_metadata_to_fusion {
     }
 }
 
-# Main workflow that combines both tasks
-workflow fusion_barcode_processing_workflow {
+# Workflow for processing a single BAM/TSV pair
+workflow process_single_sample {
+    input {
+        File bam_file
+        File bam_index
+        File fusion_tsv
+        String pool_name
+        File metadata_tsv
+        File path_extract_CB_py
+        File path_add_metadata_py
+        String docker_image = "python:3.9-slim"
+    }
+
+    call extract_barcodes_and_update_fusion {
+        input:
+            bam_file = bam_file,
+            bam_index = bam_index,
+            fusion_tsv = fusion_tsv,
+            path_extract_CB_py = path_extract_CB_py,
+            pool_name = pool_name,
+            docker_image = docker_image
+    }
+
+    call add_metadata_to_fusion {
+        input:
+            fusion_with_tags_tsv = extract_barcodes_and_update_fusion.updated_fusion_tsv,
+            metadata_tsv = metadata_tsv,
+            path_add_metadata_py = path_add_metadata_py,
+            pool_name = pool_name,
+            docker_image = docker_image
+    }
+
+    output {
+        File fusion_with_tags_tsv = extract_barcodes_and_update_fusion.updated_fusion_tsv
+        File final_fusion_tsv = add_metadata_to_fusion.fusion_with_metadata
+    }
+}
+
+# Optional: Batch workflow for processing multiple samples
+workflow process_multiple_samples {
     input {
         Array[File] bam_files
         Array[File] bam_indices
@@ -84,30 +122,22 @@ workflow fusion_barcode_processing_workflow {
         String docker_image = "python:3.9-slim"
     }
 
-    # Process each pool
     scatter (i in range(length(bam_files))) {
-        call extract_barcodes_and_update_fusion {
+        call process_single_sample {
             input:
                 bam_file = bam_files[i],
                 bam_index = bam_indices[i],
                 fusion_tsv = fusion_tsvs[i],
-                path_extract_CB_py = path_extract_CB_py,
                 pool_name = pool_names[i],
-                docker_image = docker_image
-        }
-
-        call add_metadata_to_fusion {
-            input:
-                fusion_with_tags_tsv = extract_barcodes_and_update_fusion.updated_fusion_tsv,
                 metadata_tsv = metadata_tsv,
+                path_extract_CB_py = path_extract_CB_py,
                 path_add_metadata_py = path_add_metadata_py,
-                pool_name = pool_names[i],
                 docker_image = docker_image
         }
     }
 
     output {
-        Array[File] fusion_with_tags_tsvs = extract_barcodes_and_update_fusion.updated_fusion_tsv
-        Array[File] final_fusion_tsvs = add_metadata_to_fusion.fusion_with_metadata
+        Array[File] fusion_with_tags_tsvs = process_single_sample.fusion_with_tags_tsv
+        Array[File] final_fusion_tsvs = process_single_sample.final_fusion_tsv
     }
 }
