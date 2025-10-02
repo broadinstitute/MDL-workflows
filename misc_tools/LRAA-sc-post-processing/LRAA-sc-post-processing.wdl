@@ -237,6 +237,7 @@ task incorporate_gene_symbols {
 }
 
 # Annotate sparse matrices with reference gene symbols (refQuantsOnly mode)
+# Updated WDL task for Seurat-compatible annotation
 task annotate_ref_sparse_matrices {
     input {
         String sample_name
@@ -252,15 +253,22 @@ task annotate_ref_sparse_matrices {
     command <<<
         set -euo pipefail
         
-        echo "Starting reference gene symbol annotation for refQuantsOnly mode..."
+        echo "Starting Seurat-compatible gene symbol annotation for refQuantsOnly mode..."
         echo "Using Docker image: ~{docker}"
+        echo "Sample name: ~{sample_name}"
+        
         # Copy the annotation script to working directory
         cp ~{annotation_script} ./annotate_sparse_matrices_with_ref_gene_symbols.py
         chmod +x ./annotate_sparse_matrices_with_ref_gene_symbols.py
         
         echo "Using provided annotation script: ~{annotation_script}"
         
+        # Install Python dependencies if not available (for standard Docker images)
+        echo "Ensuring Python dependencies are available..."
+        pip3 install pandas numpy || echo "Dependencies may already be installed"
+        
         # Extract sparse matrix directories
+        echo "Extracting sparse matrix archives..."
         tar -xzf ~{gene_sparseM_dir}
         tar -xzf ~{isoform_sparseM_dir}
         
@@ -268,8 +276,10 @@ task annotate_ref_sparse_matrices {
         gene_dir=$(basename ~{gene_sparseM_dir} .tar.gz)
         isoform_dir=$(basename ~{isoform_sparseM_dir} .tar.gz)
         
-        echo "Processing directories: $gene_dir and $isoform_dir"
-        echo "Reference GTF: ~{reference_gtf}"
+        echo "Processing directories:"
+        echo "  Gene directory: $gene_dir"
+        echo "  Isoform directory: $isoform_dir"
+        echo "  Reference GTF: ~{reference_gtf}"
         
         # List contents of directories for debugging
         echo "Gene directory contents:"
@@ -277,8 +287,8 @@ task annotate_ref_sparse_matrices {
         echo "Isoform directory contents:"
         ls -la "$isoform_dir"/ || echo "Isoform directory not found"
         
-        # Run the Python script to annotate sparse matrices
-        echo "Running sparse matrix annotation script..."
+        # Run the Python script to annotate sparse matrices in Seurat format
+        echo "Running Seurat-compatible sparse matrix annotation script..."
         python3 ./annotate_sparse_matrices_with_ref_gene_symbols.py \
             --reference_gtf ~{reference_gtf} \
             --gene_sparse_dir "$gene_dir" \
@@ -288,39 +298,53 @@ task annotate_ref_sparse_matrices {
             --gene_mappings_output "gene_symbol_mappings.tsv"
         
         # Check if annotation was successful
-        if [[ $? -ne 0 ]]; then
-            echo "Error: Annotation script failed"
+        annotation_exit_code=$?
+        if [[ $annotation_exit_code -ne 0 ]]; then
+            echo "ERROR: Annotation script failed with exit code $annotation_exit_code"
             exit 1
         fi
         
-        echo "Annotation completed successfully"
+        echo "Annotation completed successfully!"
         
-        # List output directories for debugging
+        # Verify output directories exist
+        if [[ ! -d "${gene_dir}.annotated" ]]; then
+            echo "ERROR: Annotated gene directory not created"
+            exit 1
+        fi
+        
+        if [[ ! -d "${isoform_dir}.annotated" ]]; then
+            echo "ERROR: Annotated isoform directory not created"
+            exit 1
+        fi
+        
+        # List output directories for verification
         echo "Annotated gene directory contents:"
-        ls -la "${gene_dir}.annotated"/ || echo "Annotated gene directory not found"
+        ls -la "${gene_dir}.annotated"/
         echo "Annotated isoform directory contents:"
-        ls -la "${isoform_dir}.annotated"/ || echo "Annotated isoform directory not found"
+        ls -la "${isoform_dir}.annotated"/
+        
+        # Verify Seurat-compatible format
+        echo "Verifying Seurat-compatible format..."
+        echo "Gene features.tsv sample (first 3 lines):"
+        head -3 "${gene_dir}.annotated/features.tsv" || echo "Could not read gene features.tsv"
+        echo "Isoform features.tsv sample (first 3 lines):"
+        head -3 "${isoform_dir}.annotated/features.tsv" || echo "Could not read isoform features.tsv"
         
         # Create tar archives for the annotated sparse matrix directories
-        if [[ -d "${gene_dir}.annotated" ]]; then
-            tar -czf "annotated_${gene_dir}.tar.gz" "${gene_dir}.annotated"/
-            echo "Created annotated gene sparse matrix archive"
-        else
-            echo "Warning: Annotated gene directory not found, creating original archive"
-            tar -czf "annotated_${gene_dir}.tar.gz" "$gene_dir"/
-        fi
+        echo "Creating output archives..."
+        tar -czf "annotated_${gene_dir}.tar.gz" "${gene_dir}.annotated"/
+        tar -czf "annotated_${isoform_dir}.tar.gz" "${isoform_dir}.annotated"/
         
-        if [[ -d "${isoform_dir}.annotated" ]]; then
-            tar -czf "annotated_${isoform_dir}.tar.gz" "${isoform_dir}.annotated"/
-            echo "Created annotated isoform sparse matrix archive"
-        else
-            echo "Warning: Annotated isoform directory not found, creating original archive"
-            tar -czf "annotated_${isoform_dir}.tar.gz" "$isoform_dir"/
-        fi
-        
-        echo "Reference gene symbol annotation completed successfully"
+        echo "Seurat-compatible annotation completed successfully!"
         echo "Generated files:"
-        ls -la *.tar.gz gene_symbol_mappings.tsv 2>/dev/null || echo "Some expected files not found"
+        ls -la *.tar.gz gene_symbol_mappings.tsv
+        
+        # Final verification
+        echo "Final verification - archive contents:"
+        echo "Gene archive:"
+        tar -tzf "annotated_${gene_dir}.tar.gz" | head -5
+        echo "Isoform archive:"
+        tar -tzf "annotated_${isoform_dir}.tar.gz" | head -5
     >>>
 
     output {
