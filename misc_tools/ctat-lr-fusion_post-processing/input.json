@@ -1,0 +1,10 @@
+{
+  "process_single_sample.bam_file": "gs://your-bucket/path/to/Neomet_Pool1.aligned.sorted.bam",
+  "process_single_sample.bam_index": "gs://your-bucket/path/to/Neomet_Pool1.aligned.sorted.bam.bai",
+  "process_single_sample.fusion_tsv": "gs://your-bucket/path/to/Neomet_Pool1.ctat-LR-fusion.fusion_predictions.tsv",
+  "process_single_sample.pool_name": "Neomet_Pool1",
+  "process_single_sample.metadata_tsv": "gs://your-bucket/path/to/metadata_joined_with_fusion_calls.tsv",
+  "process_single_sample.python_script_step1": "gs://your-bucket/path/to/extract_tags.py",
+  "process_single_sample.python_script_step2": "gs://your-bucket/path/to/add_metadata.py",
+  "process_single_sample.docker_image": "python:3.9-slim"
+}
