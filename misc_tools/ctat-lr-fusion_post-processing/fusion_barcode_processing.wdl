@@ -65,9 +65,9 @@ task add_metadata_to_fusion {
 
     runtime {
         docker: docker_image
-        memory: "4 GB"
+        memory: "8 GB"
         cpu: 1
-        disks: "local-disk 20 SSD"
+        disks: "local-disk 32 SSD"
     }
 }
 
