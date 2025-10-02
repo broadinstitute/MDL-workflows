@@ -12,10 +12,10 @@ workflow LRAA_PostProcessing {
         # Required for isoform discovery mode (when refQuantsOnly=false)
         File? LRAA_gtf_file          # Output from LRAA.wdl: mergedGTF (optional when refQuantsOnly=true)
         
-        # Required for refQuantsOnly mode - standalone Python script
-        File? annotation_script      # annotate_sparse_matrices_with_ref_gene_symbols.py (required when refQuantsOnly=true) ex:gs://mdl-data/NotebookAnalyses/01102025_BrCA_annotate_SC_sparseM/annotate_sparse_matrices_with_ref_gene_symbols.py
-        
+        # Docker images
         String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lraa/lraa:latest"
+        String annotation_docker = "us-central1-docker.pkg.dev/methods-dev-lab/lraa/sparse-matrix-annotator:latest"
+        
         Int memoryGB = 128
         Int diskSizeGB = 1024
         Int numThreads = 16
@@ -66,8 +66,7 @@ workflow LRAA_PostProcessing {
                 reference_gtf = reference_gtf_file,
                 gene_sparseM_dir = singlecell_tracking_to_sparse_matrix.gene_sparseM_dir,
                 isoform_sparseM_dir = singlecell_tracking_to_sparse_matrix.isoform_sparseM_dir,
-                annotation_script = select_first([annotation_script]),
-                docker = docker,
+                docker = annotation_docker,
                 memoryGB = memoryGB,
                 diskSizeGB = diskSizeGB
         }
@@ -234,14 +233,13 @@ task incorporate_gene_symbols {
     }
 }
 
-# NEW TASK: Annotate sparse matrices with reference gene symbols (refQuantsOnly mode)
+# UPDATED TASK: Annotate sparse matrices with reference gene symbols using dedicated Docker
 task annotate_ref_sparse_matrices {
     input {
         String sample_name
         File reference_gtf
         File gene_sparseM_dir
         File isoform_sparseM_dir
-        File annotation_script
         String docker
         Int memoryGB
         Int diskSizeGB
@@ -251,12 +249,7 @@ task annotate_ref_sparse_matrices {
         set -euo pipefail
         
         echo "Starting reference gene symbol annotation for refQuantsOnly mode..."
-        
-        # Copy the annotation script to working directory
-        cp ~{annotation_script} ./annotate_sparse_matrices_with_ref_gene_symbols.py
-        chmod +x ./annotate_sparse_matrices_with_ref_gene_symbols.py
-        
-        echo "Using provided annotation script: ~{annotation_script}"
+        echo "Using Docker image: ~{docker}"
         
         # Extract sparse matrix directories
         tar -xzf ~{gene_sparseM_dir}
@@ -267,10 +260,17 @@ task annotate_ref_sparse_matrices {
         isoform_dir=$(basename ~{isoform_sparseM_dir} .tar.gz)
         
         echo "Processing directories: $gene_dir and $isoform_dir"
+        echo "Reference GTF: ~{reference_gtf}"
+        
+        # List contents of directories for debugging
+        echo "Gene directory contents:"
+        ls -la "$gene_dir"/ || echo "Gene directory not found"
+        echo "Isoform directory contents:"
+        ls -la "$isoform_dir"/ || echo "Isoform directory not found"
         
         # Run the Python script to annotate sparse matrices
         echo "Running sparse matrix annotation script..."
-        python3 ./annotate_sparse_matrices_with_ref_gene_symbols.py \
+        python3 /app/annotate_sparse_matrices_with_ref_gene_symbols.py \
             --reference_gtf ~{reference_gtf} \
             --gene_sparse_dir "$gene_dir" \
             --isoform_sparse_dir "$isoform_dir" \
@@ -284,21 +284,29 @@ task annotate_ref_sparse_matrices {
             exit 1
         fi
         
+        echo "Annotation completed successfully"
+        
+        # List output directories for debugging
+        echo "Annotated gene directory contents:"
+        ls -la "${gene_dir}.annotated"/ || echo "Annotated gene directory not found"
+        echo "Annotated isoform directory contents:"
+        ls -la "${isoform_dir}.annotated"/ || echo "Annotated isoform directory not found"
+        
         # Create tar archives for the annotated sparse matrix directories
         if [[ -d "${gene_dir}.annotated" ]]; then
-            tar -czf annotated_${gene_dir}.tar.gz "${gene_dir}.annotated"/
+            tar -czf "annotated_${gene_dir}.tar.gz" "${gene_dir}.annotated"/
             echo "Created annotated gene sparse matrix archive"
         else
             echo "Warning: Annotated gene directory not found, creating original archive"
-            tar -czf annotated_${gene_dir}.tar.gz "$gene_dir"/
+            tar -czf "annotated_${gene_dir}.tar.gz" "$gene_dir"/
         fi
         
         if [[ -d "${isoform_dir}.annotated" ]]; then
-            tar -czf annotated_${isoform_dir}.tar.gz "${isoform_dir}.annotated"/
+            tar -czf "annotated_${isoform_dir}.tar.gz" "${isoform_dir}.annotated"/
             echo "Created annotated isoform sparse matrix archive"
         else
             echo "Warning: Annotated isoform directory not found, creating original archive"
-            tar -czf annotated_${isoform_dir}.tar.gz "$isoform_dir"/
+            tar -czf "annotated_${isoform_dir}.tar.gz" "$isoform_dir"/
         fi
         
         echo "Reference gene symbol annotation completed successfully"
