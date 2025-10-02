@@ -71,8 +71,8 @@ task add_metadata_to_fusion {
     }
 }
 
-# Workflow for processing a single BAM/TSV pair
-workflow process_single_sample {
+# Main workflow for processing a single sample
+workflow add_metadata_to_ctat_fusion_call {
     input {
         File bam_file
         File bam_index
@@ -106,38 +106,5 @@ workflow process_single_sample {
     output {
         File fusion_with_tags_tsv = extract_barcodes_and_update_fusion.updated_fusion_tsv
         File final_fusion_tsv = add_metadata_to_fusion.fusion_with_metadata
-    }
-}
-
-# Optional: Batch workflow for processing multiple samples
-workflow process_multiple_samples {
-    input {
-        Array[File] bam_files
-        Array[File] bam_indices
-        Array[File] fusion_tsvs
-        Array[String] pool_names
-        File metadata_tsv
-        File path_extract_CB_py
-        File path_add_metadata_py
-        String docker_image = "python:3.9-slim"
-    }
-
-    scatter (i in range(length(bam_files))) {
-        call process_single_sample {
-            input:
-                bam_file = bam_files[i],
-                bam_index = bam_indices[i],
-                fusion_tsv = fusion_tsvs[i],
-                pool_name = pool_names[i],
-                metadata_tsv = metadata_tsv,
-                path_extract_CB_py = path_extract_CB_py,
-                path_add_metadata_py = path_add_metadata_py,
-                docker_image = docker_image
-        }
-    }
-
-    output {
-        Array[File] fusion_with_tags_tsvs = process_single_sample.fusion_with_tags_tsv
-        Array[File] final_fusion_tsvs = process_single_sample.final_fusion_tsv
     }
 }
