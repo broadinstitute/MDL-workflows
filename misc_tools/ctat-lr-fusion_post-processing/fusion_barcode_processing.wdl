@@ -28,6 +28,7 @@ task extract_barcodes_and_update_fusion {
 
     output {
         File updated_fusion_tsv = output_filename
+        File extract_barcodes_log = "./extract_barcodes.log"
     }
 
     runtime {
@@ -114,6 +115,7 @@ workflow add_metadata_to_ctat_fusion_call {
 
     output {
         File fusion_with_tags_tsv = extract_barcodes_and_update_fusion.updated_fusion_tsv
+        File extract_barcodes_log = extract_barcodes_and_update_fusion.extract_barcodes_log
         File final_fusion_tsv = add_metadata_to_fusion.fusion_with_metadata
     }
 }
