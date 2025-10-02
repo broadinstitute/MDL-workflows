@@ -30,9 +30,9 @@ task extract_barcodes_and_update_fusion {
 
     runtime {
         docker: docker_image
-        memory: "8 GB"
+        memory: "16 GB"
         cpu: 2
-        disks: "local-disk 50 SSD"
+        disks: "local-disk 256 SSD"
     }
 }
 
