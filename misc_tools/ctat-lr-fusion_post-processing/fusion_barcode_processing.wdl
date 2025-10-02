@@ -20,7 +20,7 @@ task extract_barcodes_and_update_fusion {
         pip install pysam pandas
 
         # Copy the script to working directory
-        cp ~{path_extract_CB_py} extract_tags.py
+        mv ~{path_extract_CB_py} extract_tags.py
 
         # Run the Python script with arguments
         python extract_tags.py "~{bam_file}" "~{fusion_tsv}" "~{output_filename}"
@@ -57,7 +57,7 @@ task add_metadata_to_fusion {
         pip install pandas
 
         # Copy the script to working directory
-        cp ~{path_add_metadata_py} add_metadata.py
+        mv ~{path_add_metadata_py} add_metadata.py
 
         # Run the Python script with arguments (now includes pool_name)
         echo "Starting metadata addition..."
