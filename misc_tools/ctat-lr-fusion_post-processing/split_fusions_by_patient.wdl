@@ -15,8 +15,8 @@ workflow SplitFusionsByPatient {
     }
 
     output {
-        Directory split_files = SplitFusions.output_directory
         Array[File] split_tsvs = SplitFusions.split_tsv_files
+        File output_directory_tar = SplitFusions.output_directory_tar
     }
 }
 
@@ -41,13 +41,16 @@ task SplitFusions {
         # Run the Python script
         python3 ./split_fusions_by_patient.py ~{input_tsv} ~{base_output_dir}
         
+        # Create a tar archive of the output directory for easier handling
+        tar -czf ~{base_output_dir}.tar.gz ~{base_output_dir}
+        
         # Find all generated TSV files for output
         find ~{base_output_dir} -name "*.tsv" > tsv_files.txt
     >>>
 
     output {
-        Directory output_directory = base_output_dir
         Array[File] split_tsv_files = glob("${base_output_dir}/*/*.tsv")
+        File output_directory_tar = "${base_output_dir}.tar.gz"
     }
 
     runtime {
