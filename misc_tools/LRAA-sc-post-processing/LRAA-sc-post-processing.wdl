@@ -16,6 +16,8 @@ workflow LRAA_PostProcessing {
         File? annotation_script      # annotate_sparse_matrices_with_ref_gene_symbols.py (required when refQuantsOnly=true)
         
         String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lraa/lraa:latest"
+        String annotation_docker = "us-central1-docker.pkg.dev/methods-dev-lab/lraa/sparse-matrix-annotator:latest"
+
         Int memoryGB = 128
         Int diskSizeGB = 1024
         Int numThreads = 16
@@ -67,7 +69,7 @@ workflow LRAA_PostProcessing {
                 gene_sparseM_dir = singlecell_tracking_to_sparse_matrix.gene_sparseM_dir,
                 isoform_sparseM_dir = singlecell_tracking_to_sparse_matrix.isoform_sparseM_dir,
                 annotation_script = select_first([annotation_script]),
-                docker = docker,
+                docker = annotation_docker,
                 memoryGB = memoryGB,
                 diskSizeGB = diskSizeGB
         }
@@ -251,7 +253,7 @@ task annotate_ref_sparse_matrices {
         set -euo pipefail
         
         echo "Starting reference gene symbol annotation for refQuantsOnly mode..."
-        
+        echo "Using Docker image: ~{docker}"
         # Copy the annotation script to working directory
         cp ~{annotation_script} ./annotate_sparse_matrices_with_ref_gene_symbols.py
         chmod +x ./annotate_sparse_matrices_with_ref_gene_symbols.py
