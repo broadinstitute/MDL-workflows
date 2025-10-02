@@ -51,7 +51,7 @@ task add_metadata_to_fusion {
     String output_filename = "${pool_name}.fusion_calls.with_tags.meta.tsv"
 
     command <<<
-        set -euo pipefail
+        set -euxo pipefail
         
         # Install required Python packages
         pip install pandas
