@@ -57,7 +57,7 @@ def process_fusion_with_metadata(fusion_file, metadata_file, output_file):
     
     # Write updated file
     fusion.to_csv(output_file, sep="\t", index=False)
-    print(f"✅ Output written to: {output_file}")
+    print(f"Output written to: {output_file}")
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
