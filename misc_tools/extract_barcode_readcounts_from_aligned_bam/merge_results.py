@@ -20,7 +20,7 @@ import os
 def merge_patient_stats(patient_stats_files):
     """Merge patient statistics from multiple pools."""
     print("Merging patient stats...", file=sys.stderr)
-    all_patient_stats = defaultdict(lambda: {'barcode_count': 0, 'total_reads': 0, 'pools': []})
+    all_patient_stats = defaultdict(lambda: {'total_umis': 0, 'total_reads': 0, 'pools': []})
     
     for file in patient_stats_files:
         if not file or not os.path.exists(file):
@@ -31,7 +31,7 @@ def merge_patient_stats(patient_stats_files):
         
         for _, row in df.iterrows():
             patient_id = row['patient_id']
-            all_patient_stats[patient_id]['barcode_count'] += int(row['barcode_count'])
+            all_patient_stats[patient_id]['total_umis'] += int(row['total_umis'])
             all_patient_stats[patient_id]['total_reads'] += int(row['total_reads'])
             all_patient_stats[patient_id]['pools'].append(pool_name)
     
@@ -40,18 +40,18 @@ def merge_patient_stats(patient_stats_files):
     for patient_id, stats in sorted(all_patient_stats.items()):
         summary_data.append({
             'patient_id': patient_id,
-            'barcode_count': stats['barcode_count'],
+            'total_umis': stats['total_umis'],
             'total_reads': stats['total_reads'],
-            'avg_reads_per_barcode': round(stats['total_reads'] / stats['barcode_count'], 2) if stats['barcode_count'] > 0 else 0,
+            'avg_reads_per_umi': round(stats['total_reads'] / stats['total_umis'], 2) if stats['total_umis'] > 0 else 0,
             'num_pools': len(set(stats['pools'])),
             'pools': ','.join(sorted(set(stats['pools'])))
         })
     
     summary_df = pd.DataFrame(summary_data)
-    summary_df = summary_df.sort_values('total_reads', ascending=False)
+    summary_df = summary_df.sort_values('total_umis', ascending=False)
     
     print(f"Total patients: {len(summary_df)}", file=sys.stderr)
-    print(f"Total barcodes: {summary_df['barcode_count'].sum():,}", file=sys.stderr)
+    print(f"Total UMIs: {summary_df['total_umis'].sum():,}", file=sys.stderr)
     print(f"Total reads: {summary_df['total_reads'].sum():,}", file=sys.stderr)
     
     return summary_df
