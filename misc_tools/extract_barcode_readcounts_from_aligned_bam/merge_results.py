@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """
+merge_results.py
+
 Merge barcode counting results from multiple pool BAM files.
+
+Usage:
+    python merge_results.py --patient-stats file1.tsv file2.tsv \
+                           --barcode-details file1.tsv file2.tsv \
+                           --unmatched file1.tsv file2.tsv \
+                           --output-prefix merged
 """
 
 import pandas as pd
