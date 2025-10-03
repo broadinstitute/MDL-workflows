@@ -131,4 +131,132 @@ def match_barcodes_to_patients(barcode_counts, barcode_map, pool_id, pool_patien
     # Process barcodes
     patient_stats = defaultdict(lambda: {'barcode_count': 0, 'total_reads': 0})
     barcode_details = []
-    unmatched =
+    unmatched = []
+    
+    for barcode, read_count in barcode_counts.items():
+        matched = False
+        patient_id = None
+        match_type = "direct"
+        
+        # Try direct match
+        if barcode in barcode_map:
+            patient_id, meta_pool = barcode_map[barcode]
+            if meta_pool in matching_pools or not matching_pools:
+                matched = True
+        
+        # Try reverse complement
+        if not matched:
+            rev_comp = reverse_complement(barcode)
+            if rev_comp in barcode_map:
+                patient_id, meta_pool = barcode_map[rev_comp]
+                if meta_pool in matching_pools or not matching_pools:
+                    matched = True
+                    match_type = "reverse_complement"
+        
+        if matched and patient_id:
+            patient_stats[patient_id]['barcode_count'] += 1
+            patient_stats[patient_id]['total_reads'] += read_count
+            barcode_details.append({
+                'barcode': barcode,
+                'patient_id': patient_id,
+                'read_count': read_count,
+                'match_type': match_type,
+                'pool_id': pool_id
+            })
+        else:
+            unmatched.append({
+                'barcode': barcode,
+                'read_count': read_count
+            })
+    
+    return dict(patient_stats), barcode_details, unmatched
+
+def process_bam(bam_file, metadata_file, barcode_tag, output_prefix):
+    """Main processing function."""
+    print(f"\n{'='*60}", file=sys.stderr)
+    print(f"Processing BAM: {os.path.basename(bam_file)}", file=sys.stderr)
+    print(f"{'='*60}", file=sys.stderr)
+    
+    # Extract pool ID
+    pool_id = extract_pool_id_from_path(bam_file)
+    print(f"Detected pool ID: {pool_id}", file=sys.stderr)
+    
+    # Load metadata
+    barcode_map, pool_patients = load_metadata(metadata_file)
+    
+    # Extract barcodes from BAM
+    barcode_counts = extract_barcodes_from_bam(bam_file, barcode_tag)
+    
+    if not barcode_counts:
+        print("No barcodes found! Creating empty outputs.", file=sys.stderr)
+        # Create empty outputs
+        pd.DataFrame(columns=['patient_id', 'barcode_count', 'total_reads', 'avg_reads_per_barcode']).to_csv(
+            f"{output_prefix}_patient_stats.tsv", sep='\t', index=False)
+        pd.DataFrame(columns=['barcode', 'patient_id', 'read_count', 'match_type', 'pool_id']).to_csv(
+            f"{output_prefix}_barcode_details.tsv", sep='\t', index=False)
+        pd.DataFrame(columns=['barcode', 'read_count']).to_csv(
+            f"{output_prefix}_unmatched.tsv", sep='\t', index=False)
+        return
+    
+    # Match barcodes to patients
+    patient_stats, barcode_details, unmatched = match_barcodes_to_patients(
+        barcode_counts, barcode_map, pool_id, pool_patients
+    )
+    
+    # Save patient stats (aggregated per patient)
+    patient_df = pd.DataFrame([
+        {
+            'patient_id': pid,
+            'total_umis': stats['barcode_count'],  # Each unique barcode = 1 UMI
+            'total_reads': stats['total_reads'],
+            'avg_reads_per_umi': round(stats['total_reads'] / stats['barcode_count'], 2) if stats['barcode_count'] > 0 else 0
+        }
+        for pid, stats in sorted(patient_stats.items())
+    ])
+    patient_df.to_csv(f"{output_prefix}_patient_stats.tsv", sep='\t', index=False)
+    print(f"Saved patient stats: {output_prefix}_patient_stats.tsv", file=sys.stderr)
+    
+    # Save barcode details (one row per barcode with patient assignment)
+    barcode_df = pd.DataFrame(barcode_details)
+    if not barcode_df.empty:
+        barcode_df = barcode_df.sort_values(['patient_id', 'read_count'], ascending=[True, False])
+    barcode_df.to_csv(f"{output_prefix}_barcode_details.tsv", sep='\t', index=False)
+    print(f"Saved barcode details: {output_prefix}_barcode_details.tsv", file=sys.stderr)
+    
+    # Save unmatched barcodes
+    unmatched_df = pd.DataFrame(unmatched)
+    if not unmatched_df.empty:
+        unmatched_df = unmatched_df.sort_values('read_count', ascending=False)
+    unmatched_df.to_csv(f"{output_prefix}_unmatched.tsv", sep='\t', index=False)
+    print(f"Saved unmatched barcodes: {output_prefix}_unmatched.tsv", file=sys.stderr)
+    
+    # Print summary
+    print(f"\n{'='*60}", file=sys.stderr)
+    print(f"SUMMARY", file=sys.stderr)
+    print(f"{'='*60}", file=sys.stderr)
+    print(f"Pool: {pool_id}", file=sys.stderr)
+    print(f"Patients found: {len(patient_stats)}", file=sys.stderr)
+    print(f"Barcodes matched: {len(barcode_details):,}", file=sys.stderr)
+    print(f"Total reads matched: {sum(b['read_count'] for b in barcode_details):,}", file=sys.stderr)
+    print(f"Barcodes unmatched: {len(unmatched):,}", file=sys.stderr)
+    print(f"Total reads unmatched: {sum(u['read_count'] for u in unmatched):,}", file=sys.stderr)
+    
+    if patient_stats:
+        print(f"\nPer-patient breakdown:", file=sys.stderr)
+        for pid, stats in sorted(patient_stats.items(), key=lambda x: x[1]['total_reads'], reverse=True):
+            print(f"  {pid}: {stats['barcode_count']} barcodes, {stats['total_reads']:,} reads", file=sys.stderr)
+
+def main():
+    parser = argparse.ArgumentParser(description='Process BAM file to extract barcode counts per patient')
+    parser.add_argument('bam_file', help='Input BAM file')
+    parser.add_argument('metadata_file', help='Metadata TSV file')
+    parser.add_argument('--barcode-tag', default='CB', help='BAM tag containing barcodes (default: CB)')
+    parser.add_argument('--output-prefix', required=True, help='Output file prefix')
+    
+    args = parser.parse_args()
+    
+    process_bam(args.bam_file, args.metadata_file, args.barcode_tag, args.output_prefix)
+    print("\nDone!", file=sys.stderr)
+
+if __name__ == "__main__":
+    main()
