@@ -18,7 +18,7 @@ workflow LRAA_PostProcessing {
         String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lraa/lraa:latest"
         String annotation_docker = "us-central1-docker.pkg.dev/methods-dev-lab/lraa/sparse-matrix-annotator:latest"
 
-        Int memoryGB = 256
+        Int memoryGB = 328
         Int diskSizeGB = 1024
         Int numThreads = 16
     }
