@@ -102,3 +102,10 @@ workflows:
     authors:
       - name: akhorgad
       
+  - name: readcounts_CB_from_bam
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/extract_barcode_readcounts_from_aligned_bam/scBarcodeCounting.wdl
+    authors:
+      - name: akhorgad
+      
+
