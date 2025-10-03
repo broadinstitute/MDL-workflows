@@ -1,12 +1,25 @@
 version 1.0
 
+## Barcode Counting Workflow
+## 
+## This workflow processes BAM files in parallel to extract barcode read counts
+## and match them to patient IDs using metadata.
+##
+## Inputs:
+##   - bam_files: Array of BAM files (one per pool)
+##   - bam_indices: Array of BAI index files
+##   - metadata_tsv: Metadata file with barcode->patient mappings
+##   - process_barcodes_script: process_barcodes.py script
+##   - merge_results_script: merge_results.py script
+##   - barcode_tag: BAM tag containing barcodes (default: CB)
+
 workflow BarcodeCountingWorkflow {
     input {
         Array[File] bam_files
-        Array[File] bam_indices  # .bai files
+        Array[File] bam_indices
         File metadata_tsv
-        File process_barcodes_script  # The process_barcodes.py script
-        File merge_results_script  # The merge_results.py script
+        File process_barcodes_script
+        File merge_results_script
         String barcode_tag = "CB"
         String docker_image = "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.0.15"
     }
@@ -35,9 +48,12 @@ workflow BarcodeCountingWorkflow {
     }
 
     output {
+        # Final merged outputs
         File final_patient_summary = MergeResults.patient_summary
         File final_unmatched = MergeResults.unmatched_summary
         File final_all_barcodes = MergeResults.all_barcodes_combined
+        
+        # Individual pool outputs
         Array[File] individual_patient_stats = ProcessSingleBAM.patient_stats
         Array[File] pool_barcode_details = ProcessSingleBAM.pool_barcode_details
         Array[File] individual_unmatched = ProcessSingleBAM.unmatched_barcodes
@@ -64,9 +80,6 @@ task ProcessSingleBAM {
 
         # Install dependencies
         pip install pysam pandas --quiet
-
-        # Make script executable
-        chmod +x ~{process_barcodes_script}
 
         # Run the Python script
         python ~{process_barcodes_script} \
@@ -107,9 +120,6 @@ task MergeResults {
         set -euo pipefail
 
         pip install pandas --quiet
-
-        # Make script executable
-        chmod +x ~{merge_results_script}
 
         # Run the merge script
         python ~{merge_results_script} \
