@@ -20,7 +20,7 @@ workflow LRAA_PostProcessing {
 
         Int memoryGB = 328
         Int diskSizeGB = 1024
-        Int numThreads = 8
+        Int numThreads = 16
     }
 
     # Step 1: Convert single cell tracking to sparse matrix (always runs)
