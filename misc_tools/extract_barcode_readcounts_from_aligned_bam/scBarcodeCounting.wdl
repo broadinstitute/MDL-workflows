@@ -4,15 +4,18 @@ task CountUMIs {
   input {
     File bam
     File bai
+    File counting_script   # <-- Python script provided as input
     String cb_tag = "CB"
     String umi_tag = "XM"
     Int threads = 8
   }
 
   command <<<
-    set -euo pipefail
+    set -euox pipefail
 
-    python3 count_barcodes.py \
+    cp ~{counting_script} process_barcodes.py
+
+    python3 ~{script} \
       ~{bam} \
       --cb_tag ~{cb_tag} \
       --umi_tag ~{umi_tag} \
@@ -36,6 +39,7 @@ workflow CountUMIsWorkflow {
   input {
     Array[File] bams
     Array[File] bais
+    File script              # <-- supply Python script here
     String cb_tag = "CB"
     String umi_tag = "XM"
     Int threads = 8
@@ -46,6 +50,7 @@ workflow CountUMIsWorkflow {
       input:
         bam = bams[i],
         bai = bais[i],
+        script = script,
         cb_tag = cb_tag,
         umi_tag = umi_tag,
         threads = threads
