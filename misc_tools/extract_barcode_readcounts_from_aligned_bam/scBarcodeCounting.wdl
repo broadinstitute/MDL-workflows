@@ -39,7 +39,7 @@ workflow CountUMIsWorkflow {
   input {
     Array[File] bams
     Array[File] bais
-    File script              # <-- supply Python script here
+    File counting_script
     String cb_tag = "CB"
     String umi_tag = "XM"
     Int threads = 8
@@ -50,7 +50,7 @@ workflow CountUMIsWorkflow {
       input:
         bam = bams[i],
         bai = bais[i],
-        script = script,
+        counting_script = counting_script,
         cb_tag = cb_tag,
         umi_tag = umi_tag,
         threads = threads
