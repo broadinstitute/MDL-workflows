@@ -14,7 +14,7 @@ task CountUMIs {
   command <<<
     set -euox pipefail
 
-    cp ~{process_barocdes_py} process_barcodes_py.py
+    cp ~{process_barcodes_py} process_barcodes_py.py
 
     python3 process_barcodes_py.py \
       ~{bam} \
