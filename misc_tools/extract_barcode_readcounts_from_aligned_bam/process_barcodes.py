@@ -4,7 +4,7 @@ import pysam
 import argparse
 from collections import defaultdict
 
-def count_per_cell(bam_file, cb_tag="CB", umi_tag="XM", threads=1):
+def count_per_cell(bam_file, cb_tag="CB", umi_tag="XM"):
     bam = pysam.AlignmentFile(bam_file, "rb")
     read_counts = defaultdict(int)
     umi_counts = defaultdict(set)
@@ -25,9 +25,9 @@ def count_per_cell(bam_file, cb_tag="CB", umi_tag="XM", threads=1):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Count reads and UMIs per cell barcode from BAM")
     parser.add_argument("bam", help="Input BAM file (must be indexed)")
+    parser.add_argument("--sample_id", required=True, help="Sample identifier to label results")
     parser.add_argument("--cb_tag", default="CB", help="Cell barcode tag (default: CB)")
     parser.add_argument("--umi_tag", default="XM", help="UMI tag (default: XM)")
-    parser.add_argument("--sample_id", required=True, help="Sample identifier to label results")
     parser.add_argument("-o", "--output", default="counts.tsv", help="Output TSV file")
 
     args = parser.parse_args()
