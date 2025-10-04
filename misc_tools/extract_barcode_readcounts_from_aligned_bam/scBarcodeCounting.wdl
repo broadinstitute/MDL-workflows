@@ -13,6 +13,9 @@ task CountUMI {
   command <<<
     set -euox pipefail
 
+    # Install required Python packages
+    pip install pysam panda
+
     cp ~{process_barcodes_py} process_barcodes_py.py
 
     python3 process_barcodes_py.py \
