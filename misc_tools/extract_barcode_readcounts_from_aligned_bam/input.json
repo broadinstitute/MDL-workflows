@@ -1,6 +1,6 @@
 {
-  "CountUMIsWorkflow.bams": ["gs://bucket/sample1.aligned.bam", "gs://bucket/sample2.aligned.bam", ...],
-  "CountUMIsWorkflow.bais": ["gs://bucket/sample1.aligned.bam.bai", "gs://bucket/sample2.aligned.bam.bai", ...],
+  "CountUMIsWorkflow.bams": ["gs://bucket/sample1.aligned.bam", "gs://bucket/sample2.aligned.bam"],
+  "CountUMIsWorkflow.bais": ["gs://bucket/sample1.aligned.bam.bai", "gs://bucket/sample2.aligned.bam.bai"],
   "CountUMIsWorkflow.cb_tag": "CB",
   "CountUMIsWorkflow.umi_tag": "XM",
   "CountUMIsWorkflow.threads": 8
