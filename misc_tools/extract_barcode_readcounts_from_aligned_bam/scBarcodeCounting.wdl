@@ -33,8 +33,8 @@ task CountUMI {
   runtime {
     docker: "python:3.10-slim"
     cpu: 4
-    memory: "16G"
-    disks: "local-disk 100 SSD"
+    memory: "32G"
+    disks: "local-disk 200 SSD"
   }
 }
 
