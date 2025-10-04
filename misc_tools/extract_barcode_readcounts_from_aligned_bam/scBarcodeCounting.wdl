@@ -15,7 +15,7 @@ task CountUMIs {
 
     cp ~{counting_script} process_barcodes.py
 
-    python3 ~{script} \
+    python3 ./process_barcodes.py \
       ~{bam} \
       --cb_tag ~{cb_tag} \
       --umi_tag ~{umi_tag} \
