@@ -4,7 +4,7 @@ task CountUMI {
   input {
     File bam
     File bai
-    File process_barcode_py # Python script
+    File process_barcodes_py # Python script
     String sample_id
     String cb_tag = "CB"
     String umi_tag = "XM"
@@ -39,7 +39,7 @@ workflow CountOneBAMWorkflow {
   input {
     File bam
     File bai
-    File process_barcode_py
+    File process_barcodes_py
     String sample_id
     String cb_tag = "CB"
     String umi_tag = "XM"
@@ -49,7 +49,7 @@ workflow CountOneBAMWorkflow {
     input:
       bam = bam,
       bai = bai,
-      process_barcode_py = process_barcode_py,
+      process_barcodes_py = process_barcodes_py,
       sample_id = sample_id,
       cb_tag = cb_tag,
       umi_tag = umi_tag
