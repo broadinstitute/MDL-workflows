@@ -15,12 +15,12 @@ workflow LRAA_PostProcessing {
         # Required for refQuantsOnly mode - standalone Python script
         File? annotation_script      # annotate_sparse_matrices_with_ref_gene_symbols.py (required when refQuantsOnly=true)
         
-        String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lraa/lraa:latest"
+        String docker = "us-central1-docker.pkg.dev/methods-dev-lab/lraa/lraa:0.9.0-postdev"
         String annotation_docker = "us-central1-docker.pkg.dev/methods-dev-lab/lraa/sparse-matrix-annotator:latest"
 
-        Int memoryGB = 328
+        Int memoryGB = 64
         Int diskSizeGB = 1024
-        Int numThreads = 16
+        Int numThreads = 8
     }
 
     # Step 1: Convert single cell tracking to sparse matrix (always runs)
@@ -124,8 +124,8 @@ task singlecell_tracking_to_sparse_matrix {
             tracking_input="~{tracking_file}"
         fi
         
-        # Run the R script
-        /usr/local/src/LRAA/util/sc/singlecell_tracking_to_sparse_matrix.R \
+        # Run the py script
+        /usr/local/src/LRAA/util/sc/singlecell_tracking_to_sparse_matrix.py \
             --tracking "$tracking_input" \
             --output_prefix ~{output_prefix}
         
