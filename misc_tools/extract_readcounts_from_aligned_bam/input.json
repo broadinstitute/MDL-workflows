@@ -1,0 +1,7 @@
+{
+  "CountReadLengths.input_bam": "gs://input.bam",
+  "CountReadLengths.input_bam_index": "gs://input.bam.bai",
+  "CountReadLengths.python_script": "gs://count_read_lengths.py",
+  "CountReadLengths.output_basename": "sample_read_length_counts",
+  "CountReadLengths.workers": 4
+}
