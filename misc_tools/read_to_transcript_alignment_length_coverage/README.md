@@ -16,4 +16,8 @@
                                               -o cdna_aligned.mm2.bam.depth.cov_info
 
     
-    
+
+
+Now examine the results via the R notebook:  examine_coverage.Rmd
+
+
