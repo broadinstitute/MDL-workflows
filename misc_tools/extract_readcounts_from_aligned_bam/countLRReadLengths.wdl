@@ -42,7 +42,7 @@ task CountReadLengthsTask {
         String docker = "quay.io/biocontainers/pysam:0.22.1--py39hdd5828d_3"
     }
 
-    Int default_disk_space_gb = ceil(input_bam * 1.2)
+    Int default_disk_space_gb = ceil(1.2 * size(input_bam, "GB")) 
     String output_filename = "${output_basename}.pkl"
 
     
