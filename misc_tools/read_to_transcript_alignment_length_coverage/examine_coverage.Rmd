@@ -1,0 +1,142 @@
+---
+title: "examine_coverage"
+output: html_document
+date: "2025-09-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+
+```{r}
+library(tidyverse)
+
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(readr)
+
+analyze_coverage <- function(cov_info_filename, min_reads = 50) {
+
+  ret_list <- list()
+
+  # 0) Read summary table
+  df <- readr::read_tsv(cov_info_filename, show_col_types = FALSE)
+  ret_list$df <- df
+
+  # Consistent length groups
+  length_levels <- c("<1kb", "1-2kb", "2-4kb", ">4kb")
+  make_length_group <- function(x) {
+    cut(
+      x,
+      breaks = c(0, 1000, 2000, 4000, Inf),
+      labels = length_levels,
+      include_lowest = TRUE,  # allow 0-length edge cases
+      right = FALSE
+    )
+  }
+
+  # -----------------------------
+  # 1) Metagene coverage profiles by length group
+  # -----------------------------
+  bins_long <- df %>%
+    filter(read_count >= min_reads) %>%
+    select(transcript_id, transcript_length, norm_cov_bins) %>%
+    separate_rows(norm_cov_bins, sep = ",") %>%
+    group_by(transcript_id) %>%
+    mutate(
+      bin = (row_number() - 0.5) / n(),       # bin centers in (0,1]
+      norm_cov_bins = as.numeric(norm_cov_bins)
+    ) %>%
+    ungroup() %>%
+    mutate(length_group = make_length_group(transcript_length)) %>%
+    filter(!is.na(length_group))
+
+  avg_profiles <- bins_long %>%
+    group_by(length_group, bin) %>%
+    summarise(mean_cov = mean(norm_cov_bins, na.rm = TRUE), .groups = "drop") %>%
+    mutate(length_group = factor(length_group, levels = length_levels))
+
+  ret_list$avg_profiles <- avg_profiles
+
+  profile_plot <- ggplot(avg_profiles, aes(x = bin, y = mean_cov, color = length_group)) +
+    geom_line(linewidth = 1) +
+    theme_bw() +
+    labs(
+      title = "Normalized coverage profiles by transcript length group",
+      x = "Relative position (0 = 5′, 1 = 3′)",
+      y = "Mean normalized coverage",
+      color = "Length group"
+    )
+  ret_list$profile_plot <- profile_plot
+
+  # -----------------------------
+  # 2) Strand-bias (bias_contrast) by length group
+  # -----------------------------
+  by_group <- df %>%
+    filter(read_count >= min_reads) %>%
+    mutate(length_group = make_length_group(transcript_length)) %>%
+    filter(!is.na(length_group)) %>%
+    mutate(length_group = factor(length_group, levels = length_levels))
+
+  five_three_contrast_plot <- ggplot(by_group,
+                                     aes(x = length_group, y = bias_contrast)) +
+    geom_boxplot(outlier.size = 0.5, fill = "grey80") +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+    coord_cartesian(ylim = c(-1, 1)) +
+    theme_bw() +
+    labs(
+      title = "5′ vs 3′ coverage bias (contrast) by transcript length group",
+      x = "Transcript length group",
+      y = "Bias contrast = (5′ − 3′) / (5′ + 3′)"
+    )
+  ret_list$five_three_contrast_plot <- five_three_contrast_plot
+
+  # -----------------------------
+  # 3) fiveprime_threeprime_log2ratio by length group
+  # -----------------------------
+  # (This can have extreme outliers; optionally you can cap via coord_cartesian or quantile trimming.)
+  five_three_log2_plot <- ggplot(by_group,
+                                 aes(x = length_group, y = fiveprime_threeprime_log2ratio)) +
+    geom_boxplot(outlier.size = 0.5, fill = "grey80") +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+    theme_bw() +
+    labs(
+      title = "5′ vs 3′ log2 coverage ratio by transcript length group",
+      x = "Transcript length group",
+      y = "log2( C5 / C3 )"
+    )
+  ret_list$five_three_log2_plot <- five_three_log2_plot
+
+  return(ret_list)
+}
+
+
+  
+```
+
+
+
+
+
+
+```{r}
+
+
+all_list = analyze_coverage("cdna_aligned.mm2.bam.depth.cov_info")
+
+```
+
+    
+```{r}
+all_list$profile_plot
+
+all_list$five_three_contrast_plot
+
+all_list$five_three_log2_plot + ylim(-3,3)
+
+```
+
