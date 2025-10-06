@@ -38,14 +38,16 @@ task CountReadLengthsTask {
         # Runtime parameters
         Int cpu = 4
         Int memory_gb = 8
-        Int disk_gb = 100
-        String docker = "quay.io/biocontainers/pysam:0.21.0--py39h2bbff1b_1"
+        Int? disk_space_gb
+        String docker = "quay.io/biocontainers/pysam:0.22.1--py39hdd5828d_3"
     }
 
+    Int default_disk_space_gb = ceil(input_bam * 1.2)
     String output_filename = "${output_basename}.pkl"
+
     
     command <<<
-        set -euo pipefail
+        set -euox pipefail
         
         # Copy the input Python script to the working directory
         cp "~{python_script}" count_read_lengths.py
@@ -68,6 +70,6 @@ task CountReadLengthsTask {
         docker: docker
         cpu: cpu
         memory: "${memory_gb} GB"
-        disks: "local-disk ${disk_gb} HDD"
+        disks: "local-disk " + select_first([disk_space_gb, default_disk_space_gb]) + " SSD"
     }
 }
