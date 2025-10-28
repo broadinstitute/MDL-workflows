@@ -3,6 +3,7 @@ version 1.0
 workflow SeuratClustering {
   input {
     File count_dir_tarball  # Tarball containing all count matrices
+    File seurat_clustering_script  # The seurat_clustering.R script
     Boolean assign_mode = false
     File? cluster_assignment_tsv  # Required if assign_mode = true
     String docker_image = "us-central1-docker.pkg.dev/methods-dev-lab/lraa/lraa-seurat:latest"
@@ -14,6 +15,7 @@ workflow SeuratClustering {
   call RunSeuratClustering {
     input:
       count_dir_tarball = count_dir_tarball,
+      seurat_clustering_script = seurat_clustering_script,
       assign_mode = assign_mode,
       cluster_assignment_tsv = cluster_assignment_tsv,
       docker_image = docker_image,
@@ -33,6 +35,7 @@ workflow SeuratClustering {
 task RunSeuratClustering {
   input {
     File count_dir_tarball
+    File seurat_clustering_script
     Boolean assign_mode
     File? cluster_assignment_tsv
     String docker_image
@@ -43,6 +46,9 @@ task RunSeuratClustering {
 
   command <<<
     set -e
+    
+    # Copy R script
+    cp ~{seurat_clustering_script} /cromwell_root/seurat_clustering.R
     
     # Extract count directory
     mkdir -p /cromwell_root/count_data
