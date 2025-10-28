@@ -35,7 +35,7 @@ workflow SeuratClustering {
 task RunSeuratClustering {
   input {
     File count_dir_tarball
-    File r_script
+    File seurat_clustering_script
     Boolean assign_mode
     File? cluster_assignment_tsv
     String docker_image
