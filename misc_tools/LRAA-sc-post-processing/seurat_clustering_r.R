@@ -160,7 +160,7 @@ build_and_save_seurat <- function(tarfiles, samples, type = "gene") {
       obj <- CreateSeuratObject(counts = counts, project = sample)
       saveRDS(obj, outfile)
       objs[[sample]] <- obj
-      cat("🎉 Saved Seurat object for sample:", sample,
+      cat("Saved Seurat object for sample:", sample,
           "| cells:", ncol(obj), "\n")
     }
   }
@@ -189,12 +189,25 @@ if (assign_mode) {
   cat("========================================\n")
   
   # Read cluster assignments
-  cluster_df <- read.table(cluster_file, header = TRUE, sep = "\t", 
+  # The file has header "x" but actual data is two columns: barcode, cluster_id
+  cluster_df <- read.table(cluster_file, header = TRUE, sep = "", 
                            stringsAsFactors = FALSE)
   
-  # Validate required columns
-  if (!all(c("barcode", "cluster_id") %in% colnames(cluster_df))) {
-    stop("cluster_file must contain 'barcode' and 'cluster_id' columns")
+  # Check if it's the expected format with "x" header
+  if (ncol(cluster_df) == 1 && colnames(cluster_df)[1] == "x") {
+    # The data is actually in one column as "barcode cluster_id"
+    # Need to split it
+    split_data <- strsplit(as.character(cluster_df$x), "\\s+")
+    cluster_df <- data.frame(
+      barcode = sapply(split_data, `[`, 1),
+      cluster_id = sapply(split_data, `[`, 2),
+      stringsAsFactors = FALSE
+    )
+  } else if (ncol(cluster_df) == 2) {
+    # Two columns - rename them properly
+    colnames(cluster_df) <- c("barcode", "cluster_id")
+  } else if (!all(c("barcode", "cluster_id") %in% colnames(cluster_df))) {
+    stop("cluster_file must contain 'barcode' and 'cluster_id' columns or be in format: barcode cluster_id")
   }
   
   cat("Loaded", nrow(cluster_df), "cluster assignments\n")
