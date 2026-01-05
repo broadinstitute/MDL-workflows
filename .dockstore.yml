@@ -125,3 +125,9 @@ workflows:
     primaryDescriptorPath: /misc_tools/STAR_alignment/STAR_alignment.wdl
     authors:
       - name: bhaas
+
+  - name: rnaseqc2
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/RNA-SeQC2/RNA-SeQC2.wdl
+    authors:
+      - name: bhaas
