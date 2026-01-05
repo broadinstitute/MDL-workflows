@@ -54,11 +54,9 @@ task STAR_Align_SortedBam {
   }
 
   Int disk_gb = ceil(
-  (
-    size(read1_fastq) +
-    size(read2_fastq) +
-    size(star_index_tar)
-  ) / 1e9 ) + 200
+     size(read1_fastq, "GB") +
+     size(read2_fastq, "GB") +
+     size(star_index_tar, "GB") ) + 200
   
   command <<<
     set -euo pipefail
