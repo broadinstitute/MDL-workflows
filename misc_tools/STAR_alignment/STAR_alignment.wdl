@@ -69,6 +69,8 @@ task STAR_Align_SortedBam {
       exit 1
     fi
 
+    rm -f "~{star_index_tar}" # make more space available.
+    
     READ_CMD=""
     if [[ "~{read1_fastq}" == *.gz ]]; then
       READ_CMD="--readFilesCommand zcat"
