@@ -58,8 +58,7 @@ task STAR_Align_SortedBam {
     size(read1_fastq) +
     size(read2_fastq) +
     size(star_index_tar)
-  ) / 1e9
-  ) + 200
+  ) / 1e9 ) + 200
   
   command <<<
     set -euo pipefail
