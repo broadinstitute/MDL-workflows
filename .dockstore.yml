@@ -120,3 +120,8 @@ workflows:
     authors:
       - name: akhorgad     
 
+  - name: STAR_alignment
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/STAR_alignment/STAR_alignment.wdl
+    authors:
+      - name: bhaas
