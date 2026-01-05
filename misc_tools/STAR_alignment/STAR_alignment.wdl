@@ -57,27 +57,24 @@ task STAR_Align_SortedBam {
      size(read1_fastq, "GB") +
      size(read2_fastq, "GB") +
      size(star_index_tar, "GB") ) + 200
-  
+
   command <<<
     set -euo pipefail
 
-    mkdir -p star_index
-    tar -xf "~{star_index_tar}" -C star_index
+    tar -xf "~{star_index_tar}"
 
-    GENOME_DIR="star_index/STAR_index_dir"
+    GENOME_DIR="STAR_index_dir"
     if [[ ! -d "${GENOME_DIR}" ]]; then
       echo "ERROR: Expected STAR index directory at ${GENOME_DIR} after untarring." >&2
-      echo "Contents of star_index:" >&2
-      ls -lah star_index >&2 || true
       exit 1
     fi
 
-    # Handle gzipped vs plain fastq automatically
     READ_CMD=""
     if [[ "~{read1_fastq}" == *.gz ]]; then
       READ_CMD="--readFilesCommand zcat"
     fi
 
+    
     STAR \
       --runThreadN ~{threads} \
       --genomeDir "${GENOME_DIR}" \
