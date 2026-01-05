@@ -114,4 +114,14 @@ workflows:
     authors:
       - name: akhorgad
       
+  - name: LRAA_build_or_assign_seurat_cluster
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/LRAA-sc-post-processing/LRAA_build_or_assign_seurat_cluster.wdl
+    authors:
+      - name: akhorgad     
 
+  - name: STAR_alignment
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/STAR_alignment/STAR_alignment.wdl
+    authors:
+      - name: bhaas
