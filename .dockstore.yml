@@ -131,3 +131,9 @@ workflows:
     primaryDescriptorPath: /misc_tools/RNA-SeQC2/RNA-SeQC2.wdl
     authors:
       - name: bhaas
+
+  - name: Picard_MarkDuplicates
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/Picard_MarkDuplicates/Picard_MarkDuplicates.wdl
+    authors:
+      - name: bhaas
