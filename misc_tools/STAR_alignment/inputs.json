@@ -1,0 +1,1 @@
+{"STAR_align_paired_rnaseq.extra_star_args":"${}","STAR_align_paired_rnaseq.read1_fastq":"${this.illumina_left_fq}","STAR_align_paired_rnaseq.read2_fastq":"${this.illumina_right_fq}","STAR_align_paired_rnaseq.sample_id":"${this.illumina_sample_id}","STAR_align_paired_rnaseq.star_index_tar":"gs://mdl-refs/GRCh38/GRCh38.gencode.v39.STAR_INDEX.tar"}
