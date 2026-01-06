@@ -12,13 +12,10 @@ workflow mark_duplicates_picard {
     String validation_stringency = "SILENT"
 
     Int cpu = 4
-    Int memory_gb = 16
+    Int memory_gb = 32
     Int disk_gb = 200
 
-    # Your documented image
     String docker = "broadinstitute/picard:3.1.1"
-
-    # Documented jar path for this image
     String picard_jar = "/usr/picard/picard.jar"
   }
 
@@ -67,14 +64,14 @@ task picard_markduplicates {
   command <<<
     set -euo pipefail
 
-    ln -s "~{bam}" in.bam
+    # Use sample_id-based names to avoid MultiQC (and others) thinking everything is sample "in"
+    ln -s "~{bam}" "~{sample_id}.bam"
     if [[ "~{if defined(bai) then '1' else ''}" == "1" ]]; then
-      ln -s "~{bai}" in.bam.bai
+      ln -s "~{bai}" "~{sample_id}.bam.bai"
     fi
 
-    # Run Picard via the documented jar path in broadinstitute/picard:3.1.1
     java -Xmx~{memory_gb}g -jar "~{picard_jar}" MarkDuplicates \
-      I=in.bam \
+      I="~{sample_id}.bam" \
       O="~{sample_id}.markdup.bam" \
       M="~{sample_id}.markdup.metrics.txt" \
       REMOVE_DUPLICATES="~{remove_duplicates}" \
@@ -82,8 +79,10 @@ task picard_markduplicates {
       CREATE_INDEX="~{create_index}" \
       VALIDATION_STRINGENCY="~{validation_stringency}"
 
-    mv ~{sample_id}.markdup.bai ~{sample_id}.markdup.bam.bai
-    
+    # Normalize index filename if Picard writes *.bai instead of *.bam.bai
+    if [[ -f "~{sample_id}.markdup.bai" && ! -f "~{sample_id}.markdup.bam.bai" ]]; then
+      mv "~{sample_id}.markdup.bai" "~{sample_id}.markdup.bam.bai"
+    fi
   >>>
 
   output {
