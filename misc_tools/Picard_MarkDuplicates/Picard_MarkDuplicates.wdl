@@ -81,6 +81,9 @@ task picard_markduplicates {
       ASSUME_SORTED="~{assume_sorted}" \
       CREATE_INDEX="~{create_index}" \
       VALIDATION_STRINGENCY="~{validation_stringency}"
+
+    mv ~{sample_id}.markdup.bai ~{sample_id}.markdup.bam.bai
+    
   >>>
 
   output {
