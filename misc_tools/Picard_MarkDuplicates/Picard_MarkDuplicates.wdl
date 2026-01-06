@@ -4,24 +4,22 @@ workflow mark_duplicates_picard {
   input {
     String sample_id
     File bam
-
-    # Optional: provide BAI if you already have one. If omitted, Picard can still run,
-    # but it will also create an index for the output BAM when CREATE_INDEX=true.
     File? bai
 
-    # Picard settings
     Boolean remove_duplicates = false
     Boolean assume_sorted = true
     Boolean create_index = true
     String validation_stringency = "SILENT"
 
-    # Runtime
     Int cpu = 4
     Int memory_gb = 16
     Int disk_gb = 200
 
-    # Use a Picard container; update to whatever you host/trust.
+    # Your documented image
     String docker = "broadinstitute/picard:3.1.1"
+
+    # Documented jar path for this image
+    String picard_jar = "/usr/picard/picard.jar"
   }
 
   call picard_markduplicates {
@@ -36,7 +34,8 @@ workflow mark_duplicates_picard {
       cpu = cpu,
       memory_gb = memory_gb,
       disk_gb = disk_gb,
-      docker = docker
+      docker = docker,
+      picard_jar = picard_jar
   }
 
   output {
@@ -60,20 +59,21 @@ task picard_markduplicates {
     Int cpu
     Int memory_gb
     Int disk_gb
+
     String docker
+    String picard_jar
   }
 
   command <<<
     set -euo pipefail
 
-    # stable local names
     ln -s "~{bam}" in.bam
     if [[ "~{if defined(bai) then '1' else ''}" == "1" ]]; then
       ln -s "~{bai}" in.bam.bai
     fi
 
-    picard \
-      MarkDuplicates \
+    # Run Picard via the documented jar path in broadinstitute/picard:3.1.1
+    java -Xmx~{memory_gb}g -jar "~{picard_jar}" MarkDuplicates \
       I=in.bam \
       O="~{sample_id}.markdup.bam" \
       M="~{sample_id}.markdup.metrics.txt" \
