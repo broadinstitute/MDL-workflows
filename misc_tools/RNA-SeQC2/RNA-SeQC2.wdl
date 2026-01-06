@@ -57,7 +57,6 @@ workflow rnaseqc2 {
     File gene_reads_gct    = run_rnaseqc.gene_reads_gct
     File gene_tpm_gct      = run_rnaseqc.gene_tpm_gct
     File exon_reads_gct    = run_rnaseqc.exon_reads_gct
-    File? fragmentSizes_txt = run_rnaseqc.fragmentSizes_txt
     File output_dir_tar_gz = run_rnaseqc.output_dir_tar_gz
   }
 }
@@ -159,7 +158,7 @@ task run_rnaseqc {
       -v
 
     # Bundle full output directory for convenience in Terra
-    tar -czf "~{sample_id}.rnaseqc2.outputs.tar.gz" -C out .
+    tar -czf "~{sample_id}.rnaseqc2.outputs.tar.gz" -C out 
   >>>
 
   output {
@@ -167,9 +166,6 @@ task run_rnaseqc {
     File exon_reads_gct = "out/~{sample_id}.exon_reads.gct"
     File gene_reads_gct = "out/~{sample_id}.gene_reads.gct"
     File gene_tpm_gct   = "out/~{sample_id}.gene_tpm.gct"
-
-    # Present only if you provided --bed
-    File? fragmentSizes_txt = select_first([glob("out/~{sample_id}.fragmentSizes.txt")[0], ""])
 
     File output_dir_tar_gz = "~{sample_id}.rnaseqc2.outputs.tar.gz"
   }
