@@ -158,7 +158,7 @@ task run_rnaseqc {
       -v
 
     # Bundle full output directory for convenience in Terra
-    tar -czf "~{sample_id}.rnaseqc2.outputs.tar.gz" -C out 
+    tar -czf "~{sample_id}.rnaseqc2.outputs.tar.gz" -C out .
   >>>
 
   output {
