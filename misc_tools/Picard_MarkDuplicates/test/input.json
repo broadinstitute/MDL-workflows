@@ -1,0 +1,5 @@
+{
+    "mark_duplicates_picard.sample_id" : "test_sample",
+    "mark_duplicates_picard.bam" : "test.bam"
+}
+
