@@ -1,0 +1,1 @@
+{"rnaseqc2.bai":"${this.bam_bai}","rnaseqc2.bam":"${this.bam}","rnaseqc2.collapsed_gtf":"gs://mdl-refs/GRCh38/GRCh38.gencode.v39.collapsed.gtf","rnaseqc2.sample_id":"${this.illumina_sample_id}"}
