@@ -18,7 +18,7 @@ task fastp_trim_pe {
     Int memory_gb = 8
     Int disk_gb = 100
 
-    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/fastp-trimmer"
+    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/fastp-trimmer/fastp-trimmer"
   }
 
   command <<<
