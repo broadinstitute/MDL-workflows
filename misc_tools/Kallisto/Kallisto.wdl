@@ -1,15 +1,21 @@
 version 1.0
 
+################################################################################
+# Task: Kallisto quantification (paired-end, single sample)
+################################################################################
+
 task KallistoQuantPairedEndSingle {
   input {
-    String sample_id
     File kallisto_index
     File r1_fastq
     File r2_fastq
 
+    String sample_id
+
+    
     Int threads = 8
     Int bootstraps = 0
-    String strandedness = "unstranded"  # "unstranded" | "fr-stranded" | "rf-stranded"
+    String strandedness = "unstranded"  # unstranded | fr-stranded | rf-stranded
     String extra_args = ""              # e.g. "--bias"
   }
 
@@ -27,7 +33,7 @@ task KallistoQuantPairedEndSingle {
     fi
 
     BS_OPT=""
-    if [[ "~{bootstraps}" -gt 0 ]]; then
+    if [[ ~{bootstraps} -gt 0 ]]; then
       BS_OPT="-b ~{bootstraps}"
     fi
 
@@ -46,6 +52,7 @@ task KallistoQuantPairedEndSingle {
     mv "$outdir/abundance.h5"  "$outdir/~{sample_id}.abundance.h5"
     mv "$outdir/run_info.json" "$outdir/~{sample_id}.run_info.json"
 
+    # Bundle outputs for easy Terra download
     tar -czf "~{sample_id}.kallisto_out.tgz" -C "$outdir" .
   >>>
 
@@ -65,3 +72,41 @@ task KallistoQuantPairedEndSingle {
   }
 }
 
+################################################################################
+# Workflow: single-sample kallisto quantification
+################################################################################
+
+workflow KallistoQuantSingleSample {
+  input {
+    File kallisto_index
+    File r1_fastq
+    File r2_fastq
+
+    String sample_id
+    
+    Int threads = 8
+    Int bootstraps = 0
+    String strandedness = "unstranded"
+    String extra_args = ""
+  }
+
+  call KallistoQuantPairedEndSingle {
+    input:
+      kallisto_index = kallisto_index,
+      r1_fastq = r1_fastq,
+      r2_fastq = r2_fastq,
+      sample_id = sample_id,
+      threads = threads,
+      bootstraps = bootstraps,
+      strandedness = strandedness,
+      extra_args = extra_args
+  }
+
+  output {
+    File abundance_tsv = KallistoQuantPairedEndSingle.abundance_tsv
+    File abundance_h5  = KallistoQuantPairedEndSingle.abundance_h5
+    File run_info_json = KallistoQuantPairedEndSingle.run_info_json
+    File log           = KallistoQuantPairedEndSingle.log
+    File output_tar    = KallistoQuantPairedEndSingle.output_tar
+  }
+}
