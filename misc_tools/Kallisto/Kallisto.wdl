@@ -1,13 +1,19 @@
 version 1.0
 
 # to make the kallisto index:
+
+# make the cdna fasta file:
+#    gffread GRCh38.gencode.v39.annotation.gtf   -g GRCh38_no_alt.fa -w GRCh38.gencode.v39.cdna.fa 
+#
+# build the index:
 # docker run --rm \
+# -u $(id -u):$(id -g) \
 #  -v $(pwd):/work \
 #  us-central1-docker.pkg.dev/methods-dev-lab/kallisto/kallisto \
 #  kallisto index \
-#    -i /work/transcripts.kallisto.idx \
+#    -i /work/GRCh38.gencode.v39.cdna.fa.kallisto.idx \
 #    -k 31 \
-#    /work/transcripts.fa
+#    /work/GRCh38.gencode.v39.cdna.fa
 
 
 
