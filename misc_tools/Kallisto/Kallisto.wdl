@@ -2,7 +2,7 @@ version 1.0
 
 task KallistoQuantPairedEndSingle {
   input {
-    String sample_id = "sample"
+    String sample_id
     File kallisto_index
     File r1_fastq
     File r2_fastq
