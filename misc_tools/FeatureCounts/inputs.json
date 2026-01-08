@@ -1,0 +1,1 @@
+{"featurecounts_workflow.bai":"${this.bam_bai}","featurecounts_workflow.bam":"${this.bam}","featurecounts_workflow.gtf":"gs://mdl-refs/GRCh38/GRCh38.gencode.v39.annotation.gtf","featurecounts_workflow.sample_id":"${this.illumina_sample_id}"}
