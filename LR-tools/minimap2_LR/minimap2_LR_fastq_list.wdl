@@ -51,6 +51,12 @@ task Minimap2MultiFastqTask {
             exit 1
         fi
 
+        if [ -n "${minimap2_preset}" ]; then
+            preset_arg="-x ${minimap2_preset}"
+        else
+            preset_arg=""
+        fi
+
         sort_threads=$(( ~{cpu} / 4 ))
         if [ "${sort_threads}" -lt 1 ]; then
             sort_threads=1
@@ -66,7 +72,7 @@ task Minimap2MultiFastqTask {
             minimap2_threads=1
         fi
 
-        minimap2 ~{extra_arg2} ~{extra_arg3} -ax ${minimap2_preset} ${custom_args} ~{if defined(juncBED) then "--junc-bed " + juncBED else ""} ~{extra_arg} -t ${minimap2_threads} ~{referenceGenome} '~{sep="' '" inputFastqs}' \
+        minimap2 ~{extra_arg2} ~{extra_arg3} -a ${preset_arg} ~{custom_args} ~{if defined(juncBED) then "--junc-bed " + juncBED else ""} ~{extra_arg} -t ${minimap2_threads} ~{referenceGenome} '~{sep="' '" inputFastqs}' \
             | samtools sort -@ ${sort_threads} -O BAM -o ~{sampleName}.aligned.sorted.bam -
 
         samtools index -@ ~{cpu} ~{sampleName}.aligned.sorted.bam
