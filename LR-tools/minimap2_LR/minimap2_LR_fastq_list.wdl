@@ -18,7 +18,7 @@ task Minimap2MultiFastqTask {
         Int preemptible_tries = 3
     }
 
-    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/minimap2/minimap2:latest"
+    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/minimap2/minimap2:2.30-slim"
 
     String extra_arg = if allowSecondary then "" else "--secondary=no"
     String extra_arg2 = if keepUnmapped then "" else "--sam-hit-only"
