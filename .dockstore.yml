@@ -1,5 +1,10 @@
 version: 1.2
 workflows:
+  - name: BarcodeExtractAndCorrect
+    subclass: WDL
+    primaryDescriptorPath: /SBX/bc_correct_split/barcode_extract_and_correct.wdl
+    authors:
+      - orcid: 0000-0002-2603-1660
   - name: IsoQuantMakeDB
     subclass: WDL
     primaryDescriptorPath: /LR-tools/IsoQuant/IsoQuantMakeDB.wdl
