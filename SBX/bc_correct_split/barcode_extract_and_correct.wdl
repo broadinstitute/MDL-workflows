@@ -17,24 +17,24 @@ task BC_Correct_Pass1 {
         Boolean revcomp_trimmed = false
         String docker
 
-        String? poly_logic
-        Int? poly_start
-        Int? poly_window
-        Int? poly_t_min
-        Int? poly_a_min
-        Float? poly_err
+        String poly_logic = ""
+        String poly_start = ""
+        String poly_window = ""
+        String poly_t_min = ""
+        String poly_a_min = ""
+        String poly_err = ""
 
         Int? disk_size_gb
     }
 
-    Boolean poly_enabled = defined(poly_start) || defined(poly_window) || defined(poly_t_min) || defined(poly_a_min) || defined(poly_err)
-    String resolved_poly_logic = if (poly_enabled) then (if (defined(poly_logic)) then select_first([poly_logic]) else "cutadapt") else ""
+    Boolean poly_enabled = (poly_logic != "") || (poly_start != "") || (poly_window != "") || (poly_t_min != "") || (poly_a_min != "") || (poly_err != "")
+    String resolved_poly_logic = if (poly_enabled) then (if (poly_logic != "") then poly_logic else "cutadapt") else ""
     String trim_poly_logic_arg = if (poly_enabled) then ("-l " + resolved_poly_logic) else ""
-    String poly_start_arg = if (defined(poly_start)) then ("--poly-start " + poly_start) else ""
-    String poly_window_arg = if (defined(poly_window)) then ("--poly-window " + poly_window) else ""
-    String poly_t_min_arg = if (defined(poly_t_min)) then ("--polyT-min " + poly_t_min) else ""
-    String poly_a_min_arg = if (defined(poly_a_min)) then ("--polyA-min " + poly_a_min) else ""
-    String poly_err_arg = if (defined(poly_err)) then ("--poly-err " + poly_err) else ""
+    String poly_start_arg = if (poly_start != "") then ("--poly-start " + poly_start) else ""
+    String poly_window_arg = if (poly_window != "") then ("--poly-window " + poly_window) else ""
+    String poly_t_min_arg = if (poly_t_min != "") then ("--polyT-min " + poly_t_min) else ""
+    String poly_a_min_arg = if (poly_a_min != "") then ("--polyA-min " + poly_a_min) else ""
+    String poly_err_arg = if (poly_err != "") then ("--poly-err " + poly_err) else ""
     String poly_logic_arg = if (poly_enabled) then ("--poly-logic " + resolved_poly_logic) else ""
     String qual_tags_arg = if (qual_tags) then "--qual-tags" else ""
     String revcomp_arg = if (revcomp_trimmed) then "--revcomp-trimmed" else ""
@@ -187,10 +187,10 @@ task Resolve_BC_Params_From_Config {
         config = module.load_config(config_path)
         params = module.build_from_config(config)
 
-        def write(path, value):
+        def write(path, value, default="50"):
             with open(path, "w", encoding="utf-8") as f:
                 if value is None:
-                    f.write("50")
+                    f.write(str(default))
                 else:
                     f.write(str(value))
 
@@ -201,7 +201,13 @@ task Resolve_BC_Params_From_Config {
         write("resolved_bc_range.txt", params["bc_range"])
         write("resolved_umi_range.txt", params["umi_range"])
         write("resolved_trim_len.txt", params["trim_len"])
-        write("resolved_min_trimmed_len.txt", params["min_trimmed_len"])
+        write("resolved_min_trimmed_len.txt", params["min_trimmed_len"], default="50")
+        write("resolved_poly_logic.txt", params.get("poly", {}).get("logic"), default="")
+        write("resolved_poly_start.txt", params.get("poly", {}).get("start"), default="")
+        write("resolved_poly_window.txt", params.get("poly", {}).get("window"), default="")
+        write("resolved_poly_t_min.txt", params.get("poly", {}).get("min_t"), default="")
+        write("resolved_poly_a_min.txt", params.get("poly", {}).get("min_a"), default="")
+        write("resolved_poly_err.txt", params.get("poly", {}).get("err"), default="")
         PY
     >>>
 
@@ -214,6 +220,12 @@ task Resolve_BC_Params_From_Config {
         String resolved_umi_range = read_string("resolved_umi_range.txt")
         Int resolved_trim_len = read_int("resolved_trim_len.txt")
         Int resolved_min_trimmed_len = read_int("resolved_min_trimmed_len.txt")
+        String resolved_poly_logic = read_string("resolved_poly_logic.txt")
+        String resolved_poly_start = read_string("resolved_poly_start.txt")
+        String resolved_poly_window = read_string("resolved_poly_window.txt")
+        String resolved_poly_t_min = read_string("resolved_poly_t_min.txt")
+        String resolved_poly_a_min = read_string("resolved_poly_a_min.txt")
+        String resolved_poly_err = read_string("resolved_poly_err.txt")
     }
 
     runtime {
@@ -241,23 +253,23 @@ task BC_Correct_Pass2 {
         Boolean generate_discarded = false
         String docker
 
-        String? poly_logic
-        Int? poly_start
-        Int? poly_window
-        Int? poly_t_min
-        Int? poly_a_min
-        Float? poly_err
+        String poly_logic = ""
+        String poly_start = ""
+        String poly_window = ""
+        String poly_t_min = ""
+        String poly_a_min = ""
+        String poly_err = ""
 
         Int? disk_size_gb
     }
 
-    Boolean poly_enabled = defined(poly_start) || defined(poly_window) || defined(poly_t_min) || defined(poly_a_min) || defined(poly_err)
-    String resolved_poly_logic = if (poly_enabled) then (if (defined(poly_logic)) then select_first([poly_logic]) else "cutadapt") else ""
-    String poly_start_arg = if (defined(poly_start)) then ("--poly-start " + poly_start) else ""
-    String poly_window_arg = if (defined(poly_window)) then ("--poly-window " + poly_window) else ""
-    String poly_t_min_arg = if (defined(poly_t_min)) then ("--polyT-min " + poly_t_min) else ""
-    String poly_a_min_arg = if (defined(poly_a_min)) then ("--polyA-min " + poly_a_min) else ""
-    String poly_err_arg = if (defined(poly_err)) then ("--poly-err " + poly_err) else ""
+    Boolean poly_enabled = (poly_logic != "") || (poly_start != "") || (poly_window != "") || (poly_t_min != "") || (poly_a_min != "") || (poly_err != "")
+    String resolved_poly_logic = if (poly_enabled) then (if (poly_logic != "") then poly_logic else "cutadapt") else ""
+    String poly_start_arg = if (poly_start != "") then ("--poly-start " + poly_start) else ""
+    String poly_window_arg = if (poly_window != "") then ("--poly-window " + poly_window) else ""
+    String poly_t_min_arg = if (poly_t_min != "") then ("--polyT-min " + poly_t_min) else ""
+    String poly_a_min_arg = if (poly_a_min != "") then ("--polyA-min " + poly_a_min) else ""
+    String poly_err_arg = if (poly_err != "") then ("--poly-err " + poly_err) else ""
     String poly_logic_arg = if (poly_enabled) then ("--poly-logic " + resolved_poly_logic) else ""
     String qual_tags_arg = if (qual_tags) then "--qual-tags" else ""
     String revcomp_arg = if (revcomp_trimmed) then "--revcomp-trimmed" else ""
@@ -338,12 +350,6 @@ workflow BC_Barcode_Extract_And_Correct_Array {
 
         String docker
 
-        String? poly_logic
-        Int? poly_start
-        Int? poly_window
-        Int? poly_t_min
-        Int? poly_a_min
-        Float? poly_err
     }
 
     Array[Int] lane_indexes = range(length(raw_fastqs))
@@ -380,12 +386,12 @@ workflow BC_Barcode_Extract_And_Correct_Array {
                 min_trimmed_len = effective_min_trimmed_len,
                 qual_tags = qual_tags,
                 revcomp_trimmed = revcomp_trimmed,
-                poly_logic = poly_logic,
-                poly_start = poly_start,
-                poly_window = poly_window,
-                poly_t_min = poly_t_min,
-                poly_a_min = poly_a_min,
-                poly_err = poly_err,
+                poly_logic = resolved_config.resolved_poly_logic,
+                poly_start = resolved_config.resolved_poly_start,
+                poly_window = resolved_config.resolved_poly_window,
+                poly_t_min = resolved_config.resolved_poly_t_min,
+                poly_a_min = resolved_config.resolved_poly_a_min,
+                poly_err = resolved_config.resolved_poly_err,
                 docker = docker
         }
     }
@@ -412,12 +418,12 @@ workflow BC_Barcode_Extract_And_Correct_Array {
                 qual_tags = qual_tags,
                 revcomp_trimmed = revcomp_trimmed,
                 generate_discarded = generate_discarded,
-                poly_logic = poly_logic,
-                poly_start = poly_start,
-                poly_window = poly_window,
-                poly_t_min = poly_t_min,
-                poly_a_min = poly_a_min,
-                poly_err = poly_err,
+                poly_logic = resolved_config.resolved_poly_logic,
+                poly_start = resolved_config.resolved_poly_start,
+                poly_window = resolved_config.resolved_poly_window,
+                poly_t_min = resolved_config.resolved_poly_t_min,
+                poly_a_min = resolved_config.resolved_poly_a_min,
+                poly_err = resolved_config.resolved_poly_err,
                 docker = docker
         }
     }
