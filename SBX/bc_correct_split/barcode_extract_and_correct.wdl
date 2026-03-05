@@ -437,6 +437,8 @@ workflow BC_Barcode_Extract_And_Correct_Array {
     }
 
     output {
+        Array[Array[File]] fastq_pairs = [ [pass1.matched_fastq[i], pass2.corrected_fastq[i]] for i in lane_indexes ]
+        # Optional compatibility:
         Array[File] matched_fastqs = pass1.matched_fastq
         Array[File] corrected_fastqs = pass2.corrected_fastq
         Array[File] discarded_fastqs = if generate_discarded then flatten(pass2.discarded_fastqs) else []
