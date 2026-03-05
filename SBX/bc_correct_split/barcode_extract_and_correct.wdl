@@ -109,11 +109,10 @@ task Merge_Whitelist_Counts {
         Array[File] counts_tables
         String output_path = "merged.whitelist.counts.txt"
         String docker
-        String? countsum_script
         Int? disk_size_gb
     }
 
-    String effective_script = select_first([countsum_script, "/opt/pipeline/fastq_preprocessing_pipeline/sum_whitelist_counts.py"])
+    String effective_script = "/opt/pipeline/fastq_preprocessing_pipeline/sum_whitelist_counts.py"
     Int diskGB = select_first([disk_size_gb, ceil(size(counts_tables, "GB") * 3 + 20)])
 
     command <<<
@@ -191,6 +190,8 @@ task Resolve_BC_Params_From_Config {
             with open(path, "w", encoding="utf-8") as f:
                 if value is None:
                     f.write(str(default))
+                elif isinstance(value, bool):
+                    f.write(str(value).lower())
                 else:
                     f.write(str(value))
 
@@ -202,6 +203,7 @@ task Resolve_BC_Params_From_Config {
         write("resolved_umi_range.txt", params["umi_range"])
         write("resolved_trim_len.txt", params["trim_len"])
         write("resolved_min_trimmed_len.txt", params["min_trimmed_len"], default="50")
+        write("resolved_revcomp_trimmed.txt", params.get("cdna_reverse_complement"), default="false")
         write("resolved_poly_logic.txt", params.get("poly", {}).get("logic"), default="")
         write("resolved_poly_start.txt", params.get("poly", {}).get("start"), default="")
         write("resolved_poly_window.txt", params.get("poly", {}).get("window"), default="")
@@ -220,6 +222,7 @@ task Resolve_BC_Params_From_Config {
         String resolved_umi_range = read_string("resolved_umi_range.txt")
         Int resolved_trim_len = read_int("resolved_trim_len.txt")
         Int resolved_min_trimmed_len = read_int("resolved_min_trimmed_len.txt")
+        Boolean resolved_revcomp_trimmed = read_boolean("resolved_revcomp_trimmed.txt")
         String resolved_poly_logic = read_string("resolved_poly_logic.txt")
         String resolved_poly_start = read_string("resolved_poly_start.txt")
         String resolved_poly_window = read_string("resolved_poly_window.txt")
@@ -342,7 +345,6 @@ workflow BC_Barcode_Extract_And_Correct_Array {
         File? library_config_file
 
         Boolean qual_tags = false
-        Boolean revcomp_trimmed = false
         Boolean generate_discarded = false
         Boolean output_unmatched = false
 
@@ -385,7 +387,7 @@ workflow BC_Barcode_Extract_And_Correct_Array {
                 min_post = min_post,
                 min_trimmed_len = effective_min_trimmed_len,
                 qual_tags = qual_tags,
-                revcomp_trimmed = revcomp_trimmed,
+                revcomp_trimmed = resolved_config.resolved_revcomp_trimmed,
                 poly_logic = resolved_config.resolved_poly_logic,
                 poly_start = resolved_config.resolved_poly_start,
                 poly_window = resolved_config.resolved_poly_window,
@@ -416,7 +418,7 @@ workflow BC_Barcode_Extract_And_Correct_Array {
                 min_post = min_post,
                 min_trimmed_len = effective_min_trimmed_len,
                 qual_tags = qual_tags,
-                revcomp_trimmed = revcomp_trimmed,
+                revcomp_trimmed = resolved_config.resolved_revcomp_trimmed,
                 generate_discarded = generate_discarded,
                 poly_logic = resolved_config.resolved_poly_logic,
                 poly_start = resolved_config.resolved_poly_start,
