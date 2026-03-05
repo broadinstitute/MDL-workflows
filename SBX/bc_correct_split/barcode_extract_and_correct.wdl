@@ -173,9 +173,11 @@ task Resolve_BC_Params_From_Config {
           echo "Error: config file not found at $config_path" >&2
           exit 1
         fi
+        export CONFIG_PATH="$config_path"
 
         python3 - <<'PY'
         import importlib.util
+        import os
 
         spec = importlib.util.spec_from_file_location(
             "pipeline_wrapper", "/opt/pipeline/fastq_preprocessing_pipeline/pipeline_wrapper.py"
@@ -183,6 +185,7 @@ task Resolve_BC_Params_From_Config {
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
 
+        config_path = os.environ["CONFIG_PATH"]
         config = module.load_config(config_path)
         params = module.build_from_config(config)
 
@@ -204,12 +207,15 @@ task Resolve_BC_Params_From_Config {
         write("resolved_trim_len.txt", params["trim_len"])
         write("resolved_min_trimmed_len.txt", params["min_trimmed_len"], default="50")
         write("resolved_revcomp_trimmed.txt", params.get("cdna_reverse_complement"), default="false")
-        write("resolved_poly_logic.txt", params.get("poly", {}).get("logic"), default="")
-        write("resolved_poly_start.txt", params.get("poly", {}).get("start"), default="")
-        write("resolved_poly_window.txt", params.get("poly", {}).get("window"), default="")
-        write("resolved_poly_t_min.txt", params.get("poly", {}).get("min_t"), default="")
-        write("resolved_poly_a_min.txt", params.get("poly", {}).get("min_a"), default="")
-        write("resolved_poly_err.txt", params.get("poly", {}).get("err"), default="")
+        poly = params.get("poly")
+        if not isinstance(poly, dict):
+            poly = {}
+        write("resolved_poly_logic.txt", poly.get("logic"), default="")
+        write("resolved_poly_start.txt", poly.get("start"), default="")
+        write("resolved_poly_window.txt", poly.get("window"), default="")
+        write("resolved_poly_t_min.txt", poly.get("min_t"), default="")
+        write("resolved_poly_a_min.txt", poly.get("min_a"), default="")
+        write("resolved_poly_err.txt", poly.get("err"), default="")
         PY
     >>>
 
