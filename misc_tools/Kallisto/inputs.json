@@ -1,0 +1,1 @@
+{"KallistoQuantSingleSample.kallisto_index":"gs://mdl-refs/GRCh38/GRCh38.gencode.v39.cdna.fa.kallisto.idx","KallistoQuantSingleSample.r1_fastq":"${this.trimmed_read1}","KallistoQuantSingleSample.r2_fastq":"${this.trimmed_read2}","KallistoQuantSingleSample.sample_id":"${this.illumina_sample_id}"}

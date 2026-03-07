@@ -1,5 +1,10 @@
 version: 1.2
 workflows:
+  - name: BarcodeExtractAndCorrect
+    subclass: WDL
+    primaryDescriptorPath: /SBX/bc_correct_split/barcode_extract_and_correct.wdl
+    authors:
+      - orcid: 0000-0002-2603-1660
   - name: IsoQuantMakeDB
     subclass: WDL
     primaryDescriptorPath: /LR-tools/IsoQuant/IsoQuantMakeDB.wdl
@@ -26,6 +31,16 @@ workflows:
   - name: Minimap2_LR
     subclass: WDL
     primaryDescriptorPath: /LR-tools/minimap2_LR/minimap2_LR.wdl
+    authors:
+      - orcid: 0000-0002-2603-1660
+  - name: Minimap2_LR_fastq_list
+    subclass: WDL
+    primaryDescriptorPath: /LR-tools/minimap2_LR/minimap2_LR_fastq_list.wdl
+    authors:
+      - orcid: 0000-0002-2603-1660
+  - name: Minimap2_LR_fastq_list_from_set
+    subclass: WDL
+    primaryDescriptorPath: /LR-tools/minimap2_LR/minimap2_LR_fastq_list_from_set.wdl
     authors:
       - orcid: 0000-0002-2603-1660
   - name: LongRNAqcPlotting
