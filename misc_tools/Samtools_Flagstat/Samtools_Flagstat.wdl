@@ -51,7 +51,7 @@ task Flagstat_task {
     }
 
    runtime {
-        docker:"biocontainers/samtools"
+        docker:"quay.io/biocontainers/samtools:1.21--h96c455f_1"
         memory: "8GB"
         bootDiskSizeGb: 12
         disks: "local-disk ~{disk_space} HDD"
