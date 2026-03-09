@@ -19,7 +19,7 @@ workflow Minimap2_LR_fastq_list_from_set {
         Boolean keepUnmapped = true
         Boolean allowSecondary = true
         Int cpu = 16
-        Int memoryGB = 32
+        Int memoryGB = 40
         Int preemptible_tries = 3
     }
 
