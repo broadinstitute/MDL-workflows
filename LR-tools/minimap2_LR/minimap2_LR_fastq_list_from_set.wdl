@@ -18,7 +18,7 @@ workflow Minimap2_LR_fastq_list_from_set {
         Boolean keepComments = true
         Boolean keepUnmapped = true
         Boolean allowSecondary = true
-        Int cpu = 8
+        Int cpu = 16
         Int memoryGB = 32
         Int ?diskSizeGB
         Int preemptible_tries = 3
