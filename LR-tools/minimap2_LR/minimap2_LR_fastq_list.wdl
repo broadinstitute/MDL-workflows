@@ -14,12 +14,13 @@ task Minimap2MultiFastqTask {
         Boolean allowSecondary = true
         Int cpu = 8
         Int memoryGB = 32
-        Int diskSizeGB
+        Int? diskSizeGB
         Int preemptible_tries = 3
     }
 
     String docker = "us-central1-docker.pkg.dev/methods-dev-lab/minimap2/minimap2:2.30-slim"
 
+    Int effective_disk = select_first([diskSizeGB, ceil(size(inputFastqs, "GB") * 4 + size(referenceGenome, "GB") + 20)])
     String extra_arg = if allowSecondary then "" else "--secondary=no"
     String extra_arg2 = if keepUnmapped then "" else "--sam-hit-only"
     String extra_arg3 = if keepComments then "-y" else ""
@@ -72,7 +73,7 @@ task Minimap2MultiFastqTask {
     runtime {
         cpu: cpu
         memory: "~{memoryGB} GB"
-        disks: "local-disk ~{diskSizeGB} SSD"
+        disks: "local-disk ~{effective_disk} SSD"
         docker: docker
         preemptible: preemptible_tries
     }

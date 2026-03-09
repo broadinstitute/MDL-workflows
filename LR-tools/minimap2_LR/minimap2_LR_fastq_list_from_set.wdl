@@ -20,7 +20,6 @@ workflow Minimap2_LR_fastq_list_from_set {
         Boolean allowSecondary = true
         Int cpu = 16
         Int memoryGB = 32
-        Int ?diskSizeGB
         Int preemptible_tries = 3
     }
 
@@ -40,7 +39,6 @@ workflow Minimap2_LR_fastq_list_from_set {
                 allowSecondary = allowSecondary,
                 cpu = cpu,
                 memoryGB = memoryGB,
-                diskSizeGB = select_first([diskSizeGB, ceil(size(fastq_pairs[i][0], "GB") + size(fastq_pairs[i][1], "GB") + 20)]),
                 preemptible_tries = preemptible_tries
         }
     }
