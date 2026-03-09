@@ -40,7 +40,7 @@ task BC_Correct_Pass1 {
     String revcomp_arg = if (revcomp_trimmed) then "--revcomp-trimmed" else ""
 
     String trimmed_prefix = sample_name
-    String counts_path = trimmed_prefix + ".whitelist.counts.txt"
+    String counts_path = trimmed_prefix + ".whitelist.counts.txt.gz"
     String matched_fastq = trimmed_prefix + ".matched.fastq.gz"
     String unmatched_fastq = trimmed_prefix + ".unmatched.fastq.gz"
     String counts_table_name = counts_path
@@ -104,20 +104,25 @@ task BC_Correct_Pass1 {
 }
 
 
+
 task Merge_Whitelist_Counts {
     input {
         Array[File] counts_tables
-        String output_path = "merged.whitelist.counts.txt"
         String docker
+        String output_path = "merged.whitelist.counts.txt.gz"
+        Boolean gzip_output = true
+        Int gzip_level = 1
         Int? disk_size_gb
     }
 
     String effective_script = "/opt/pipeline/fastq_preprocessing_pipeline/sum_whitelist_counts.py"
     Int diskGB = select_first([disk_size_gb, ceil(size(counts_tables, "GB") * 3 + 20)])
+    String gzip_output_arg = if (gzip_output) then "--gzip-output --gzip-level " + gzip_level else ""
 
     command <<<
         set -euo pipefail
-        python3 ~{effective_script} --output ~{output_path} ~{sep=" " counts_tables}
+        all_counts=(~{sep=" " counts_tables})
+        python3 ~{effective_script} ~{gzip_output_arg} --output ~{output_path} ${all_counts[@]}
     >>>
 
     output {
@@ -404,18 +409,212 @@ workflow BC_Barcode_Extract_And_Correct_Array {
         }
     }
 
-    call Merge_Whitelist_Counts as merged_counts {
-        input:
-            counts_tables = pass1.counts_table,
-            docker = docker,
-            output_path = "merged.whitelist.counts.txt"
+    Int merge_chunk_size = 10
+    Int round1_total_chunks = length(pass1.counts_table)
+    Int round1_num_chunks = (round1_total_chunks + merge_chunk_size - 1) / merge_chunk_size
+    Array[Int] round1_indexes = range(round1_num_chunks)
+
+    scatter (r1_idx in round1_indexes) {
+        Int r1_file_idx_0 = r1_idx * merge_chunk_size + 0
+        Int r1_file_idx_1 = r1_idx * merge_chunk_size + 1
+        Int r1_file_idx_2 = r1_idx * merge_chunk_size + 2
+        Int r1_file_idx_3 = r1_idx * merge_chunk_size + 3
+        Int r1_file_idx_4 = r1_idx * merge_chunk_size + 4
+        Int r1_file_idx_5 = r1_idx * merge_chunk_size + 5
+        Int r1_file_idx_6 = r1_idx * merge_chunk_size + 6
+        Int r1_file_idx_7 = r1_idx * merge_chunk_size + 7
+        Int r1_file_idx_8 = r1_idx * merge_chunk_size + 8
+        Int r1_file_idx_9 = r1_idx * merge_chunk_size + 9
+        Array[File] r1_chunk = select_all([
+            if (r1_file_idx_0 < round1_total_chunks) then pass1.counts_table[r1_file_idx_0] else None,
+            if (r1_file_idx_1 < round1_total_chunks) then pass1.counts_table[r1_file_idx_1] else None,
+            if (r1_file_idx_2 < round1_total_chunks) then pass1.counts_table[r1_file_idx_2] else None,
+            if (r1_file_idx_3 < round1_total_chunks) then pass1.counts_table[r1_file_idx_3] else None,
+            if (r1_file_idx_4 < round1_total_chunks) then pass1.counts_table[r1_file_idx_4] else None,
+            if (r1_file_idx_5 < round1_total_chunks) then pass1.counts_table[r1_file_idx_5] else None,
+            if (r1_file_idx_6 < round1_total_chunks) then pass1.counts_table[r1_file_idx_6] else None,
+            if (r1_file_idx_7 < round1_total_chunks) then pass1.counts_table[r1_file_idx_7] else None,
+            if (r1_file_idx_8 < round1_total_chunks) then pass1.counts_table[r1_file_idx_8] else None,
+            if (r1_file_idx_9 < round1_total_chunks) then pass1.counts_table[r1_file_idx_9] else None
+        ])
+
+        call Merge_Whitelist_Counts as r1_merge {
+            input:
+                counts_tables = r1_chunk,
+                output_path = "merged.whitelist.counts.r1." + r1_idx + ".txt.gz",
+                gzip_output = true,
+                gzip_level = 1,
+                docker = docker
+        }
     }
+
+    Array[File] round1_counts = r1_merge.merged_counts
+
+    Int round2_total_chunks = length(round1_counts)
+    Int round2_num_chunks = (round2_total_chunks + merge_chunk_size - 1) / merge_chunk_size
+    Array[Int] round2_indexes = range(round2_num_chunks)
+
+    scatter (r2_idx in round2_indexes) {
+        Int r2_file_idx_0 = r2_idx * merge_chunk_size + 0
+        Int r2_file_idx_1 = r2_idx * merge_chunk_size + 1
+        Int r2_file_idx_2 = r2_idx * merge_chunk_size + 2
+        Int r2_file_idx_3 = r2_idx * merge_chunk_size + 3
+        Int r2_file_idx_4 = r2_idx * merge_chunk_size + 4
+        Int r2_file_idx_5 = r2_idx * merge_chunk_size + 5
+        Int r2_file_idx_6 = r2_idx * merge_chunk_size + 6
+        Int r2_file_idx_7 = r2_idx * merge_chunk_size + 7
+        Int r2_file_idx_8 = r2_idx * merge_chunk_size + 8
+        Int r2_file_idx_9 = r2_idx * merge_chunk_size + 9
+        Array[File] r2_chunk = select_all([
+            if (r2_file_idx_0 < round2_total_chunks) then round1_counts[r2_file_idx_0] else None,
+            if (r2_file_idx_1 < round2_total_chunks) then round1_counts[r2_file_idx_1] else None,
+            if (r2_file_idx_2 < round2_total_chunks) then round1_counts[r2_file_idx_2] else None,
+            if (r2_file_idx_3 < round2_total_chunks) then round1_counts[r2_file_idx_3] else None,
+            if (r2_file_idx_4 < round2_total_chunks) then round1_counts[r2_file_idx_4] else None,
+            if (r2_file_idx_5 < round2_total_chunks) then round1_counts[r2_file_idx_5] else None,
+            if (r2_file_idx_6 < round2_total_chunks) then round1_counts[r2_file_idx_6] else None,
+            if (r2_file_idx_7 < round2_total_chunks) then round1_counts[r2_file_idx_7] else None,
+            if (r2_file_idx_8 < round2_total_chunks) then round1_counts[r2_file_idx_8] else None,
+            if (r2_file_idx_9 < round2_total_chunks) then round1_counts[r2_file_idx_9] else None
+        ])
+
+        call Merge_Whitelist_Counts as r2_merge {
+            input:
+                counts_tables = r2_chunk,
+                output_path = "merged.whitelist.counts.r2." + r2_idx + ".txt.gz",
+                gzip_output = true,
+                gzip_level = 1,
+                docker = docker
+        }
+    }
+
+    Array[File] round2_counts = r2_merge.merged_counts
+
+    Int round3_total_chunks = length(round2_counts)
+    Int round3_num_chunks = (round3_total_chunks + merge_chunk_size - 1) / merge_chunk_size
+    Array[Int] round3_indexes = range(round3_num_chunks)
+
+    scatter (r3_idx in round3_indexes) {
+        Int r3_file_idx_0 = r3_idx * merge_chunk_size + 0
+        Int r3_file_idx_1 = r3_idx * merge_chunk_size + 1
+        Int r3_file_idx_2 = r3_idx * merge_chunk_size + 2
+        Int r3_file_idx_3 = r3_idx * merge_chunk_size + 3
+        Int r3_file_idx_4 = r3_idx * merge_chunk_size + 4
+        Int r3_file_idx_5 = r3_idx * merge_chunk_size + 5
+        Int r3_file_idx_6 = r3_idx * merge_chunk_size + 6
+        Int r3_file_idx_7 = r3_idx * merge_chunk_size + 7
+        Int r3_file_idx_8 = r3_idx * merge_chunk_size + 8
+        Int r3_file_idx_9 = r3_idx * merge_chunk_size + 9
+        Array[File] r3_chunk = select_all([
+            if (r3_file_idx_0 < round3_total_chunks) then round2_counts[r3_file_idx_0] else None,
+            if (r3_file_idx_1 < round3_total_chunks) then round2_counts[r3_file_idx_1] else None,
+            if (r3_file_idx_2 < round3_total_chunks) then round2_counts[r3_file_idx_2] else None,
+            if (r3_file_idx_3 < round3_total_chunks) then round2_counts[r3_file_idx_3] else None,
+            if (r3_file_idx_4 < round3_total_chunks) then round2_counts[r3_file_idx_4] else None,
+            if (r3_file_idx_5 < round3_total_chunks) then round2_counts[r3_file_idx_5] else None,
+            if (r3_file_idx_6 < round3_total_chunks) then round2_counts[r3_file_idx_6] else None,
+            if (r3_file_idx_7 < round3_total_chunks) then round2_counts[r3_file_idx_7] else None,
+            if (r3_file_idx_8 < round3_total_chunks) then round2_counts[r3_file_idx_8] else None,
+            if (r3_file_idx_9 < round3_total_chunks) then round2_counts[r3_file_idx_9] else None
+        ])
+
+        call Merge_Whitelist_Counts as r3_merge {
+            input:
+                counts_tables = r3_chunk,
+                output_path = "merged.whitelist.counts.r3." + r3_idx + ".txt.gz",
+                gzip_output = true,
+                gzip_level = 1,
+                docker = docker
+        }
+    }
+
+    Array[File] round3_counts = r3_merge.merged_counts
+
+    Int round4_total_chunks = length(round3_counts)
+    Int round4_num_chunks = (round4_total_chunks + merge_chunk_size - 1) / merge_chunk_size
+    Array[Int] round4_indexes = range(round4_num_chunks)
+
+    scatter (r4_idx in round4_indexes) {
+        Int r4_file_idx_0 = r4_idx * merge_chunk_size + 0
+        Int r4_file_idx_1 = r4_idx * merge_chunk_size + 1
+        Int r4_file_idx_2 = r4_idx * merge_chunk_size + 2
+        Int r4_file_idx_3 = r4_idx * merge_chunk_size + 3
+        Int r4_file_idx_4 = r4_idx * merge_chunk_size + 4
+        Int r4_file_idx_5 = r4_idx * merge_chunk_size + 5
+        Int r4_file_idx_6 = r4_idx * merge_chunk_size + 6
+        Int r4_file_idx_7 = r4_idx * merge_chunk_size + 7
+        Int r4_file_idx_8 = r4_idx * merge_chunk_size + 8
+        Int r4_file_idx_9 = r4_idx * merge_chunk_size + 9
+        Array[File] r4_chunk = select_all([
+            if (r4_file_idx_0 < round4_total_chunks) then round3_counts[r4_file_idx_0] else None,
+            if (r4_file_idx_1 < round4_total_chunks) then round3_counts[r4_file_idx_1] else None,
+            if (r4_file_idx_2 < round4_total_chunks) then round3_counts[r4_file_idx_2] else None,
+            if (r4_file_idx_3 < round4_total_chunks) then round3_counts[r4_file_idx_3] else None,
+            if (r4_file_idx_4 < round4_total_chunks) then round3_counts[r4_file_idx_4] else None,
+            if (r4_file_idx_5 < round4_total_chunks) then round3_counts[r4_file_idx_5] else None,
+            if (r4_file_idx_6 < round4_total_chunks) then round3_counts[r4_file_idx_6] else None,
+            if (r4_file_idx_7 < round4_total_chunks) then round3_counts[r4_file_idx_7] else None,
+            if (r4_file_idx_8 < round4_total_chunks) then round3_counts[r4_file_idx_8] else None,
+            if (r4_file_idx_9 < round4_total_chunks) then round3_counts[r4_file_idx_9] else None
+        ])
+
+        call Merge_Whitelist_Counts as r4_merge {
+            input:
+                counts_tables = r4_chunk,
+                output_path = "merged.whitelist.counts.r4." + r4_idx + ".txt.gz",
+                gzip_output = true,
+                gzip_level = 1,
+                docker = docker
+        }
+    }
+
+    Array[File] round4_counts = r4_merge.merged_counts
+
+    Int round5_total_chunks = length(round4_counts)
+    Int round5_num_chunks = (round5_total_chunks + merge_chunk_size - 1) / merge_chunk_size
+    Array[Int] round5_indexes = range(round5_num_chunks)
+
+    scatter (r5_idx in round5_indexes) {
+        Int r5_file_idx_0 = r5_idx * merge_chunk_size + 0
+        Int r5_file_idx_1 = r5_idx * merge_chunk_size + 1
+        Int r5_file_idx_2 = r5_idx * merge_chunk_size + 2
+        Int r5_file_idx_3 = r5_idx * merge_chunk_size + 3
+        Int r5_file_idx_4 = r5_idx * merge_chunk_size + 4
+        Int r5_file_idx_5 = r5_idx * merge_chunk_size + 5
+        Int r5_file_idx_6 = r5_idx * merge_chunk_size + 6
+        Int r5_file_idx_7 = r5_idx * merge_chunk_size + 7
+        Int r5_file_idx_8 = r5_idx * merge_chunk_size + 8
+        Int r5_file_idx_9 = r5_idx * merge_chunk_size + 9
+        Array[File] r5_chunk = select_all([
+            if (r5_file_idx_0 < round5_total_chunks) then round4_counts[r5_file_idx_0] else None,
+            if (r5_file_idx_1 < round5_total_chunks) then round4_counts[r5_file_idx_1] else None,
+            if (r5_file_idx_2 < round5_total_chunks) then round4_counts[r5_file_idx_2] else None,
+            if (r5_file_idx_3 < round5_total_chunks) then round4_counts[r5_file_idx_3] else None,
+            if (r5_file_idx_4 < round5_total_chunks) then round4_counts[r5_file_idx_4] else None,
+            if (r5_file_idx_5 < round5_total_chunks) then round4_counts[r5_file_idx_5] else None,
+            if (r5_file_idx_6 < round5_total_chunks) then round4_counts[r5_file_idx_6] else None,
+            if (r5_file_idx_7 < round5_total_chunks) then round4_counts[r5_file_idx_7] else None,
+            if (r5_file_idx_8 < round5_total_chunks) then round4_counts[r5_file_idx_8] else None,
+            if (r5_file_idx_9 < round5_total_chunks) then round4_counts[r5_file_idx_9] else None
+        ])
+
+        call Merge_Whitelist_Counts as r5_merge {
+            input:
+                counts_tables = r5_chunk,
+                output_path = "merged.whitelist.counts.r5." + r5_idx + ".txt.gz",
+                gzip_output = true,
+                gzip_level = 1,
+                docker = docker
+        }
+    }
+
+    File merged_counts_output = r5_merge.merged_counts[0]
 
     scatter (i in lane_indexes) {
         call BC_Correct_Pass2 as pass2 {
             input:
                 unmatched_fastq = pass1.unmatched_fastq[i],
-                counts_table = merged_counts.merged_counts,
+                counts_table = merged_counts_output,
                 sample_name = sample_names[i],
                 whitelist = effective_whitelist,
                 bc_range = effective_bc_range,
@@ -443,6 +642,6 @@ workflow BC_Barcode_Extract_And_Correct_Array {
         Array[File] corrected_fastqs = pass2.corrected_fastq
         Array[File] discarded_fastqs = if generate_discarded then flatten(pass2.discarded_fastqs) else []
         Array[File] unmatched_fastqs = if output_unmatched then pass1.unmatched_fastq else []
-        File merged_counts_table = merged_counts.merged_counts
+        File merged_counts_table = merged_counts_output
     }
 }
