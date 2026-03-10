@@ -10,12 +10,14 @@ version 1.1
 #    per-group BAMs (one per CB group) using split_bams_by_cb_group.py,
 #    then each slice is coordinate-sorted in place.
 #
-# 3. Transposes the batch × group matrix and scatters over groups: all batch
+# 3. Transposes the batch x group matrix and scatters over groups: all batch
 #    outputs for the same group are merged into a single final sorted BAM.
 #
-# Motivation: 2224 minimap2 shards cannot be merged+sorted as a single job
-# (CPU-bound, memory-intensive).  Batching by 10 reduces task count to ~223
-# and lets the final per-group merges run in parallel across N jobs.
+# Motivation: 1k+ minimap2 shards shouldn't be merged+sorted as a single job 
+# (very long running, limited to 1 core for the merge) and downstream deduplication 
+# will have too much depth in highly expressed regions (CPU-bound, memory-intensive).
+# Batching by 10 reduces task count to ~100+ and lets the final per-group merges
+# run in parallel across N jobs.
 # ---------------------------------------------------------------------------
 
 task Assign_Barcode_Groups {
@@ -99,14 +101,14 @@ task Merge_And_Split_Batch {
             --output-prefix batch~{batch_index}_group_
 
         # Coordinate-sort each group BAM in place.  Run cpu single-threaded
-        # sorts in parallel — more efficient than one multi-threaded sort for
+        # sorts in parallel - more efficient than one multi-threaded sort for
         # small per-batch slices.
         printf '%s\n' batch~{batch_index}_group_*.bam | \
             xargs -P ~{cpu} -I{} bash -c 'samtools sort -o "${1%.bam}.sorted.bam" "$1"' _ {}
     >>>
 
     output {
-        # glob returns files in sorted order; batch_group_0001.sorted.bam … batch_group_NNNN.sorted.bam
+        # glob returns files in sorted order; batch_group_0001.sorted.bam ... batch_group_NNNN.sorted.bam
         # gives the stable ordering required for transpose() downstream.
         Array[File] group_bams = glob("batch~{batch_index}_group_*.sorted.bam")
     }
@@ -255,7 +257,7 @@ workflow Shard_Bams_By_Barcode_Group {
     }
 
     # ------------------------------------------------------------------
-    # Step 3: Transpose batch × group matrix → group × batch, then merge
+    # Step 3: Transpose batch x group matrix -> group x batch, then merge
     # each group's BAMs into a single output BAM.
     #
     # transpose() requires every inner array to have the same length, which
