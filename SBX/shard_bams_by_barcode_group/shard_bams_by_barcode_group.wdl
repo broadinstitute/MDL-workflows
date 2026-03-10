@@ -264,9 +264,7 @@ workflow Shard_Bams_By_Barcode_Group {
     # is guaranteed because split_bams_by_cb_group.py always emits exactly
     # n_groups files (even if empty) with zero-padded names that glob in order.
     # ------------------------------------------------------------------
-    Array[Array[File]] per_group_bams = transpose(Merge_And_Split_Batch.group_bams)
-
-    scatter (group_bams in per_group_bams) {
+    scatter (group_bams in transpose(Merge_And_Split_Batch.group_bams)) {
         call Merge_Group_Bams {
             input:
                 bams         = group_bams,
