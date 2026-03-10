@@ -1,4 +1,4 @@
-version 1.0
+version 1.1
 
 # ---------------------------------------------------------------------------
 # Shard BAMs by barcode group
@@ -175,7 +175,7 @@ workflow Shard_Bams_By_Barcode_Group {
 
         # ---- BAM inputs ----
         Array[File] input_bams
-        Array[File] input_bam_indexes   # accepted as input for localization; not used directly
+        Array[File] input_bam_indexes   # accepted for localization; not used directly
 
         # ---- barcode tag ----
         String  barcode_tag = "CB"
