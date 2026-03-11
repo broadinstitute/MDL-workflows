@@ -1,25 +1,5 @@
 version 1.1
 
-# ---------------------------------------------------------------------------
-# Shard BAMs by barcode group
-#
-# 1. Runs assign_barcode_groups.py on a whitelist counts table to detect the
-#    first knee and assign each barcode to one of N groups (~300 M reads each).
-#
-# 2. Scatters over batches of 10 input BAMs.  Each batch is split into N
-#    per-group BAMs (one per CB group) using split_bams_by_cb_group.py,
-#    then each slice is coordinate-sorted in place.
-#
-# 3. Transposes the batch x group matrix and scatters over groups: all batch
-#    outputs for the same group are merged into a single final sorted BAM.
-#
-# Motivation: 1k+ minimap2 shards shouldn't be merged+sorted as a single job 
-# (very long running, limited to 1 core for the merge) and downstream deduplication 
-# will have too much depth in highly expressed regions (CPU-bound, memory-intensive).
-# Batching by 10 reduces task count to ~100+ and lets the final per-group merges
-# run in parallel across N jobs.
-# ---------------------------------------------------------------------------
-
 task Assign_Barcode_Groups {
     input {
         File counts_table
@@ -32,14 +12,10 @@ task Assign_Barcode_Groups {
         Float  min_prominence        = 0.8
         Boolean exclude_below_threshold = false
         Int    target_reads_per_group = 300000000
-
-        Int    cpu      = 1
-        Int    mem_gb   = 4
-        Int?   disk_size_gb
     }
 
-    String excl_arg = if exclude_below_threshold then "--exclude-below-threshold" else ""
-    Int diskGB = select_first([disk_size_gb, ceil(size(counts_table, "GB") * 2 + 10)])
+    String excl_arg = if (exclude_below_threshold) then "--exclude-below-threshold" else ""
+    Int diskGB = ceil(size(counts_table, "GB") * 2 + 10)
 
     command <<<
         set -euo pipefail
@@ -67,8 +43,8 @@ task Assign_Barcode_Groups {
 
     runtime {
         docker:      "us-central1-docker.pkg.dev/methods-dev-lab/mdl-cudll/assign-barcode-groups:latest"
-        cpu:         cpu
-        memory:      "~{mem_gb} GB"
+        cpu:         1
+        memory:      "4 GB"
         disks:       "local-disk ~{diskGB} HDD"
         preemptible: 3
     }
@@ -82,13 +58,9 @@ task Merge_And_Split_Batch {
         Int         n_groups
         Int         batch_index
         String      barcode_tag = "CB"
-
-        Int    cpu       = 2
-        Int    mem_gb    = 4
-        Int?   disk_size_gb
     }
 
-    Int diskGB = select_first([disk_size_gb, ceil(size(bams, "GB") * 2.5 + 20)])
+    Int diskGB = ceil(size(bams, "GB") * 2.5 + 20)
 
     command <<<
         set -euo pipefail
@@ -104,7 +76,7 @@ task Merge_And_Split_Batch {
         # sorts in parallel - more efficient than one multi-threaded sort for
         # small per-batch slices.
         printf '%s\n' batch~{batch_index}_group_*.bam | \
-            xargs -P ~{cpu} -I{} bash -c 'samtools sort -o "${1%.bam}.sorted.bam" "$1"' _ {}
+            xargs -P 2 -I{} bash -c 'samtools sort -o "${1%.bam}.sorted.bam" "$1"' _ {}
     >>>
 
     output {
@@ -115,8 +87,8 @@ task Merge_And_Split_Batch {
 
     runtime {
         docker:      "us-central1-docker.pkg.dev/methods-dev-lab/mdl-cudll/pysam-samtools:latest"
-        cpu:         cpu
-        memory:      "~{mem_gb} GB"
+        cpu:         2
+        memory:      "4 GB"
         disks:       "local-disk ~{diskGB} SSD"
         preemptible: 3
     }
@@ -127,19 +99,15 @@ task Merge_Group_Bams {
     input {
         Array[File] bams
         String      output_name = "merged.bam"
-
-        Int    cpu     = 2
-        Int    mem_gb  = 4
-        Int?   disk_size_gb
     }
 
-    Int diskGB = select_first([disk_size_gb, ceil(size(bams, "GB") * 2.5 + 20)])
+    Int diskGB = ceil(size(bams, "GB") * 2.5 + 20)
 
     command <<<
         set -euo pipefail
 
         # k-way merge of coordinate-sorted inputs; output remains sorted.
-        samtools merge -@ ~{cpu} -o ~{output_name} ~{sep=' ' bams}
+        samtools merge -@ 2 -o ~{output_name} ~{sep=' ' bams}
     >>>
 
     output {
@@ -148,8 +116,8 @@ task Merge_Group_Bams {
 
     runtime {
         docker:      "us-central1-docker.pkg.dev/methods-dev-lab/samtools/samtools:latest"
-        cpu:         cpu
-        memory:      "~{mem_gb} GB"
+        cpu:         2
+        memory:      "4 GB"
         disks:       "local-disk ~{diskGB} SSD"
         preemptible: 2
     }
@@ -162,8 +130,13 @@ workflow Shard_Bams_By_Barcode_Group {
     }
 
     input {
-        # ---- knee detection & group assignment ----
+        Array[File] input_bams
+        Array[File] input_bam_indexes   # accepted for localization; not used directly
+
+        String  barcode_tag = "CB"
         File    counts_table
+
+        Int     target_reads_per_group = 300000000
         String  counts_column          = "post_count"
         String  barcode_column         = "barcode"
         Int     min_rank_search        = 2000
@@ -171,24 +144,6 @@ workflow Shard_Bams_By_Barcode_Group {
         Float   slope_threshold        = -2.0
         Float   min_prominence         = 0.8
         Boolean exclude_below_threshold = false
-        Int     target_reads_per_group = 300000000
-
-        # ---- BAM inputs ----
-        Array[File] input_bams
-        Array[File] input_bam_indexes   # accepted for localization; not used directly
-
-        # ---- barcode tag ----
-        String  barcode_tag = "CB"
-
-        # ---- resource overrides ----
-        Int    assign_groups_cpu            = 1
-        Int    assign_groups_mem_gb         = 4
-        Int    split_batch_cpu              = 2
-        Int    split_batch_mem_gb           = 4
-        Int?   split_batch_disk_size_gb
-        Int    merge_group_cpu              = 2
-        Int    merge_group_mem_gb           = 4
-        Int?   merge_group_disk_size_gb
     }
 
     # ------------------------------------------------------------------
@@ -205,8 +160,6 @@ workflow Shard_Bams_By_Barcode_Group {
             min_prominence           = min_prominence,
             exclude_below_threshold  = exclude_below_threshold,
             target_reads_per_group   = target_reads_per_group,
-            cpu                      = assign_groups_cpu,
-            mem_gb                   = assign_groups_mem_gb
     }
 
     # ------------------------------------------------------------------
@@ -250,9 +203,6 @@ workflow Shard_Bams_By_Barcode_Group {
                 n_groups    = Assign_Barcode_Groups.n_groups,
                 batch_index = b_idx,
                 barcode_tag = barcode_tag,
-                cpu         = split_batch_cpu,
-                mem_gb      = split_batch_mem_gb,
-                disk_size_gb = split_batch_disk_size_gb
         }
     }
 
@@ -267,10 +217,7 @@ workflow Shard_Bams_By_Barcode_Group {
     scatter (group_bams in transpose(Merge_And_Split_Batch.group_bams)) {
         call Merge_Group_Bams {
             input:
-                bams         = group_bams,
-                cpu          = merge_group_cpu,
-                mem_gb       = merge_group_mem_gb,
-                disk_size_gb = merge_group_disk_size_gb
+                bams = group_bams,
         }
     }
 
