@@ -64,31 +64,37 @@ task Merge_And_Split_Batch {
     command <<<
         set -euo pipefail
 
+        # k-way merge of coordinate-sorted inputs -> single sorted BAM (checkpoint).
+        # Written to a temp file first; renamed atomically on success so that
+        # merged.bam is always a complete file when used as checkpointFile.
+        # Skipped on restart if the merged BAM already exists.
+        if [ ! -f merged.bam ]; then
+            samtools merge -@ 2 -o merged.tmp.bam ~{sep=' ' bams}
+            mv merged.tmp.bam merged.bam
+        fi
+        
+        # Split the sorted merged BAM by barcode group.
+        # Output group BAMs inherit coordinate order from the sorted input.
         python3 /usr/local/bin/split_bams_by_cb_group.py \
-            --bams ~{sep=' ' bams} \
+            --bams merged.bam \
             --group-table ~{group_table} \
             --barcode-tag ~{barcode_tag} \
             --output-prefix batch~{batch_index}_group_
-
-        # Coordinate-sort each group BAM in place.  Run cpu single-threaded
-        # sorts in parallel - more efficient than one multi-threaded sort for
-        # small per-batch slices.
-        printf '%s\n' batch~{batch_index}_group_*.bam | \
-            xargs -P 2 -I{} bash -c 'samtools sort -o "${1%.bam}.sorted.bam" "$1"' _ {}
     >>>
 
     output {
-        # glob returns files in sorted order; batch_group_0001.sorted.bam ... batch_group_NNNN.sorted.bam
-        # gives the stable ordering required for transpose() downstream.
-        Array[File] group_bams = glob("batch~{batch_index}_group_*.sorted.bam")
+        # glob returns files in alphabetical order: batch_group_0001.bam ... batch_group_NNNN.bam
+        # stable ordering required for transpose() downstream.
+        Array[File] group_bams = glob("batch~{batch_index}_group_*.bam")
     }
 
     runtime {
-        docker:      "us-central1-docker.pkg.dev/methods-dev-lab/mdl-cudll/pysam-samtools:latest"
-        cpu:         2
-        memory:      "4 GB"
-        disks:       "local-disk ~{diskGB} SSD"
-        preemptible: 3
+        docker:        "us-central1-docker.pkg.dev/methods-dev-lab/mdl-cudll/pysam-samtools:latest"
+        cpu:           2
+        memory:        "4 GB"
+        disks:         "local-disk ~{diskGB} SSD"
+        preemptible:   3
+        checkpointFile: "merged.bam"
     }
 }
 
