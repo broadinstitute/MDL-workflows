@@ -59,7 +59,7 @@ task Merge_And_Split_Batch {
         String      barcode_tag = "CB"
     }
 
-    Int diskGB = ceil(size(bams, "GB") * 2.5 + 20)
+    Int diskGB = ceil(size(bams, "GB") * 4 + 20)
 
     command <<<
         set -euo pipefail
