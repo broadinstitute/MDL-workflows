@@ -68,7 +68,7 @@ task Merge_And_Split_Batch {
         # Written to a temp file first; renamed atomically on success so that
         # merged.bam is always a complete file when used as checkpointFile.
         # Skipped on restart if the merged BAM already exists.
-        if [ ! -f merged.bam ]; then
+        if [ ! -s merged.bam ]; then
             samtools merge -@ 2 -o merged.tmp.bam ~{sep=' ' bams}
             mv merged.tmp.bam merged.bam
         fi
