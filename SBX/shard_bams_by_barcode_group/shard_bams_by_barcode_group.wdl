@@ -55,7 +55,6 @@ task Merge_And_Split_Batch {
     input {
         Array[File] bams
         File        group_table
-        Int         n_groups
         Int         batch_index
         String      barcode_tag = "CB"
     }
@@ -68,7 +67,6 @@ task Merge_And_Split_Batch {
         python3 /usr/local/bin/split_bams_by_cb_group.py \
             --bams ~{sep=' ' bams} \
             --group-table ~{group_table} \
-            --n-groups ~{n_groups} \
             --barcode-tag ~{barcode_tag} \
             --output-prefix batch~{batch_index}_group_
 
@@ -200,7 +198,6 @@ workflow Shard_Bams_By_Barcode_Group {
             input:
                 bams        = batch_bams,
                 group_table = Assign_Barcode_Groups.group_table,
-                n_groups    = Assign_Barcode_Groups.n_groups,
                 batch_index = b_idx,
                 barcode_tag = barcode_tag,
         }
@@ -214,15 +211,18 @@ workflow Shard_Bams_By_Barcode_Group {
     # is guaranteed because split_bams_by_cb_group.py always emits exactly
     # n_groups files (even if empty) with zero-padded names that glob in order.
     # ------------------------------------------------------------------
-    scatter (group_bams in transpose(Merge_And_Split_Batch.group_bams)) {
+    Array[Array[File]] group_bam_matrix = transpose(Merge_And_Split_Batch.group_bams)
+
+    scatter (g in zip(range(length(group_bam_matrix)), group_bam_matrix)) {
         call Merge_Group_Bams {
             input:
-                bams = group_bams,
+                bams        = g.right,
+                output_name = "group_~{g.left}.bam",
         }
     }
 
     output {
-        Array[File] merged_group_bams = Merge_Group_Bams.merged_bam
+        Array[File] merged_group_bams = Merge_Group_Bams.merged_bam  # group_0.bam, group_1.bam, ...
         File        group_table       = Assign_Barcode_Groups.group_table
         Int         n_groups          = Assign_Barcode_Groups.n_groups
     }
