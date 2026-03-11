@@ -3,7 +3,7 @@ version 1.0
 # Stub for Dockstore registration only.
 # Replace with shard_bams_by_barcode_group.wdl.real to restore the real workflow.
 
-task _Assign_Barcode_Groups {
+task AssignBarcodeGroupsStub {
     input {
         File    counts_table
         String  counts_column          = "post_count"
@@ -44,7 +44,7 @@ workflow Shard_Bams_By_Barcode_Group {
         Boolean exclude_below_threshold = false
     }
 
-    call _Assign_Barcode_Groups {
+    call AssignBarcodeGroupsStub {
         input:
             counts_table            = counts_table,
             counts_column           = counts_column,
@@ -59,7 +59,7 @@ workflow Shard_Bams_By_Barcode_Group {
 
     output {
         Array[File] merged_group_bams = input_bams
-        File        group_table       = _Assign_Barcode_Groups.group_table
-        Int         n_groups          = _Assign_Barcode_Groups.n_groups
+        File        group_table       = AssignBarcodeGroupsStub.group_table
+        Int         n_groups          = AssignBarcodeGroupsStub.n_groups
     }
 }
