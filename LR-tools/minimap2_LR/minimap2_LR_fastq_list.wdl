@@ -16,9 +16,10 @@ task Minimap2MultiFastqTask {
         Int memoryGB = 32
         Int? diskSizeGB
         Int preemptible_tries = 3
+        String docker = "us-central1-docker.pkg.dev/methods-dev-lab/minimap2/minimap2:2.30-slim-avx2"
+        String? machine_type
+        String? cpu_platform
     }
-
-    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/minimap2/minimap2:2.30-slim"
 
     Int effective_disk = select_first([diskSizeGB, ceil(size(inputFastqs, "GB") * 4 + size(referenceGenome, "GB") + 20)])
     String extra_arg = if allowSecondary then "" else "--secondary=no"
@@ -76,6 +77,8 @@ task Minimap2MultiFastqTask {
         disks: "local-disk ~{effective_disk} SSD"
         docker: docker
         preemptible: preemptible_tries
+        machine_type: select_first([machine_type, ""])
+        cpu_platform: select_first([cpu_platform, ""])
     }
 }
 
@@ -99,6 +102,9 @@ workflow Minimap2_LR_fastq_list {
         Int memoryGB = 32
         Int ?diskSizeGB
         Int preemptible_tries = 3
+        String docker = "us-central1-docker.pkg.dev/methods-dev-lab/minimap2/minimap2:2.30-slim-avx2"
+        String? machine_type
+        String? cpu_platform
     }
 
     Int effective_diskSizeGB = select_first([diskSizeGB, ceil(size(inputFastqs, "GB") * 4 + size(referenceGenome, "GB") + 20)])
@@ -117,7 +123,10 @@ workflow Minimap2_LR_fastq_list {
             cpu = cpu,
             memoryGB = memoryGB,
             diskSizeGB = effective_diskSizeGB,
-            preemptible_tries = preemptible_tries
+            preemptible_tries = preemptible_tries,
+            docker = docker,
+            machine_type = machine_type,
+            cpu_platform = cpu_platform
     }
 
     output {

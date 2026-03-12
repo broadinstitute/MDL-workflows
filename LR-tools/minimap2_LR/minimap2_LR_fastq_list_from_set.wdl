@@ -21,6 +21,9 @@ workflow Minimap2_LR_fastq_list_from_set {
         Int cpu = 16
         Int memoryGB = 40
         Int preemptible_tries = 3
+        String docker = "us-central1-docker.pkg.dev/methods-dev-lab/minimap2/minimap2:2.30-slim-avx2"
+        String? machine_type
+        String? cpu_platform
     }
 
     Array[Int] lane_indexes = range(length(sample_names))
@@ -39,7 +42,10 @@ workflow Minimap2_LR_fastq_list_from_set {
                 allowSecondary = allowSecondary,
                 cpu = cpu,
                 memoryGB = memoryGB,
-                preemptible_tries = preemptible_tries
+                preemptible_tries = preemptible_tries,
+                docker = docker,
+                machine_type = machine_type,
+                cpu_platform = cpu_platform
         }
     }
 
