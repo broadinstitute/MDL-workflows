@@ -74,11 +74,11 @@ task Minimap2MultiFastqTask {
     runtime {
         cpu: cpu
         memory: "~{memoryGB} GB"
+        predefinedMachineType: select_first([machine_type, ""])
+        cpuPlatform: select_first([cpu_platform, ""])
         disks: "local-disk ~{effective_disk} SSD"
         docker: docker
         preemptible: preemptible_tries
-        machine_type: select_first([machine_type, ""])
-        cpu_platform: select_first([cpu_platform, ""])
     }
 }
 
