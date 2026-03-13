@@ -308,8 +308,8 @@ task MergeUnsortedBams {
         done
 
         # Merge sorted BAMs and index
-        samtools merge -@ 2 -o ~{output_name} sorted_*.bam
-        samtools index -@ 2 ~{output_name}
+        samtools merge -@ 4 -o ~{output_name} sorted_*.bam
+        samtools index -@ 4 ~{output_name}
     >>>
 
     output {
@@ -319,10 +319,10 @@ task MergeUnsortedBams {
 
     runtime {
         docker: "us-central1-docker.pkg.dev/methods-dev-lab/samtools/samtools:latest"
-        cpu: 2
-        memory: "2 GB"
+        cpu: 4
+        memory: "4 GB"
         disks: "local-disk ~{diskGB} SSD"
         preemptible: 2
-        predefinedMachineType: "n2d-highcpu-2"
+        predefinedMachineType: "n4d-highcpu-4"
     }
 }
