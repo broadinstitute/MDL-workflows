@@ -3,7 +3,7 @@ version 1.0
 workflow CUDLL_scattered {
     input {
         Array[File] input_bams
-        Array[File?] input_bais
+        Array[File]? input_bais
         File? reference_fasta
         File? reference_fai
 
@@ -22,48 +22,51 @@ workflow CUDLL_scattered {
         String docker_image_cudll
     }
 
-    scatter (bam_and_index in zip(input_bams, input_bais)) {
-        String shard_prefix = basename(bam_and_index.left, ".bam")
+    Boolean need_index = !defined(input_bais) || length(select_first([input_bais])) != length(input_bams)
 
-        # Only create index if one wasn't provided
-        Boolean needs_index = !defined(bam_and_index.right)
+    scatter (bam_idx in range(length(input_bams))) {
+        File input_bam = input_bams[bam_idx]
+        String shard_prefix = basename(input_bam, ".bam")
 
-        call CreateIndex {
-            input:
-                input_bam = bam_and_index.left,
-                docker_image = docker_image_cudll
+        if (need_index) {
+            call CreateIndex { input: input_bam = input_bam, docker_image = docker_image_cudll }
         }
 
-    File bam_index = select_first([bam_and_index.right, CreateIndex.bam_index])
+        # Use provided index if available and length matches, otherwise use generated index
+        File bam_index = select_first([
+            if defined(input_bais) && length(select_first([input_bais])) == length(input_bams)
+                then select_first([input_bais])[bam_idx]
+                else CreateIndex.bam_index
+        ])
 
-    call LocalOverlap {
-        input:
-            input_bam = bam_and_index.left,
-            input_bai = bam_index,
-            reference_fasta = reference_fasta,
-            reference_fai = reference_fai,
-            output_prefix = shard_prefix,
-            barcode_tag = barcode_tag,
-            umi_tag = umi_tag,
-            tags = tags,
-            no_consensus = no_consensus,
-            emit_supplementary_alignments = emit_supplementary_alignments,
-            emit_consensus_sorted = emit_consensus_sorted,
-            cpu = cpu,
-            memory_gb = memory_gb,
-            docker_image = docker_image_cudll
+        call LocalOverlap {
+            input:
+                input_bam = input_bam,
+                input_bai = bam_index,
+                reference_fasta = reference_fasta,
+                reference_fai = reference_fai,
+                output_prefix = shard_prefix,
+                barcode_tag = barcode_tag,
+                umi_tag = umi_tag,
+                tags = tags,
+                no_consensus = no_consensus,
+                emit_supplementary_alignments = emit_supplementary_alignments,
+                emit_consensus_sorted = emit_consensus_sorted,
+                cpu = cpu,
+                memory_gb = memory_gb,
+                docker_image = docker_image_cudll
         }
 
         call CrossLocus {
             input:
-            consensus_bam = LocalOverlap.consensus_bam,
-            output_prefix = shard_prefix,
-            barcode_tag = barcode_tag,
-            umi_tag = umi_tag,
-            identity = identity,
-            cpu = cpu,
-            memory_gb = memory_gb,
-            docker_image = docker_image_cudll
+                consensus_bam = LocalOverlap.consensus_bam,
+                output_prefix = shard_prefix,
+                barcode_tag = barcode_tag,
+                umi_tag = umi_tag,
+                identity = identity,
+                cpu = cpu,
+                memory_gb = memory_gb,
+                docker_image = docker_image_cudll
         }
     }
 
