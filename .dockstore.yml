@@ -10,6 +10,11 @@ workflows:
     primaryDescriptorPath: /SBX/shard_bams_by_barcode_group/shard_bams_by_barcode_group.wdl
     authors:
       - orcid: 0000-0002-2603-1660
+  - name: CUDLL_scattered
+    subclass: WDL
+    primaryDescriptorPath: /SBX/fullpacbiorun_scattered/CUDLL_scattered.wdl
+    authors:
+      - orcid: 0000-0002-2603-1660
   - name: IsoQuantMakeDB
     subclass: WDL
     primaryDescriptorPath: /LR-tools/IsoQuant/IsoQuantMakeDB.wdl
