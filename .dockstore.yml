@@ -12,7 +12,7 @@ workflows:
       - orcid: 0000-0002-2603-1660
   - name: CUDLL_scattered
     subclass: WDL
-    primaryDescriptorPath: /SBX/fullpacbiorun_scattered/CUDLL_scattered.wdl
+    primaryDescriptorPath: /SBX/CUDLL_scattered/CUDLL_scattered.wdl
     authors:
       - orcid: 0000-0002-2603-1660
   - name: IsoQuantMakeDB
