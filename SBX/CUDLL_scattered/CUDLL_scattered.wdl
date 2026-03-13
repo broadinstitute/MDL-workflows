@@ -131,7 +131,7 @@ task CreateIndex {
 task LocalOverlap {
     input {
         File input_bam
-        File? input_bai
+        File input_bai
         File? reference_fasta
         File? reference_fai
 
@@ -161,8 +161,12 @@ task LocalOverlap {
     command <<<
         set -euo pipefail
 
+        # Move input BAM and index to root working directory
+        mv "~{input_bam}" "~{basename(input_bam)}"
+        mv "~{input_bai}" "~{basename(input_bam)}.bai"
+
         cudll_local_overlap \
-            -i "~{input_bam}" \
+            -i "~{basename(input_bam)}" \
             -o "~{output_prefix}.consensus.bam" \
             ~{if defined(reference_fasta) then "-r \"" + select_first([reference_fasta]) + "\"" else ""} \
             ~{tags_arg} \
