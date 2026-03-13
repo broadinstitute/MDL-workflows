@@ -51,32 +51,52 @@ task Assign_Barcode_Groups {
 }
 
 
-task Merge_And_Split_Batch {
+task Merge_Batch_Bams {
     input {
         Array[File] bams
-        File        group_table
         Int         batch_index
-        String      barcode_tag = "CB"
     }
 
-    Int diskGB = ceil(size(bams, "GB") * 4 + 20)
+    Int diskGB = ceil(size(bams, "GB") * 2 + 20)
 
     command <<<
         set -euo pipefail
 
-        # k-way merge of coordinate-sorted inputs -> single sorted BAM (checkpoint).
-        # Written to a temp file first; renamed atomically on success so that
-        # merged.bam is always a complete file when used as checkpointFile.
-        # Skipped on restart if the merged BAM already exists.
-        if [ ! -s merged.bam ]; then
-            samtools merge -@ 2 -o merged.tmp.bam ~{sep=' ' bams}
-            mv merged.tmp.bam merged.bam
-        fi
-        
+        samtools merge -@ 2 -o batch~{batch_index}_merged.bam ~{sep=' ' bams}
+    >>>
+
+    output {
+        File merged_bam = "batch~{batch_index}_merged.bam"
+    }
+
+    runtime {
+        docker:        "us-central1-docker.pkg.dev/methods-dev-lab/mdl-cudll/pysam-samtools:latest"
+        cpu:           2
+        memory:        "2 GB"
+        disks:         "local-disk ~{diskGB} SSD"
+        preemptible:   3
+        predefinedMachineType: "n2d-highcpu-2"
+    }
+}
+
+
+task Split_Batch_Bams {
+    input {
+        File   merged_bam
+        File   group_table
+        Int    batch_index
+        String barcode_tag = "CB"
+    }
+
+    Int diskGB = ceil(size(merged_bam, "GB") * 2 + 10)
+
+    command <<<
+        set -euo pipefail
+
         # Split the sorted merged BAM by barcode group.
         # Output group BAMs inherit coordinate order from the sorted input.
         python3 /usr/local/bin/split_bams_by_cb_group.py \
-            --bams merged.bam \
+            --bams ~{merged_bam} \
             --group-table ~{group_table} \
             --barcode-tag ~{barcode_tag} \
             --output-prefix batch~{batch_index}_group_
@@ -89,12 +109,11 @@ task Merge_And_Split_Batch {
     }
 
     runtime {
-        docker:        "us-central1-docker.pkg.dev/methods-dev-lab/mdl-cudll/pysam-samtools:latest"
-        cpu:           2
-        memory:        "4 GB"
-        disks:         "local-disk ~{diskGB} SSD"
-        preemptible:   3
-        checkpointFile: "merged.bam"
+        docker:      "us-central1-docker.pkg.dev/methods-dev-lab/mdl-cudll/pysam-samtools:latest"
+        cpu:         1
+        memory:      "2 GB"
+        disks:       "local-disk ~{diskGB} SSD"
+        preemptible: 3
     }
 }
 
@@ -112,18 +131,23 @@ task Merge_Group_Bams {
 
         # k-way merge of coordinate-sorted inputs; output remains sorted.
         samtools merge -@ 2 -o ~{output_name} ~{sep=' ' bams}
+
+        # Index the merged BAM file.
+        samtools index -@ 2 ~{output_name}
     >>>
 
     output {
         File merged_bam = "~{output_name}"
+        File merged_bam_index = "~{output_name}.bai"
     }
 
     runtime {
         docker:      "us-central1-docker.pkg.dev/methods-dev-lab/samtools/samtools:latest"
         cpu:         2
-        memory:      "4 GB"
+        memory:      "2 GB"
         disks:       "local-disk ~{diskGB} SSD"
         preemptible: 2
+        predefinedMachineType: "n2d-highcpu-2"
     }
 }
 
@@ -200,9 +224,15 @@ workflow Shard_Bams_By_Barcode_Group {
             if (b9 < total_bams) then input_bams[b9] else None
         ])
 
-        call Merge_And_Split_Batch {
+        call Merge_Batch_Bams {
             input:
                 bams        = batch_bams,
+                batch_index = b_idx,
+        }
+
+        call Split_Batch_Bams {
+            input:
+                merged_bam  = Merge_Batch_Bams.merged_bam,
                 group_table = Assign_Barcode_Groups.group_table,
                 batch_index = b_idx,
                 barcode_tag = barcode_tag,
@@ -217,7 +247,7 @@ workflow Shard_Bams_By_Barcode_Group {
     # is guaranteed because split_bams_by_cb_group.py always emits exactly
     # n_groups files (even if empty) with zero-padded names that glob in order.
     # ------------------------------------------------------------------
-    Array[Array[File]] group_bam_matrix = transpose(Merge_And_Split_Batch.group_bams)
+    Array[Array[File]] group_bam_matrix = transpose(Split_Batch_Bams.group_bams)
 
     scatter (g in zip(range(length(group_bam_matrix)), group_bam_matrix)) {
         call Merge_Group_Bams {
@@ -229,6 +259,7 @@ workflow Shard_Bams_By_Barcode_Group {
 
     output {
         Array[File] merged_group_bams = Merge_Group_Bams.merged_bam  # group_0.bam, group_1.bam, ...
+        Array[File] merged_group_bam_indexes = Merge_Group_Bams.merged_bam_index
         File        group_table       = Assign_Barcode_Groups.group_table
         Int         n_groups          = Assign_Barcode_Groups.n_groups
     }
