@@ -111,11 +111,11 @@ task CreateIndex {
 
     command <<<
         set -euo pipefail
-        samtools index -@ 2 "~{input_bam}"
+        samtools index -@ 2 -o "~{basename(input_bam)}.bai" "~{input_bam}"
     >>>
 
     output {
-        File bam_index = "~{input_bam}.bai"
+        File bam_index = basename(input_bam) + ".bai"
     }
 
     runtime {
