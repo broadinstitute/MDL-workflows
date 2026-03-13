@@ -3,8 +3,8 @@ version 1.0
 workflow CUDLL_scattered {
     input {
         Array[File] input_bams
-        Array[File] input_bais
-        File reference_fasta
+        Array[File?] input_bais
+        File? reference_fasta
         File? reference_fai
 
         String sample_name
@@ -115,7 +115,7 @@ task LocalOverlap {
     input {
         File input_bam
         File? input_bai
-        File reference_fasta
+        File? reference_fasta
         File? reference_fai
 
         String output_prefix
@@ -147,7 +147,7 @@ task LocalOverlap {
         cudll_local_overlap \
             -i "~{input_bam}" \
             -o "~{output_prefix}.consensus.bam" \
-            -r "~{reference_fasta}" \
+            ~{if defined(reference_fasta) then "-r \"" + select_first([reference_fasta]) + "\"" else ""} \
             ~{tags_arg} \
             ~{supplementary_alignments_arg} \
             ~{if no_consensus then "--no-consensus" else ""} \
