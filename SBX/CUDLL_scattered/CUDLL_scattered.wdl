@@ -151,7 +151,7 @@ task LocalOverlap {
 
     Int task_cpu = select_first([cpu, 32])
     Int task_memory_gb = select_first([memory_gb, 32])
-    String? machine_type = if defined(cpu) || defined(memory_gb) then "n2d-custom-~{task_cpu}-~{task_memory_gb * 1024}" else "n2d-highcpu-32"
+    String machine_type = if defined(cpu) || defined(memory_gb) then "n2d-custom-${task_cpu}-${task_memory_gb * 1024}" else "n2d-highcpu-32"
 
     String tags_arg = if defined(tags) then "--tags " + tags else ""
     String supplementary_alignments_bam_path = output_prefix + ".supplementary_alignments.bam"
@@ -193,7 +193,7 @@ task LocalOverlap {
         memory: "~{task_memory_gb} GB"
         docker: docker_image
         disks: "local-disk ~{disk_gb} SSD"
-        predefinedMachineType: machine_type
+        predefinedMachineType: "~{machine_type}"
         preemptible: 3
     }
 }
@@ -214,7 +214,7 @@ task CrossLocus {
 
     Int task_cpu = select_first([cpu, 32])
     Int task_memory_gb = select_first([memory_gb, 32])
-    String? machine_type = if defined(cpu) || defined(memory_gb) then "n2d-custom-~{task_cpu}-~{task_memory_gb * 1024}" else "n2d-highcpu-32"
+    String machine_type = if defined(cpu) || defined(memory_gb) then "n2d-custom-${task_cpu}-${task_memory_gb * 1024}" else "n2d-highcpu-32"
 
     Int disk_gb = ceil(size(consensus_bam, "GB") * 7) + 20
 
@@ -252,7 +252,7 @@ task CrossLocus {
         memory: "~{task_memory_gb} GB"
         docker: docker_image
         disks: "local-disk ~{disk_gb} SSD"
-        predefinedMachineType: machine_type
+        predefinedMachineType: "~{machine_type}"
         preemptible: 3
     }
 }
