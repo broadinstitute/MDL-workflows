@@ -149,9 +149,9 @@ task LocalOverlap {
         String docker_image
     }
 
-    Int task_cpu = select_first([cpu, 32])
-    Int task_memory_gb = select_first([memory_gb, 32])
-    String machine_type = if defined(cpu) || defined(memory_gb) then "n2d-custom-${task_cpu}-${task_memory_gb * 1024}" else "n2d-highcpu-32"
+    Int task_cpu = select_first([cpu, 48])
+    Int task_memory_gb = select_first([memory_gb, 48])
+    String machine_type = if defined(cpu) || defined(memory_gb) then "n2d-custom-${task_cpu}-${task_memory_gb * 1024}" else "n2d-highcpu-48"
 
     String tags_arg = if defined(tags) then "--tags " + tags else ""
     String supplementary_alignments_bam_path = output_prefix + ".supplementary_alignments.bam"
