@@ -123,7 +123,7 @@ task CreateIndex {
         memory: "2 GB"
         docker: docker_image
         disks: "local-disk ~{disk_gb} SSD"
-        predefinedMachineType: "n1-highcpu-2"
+        predefinedMachineType: "n2d-highcpu-2"
         preemptible: 3
     }
 }
