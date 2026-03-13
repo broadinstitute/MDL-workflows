@@ -12,13 +12,14 @@ task Minimap2MultiFastqTask {
         Boolean keepComments = true
         Boolean keepUnmapped = true
         Boolean allowSecondary = true
-        Int cpu = 8
-        Int memoryGB = 32
+        Int cpu = 48
+        Int memoryGB = 48
         Int? diskSizeGB
         Int preemptible_tries = 3
     }
 
     String docker = "us-central1-docker.pkg.dev/methods-dev-lab/minimap2/minimap2:2.30-slim"
+    String machine_type = if (cpu != 48 || memoryGB != 48) then "n2d-custom-~{cpu}-~{memoryGB * 1024}" else "n2d-highcpu-48"
 
     Int effective_disk = select_first([diskSizeGB, ceil(size(inputFastqs, "GB") * 4 + size(referenceGenome, "GB") + 20)])
     String extra_arg = if allowSecondary then "" else "--secondary=no"
@@ -73,6 +74,7 @@ task Minimap2MultiFastqTask {
     runtime {
         cpu: cpu
         memory: "~{memoryGB} GB"
+        predefinedMachineType: machine_type
         disks: "local-disk ~{effective_disk} SSD"
         docker: docker
         preemptible: preemptible_tries
@@ -95,8 +97,8 @@ workflow Minimap2_LR_fastq_list {
         Boolean keepComments = true
         Boolean keepUnmapped = true
         Boolean allowSecondary = false
-        Int cpu = 8
-        Int memoryGB = 32
+        Int cpu = 48
+        Int memoryGB = 48
         Int ?diskSizeGB
         Int preemptible_tries = 3
     }
