@@ -76,9 +76,23 @@ workflow CUDLL_scattered {
             output_name = sample_name + ".merged.bam"
     }
 
+    # Merge supplementary alignment BAMs if they exist (they are not guaranteed to be sorted)
+    if (emit_supplementary_alignments) {
+        Array[File] supplementary_bams_filtered = select_all(LocalOverlap.supplementary_alignments_bam)
+        if (length(supplementary_bams_filtered) > 0) {
+            call MergeUnsortedBams as MergeSupplementaryBams {
+                input:
+                    bams = supplementary_bams_filtered,
+                    output_name = sample_name + ".supplementary_alignments.merged.bam"
+            }
+        }
+    }
+
     output {
         File   merged_bam                       = MergeFinalBams.merged_bam
         File   merged_bai                       = MergeFinalBams.merged_bai
+        File?  merged_supplementary_bam         = MergeSupplementaryBams.merged_bam
+        File?  merged_supplementary_bai         = MergeSupplementaryBams.merged_bai
         Array[File]  shard_final_bams           = CrossLocus.final_bam
         Array[File]  shard_final_bais           = CrossLocus.final_bai
         Array[File?] shard_supplementary_bams   = LocalOverlap.supplementary_alignments_bam
@@ -255,6 +269,42 @@ task MergeFinalBams {
         set -euo pipefail
 
         samtools merge -@ 2 -o ~{output_name} ~{sep=' ' bams}
+        samtools index -@ 2 ~{output_name}
+    >>>
+
+    output {
+        File merged_bam = "~{output_name}"
+        File merged_bai = "~{output_name}.bai"
+    }
+
+    runtime {
+        docker: "us-central1-docker.pkg.dev/methods-dev-lab/samtools/samtools:latest"
+        cpu: 2
+        memory: "2 GB"
+        disks: "local-disk ~{diskGB} SSD"
+        preemptible: 2
+        predefinedMachineType: "n2d-highcpu-2"
+    }
+}
+
+task MergeUnsortedBams {
+    input {
+        Array[File] bams
+        String output_name
+    }
+
+    Int diskGB = ceil(size(bams, "GB") * 3 + 20)
+
+    command <<<
+        set -euo pipefail
+
+        # Sort each BAM by coordinate before merging
+        for bam in ~{sep=' ' bams}; do
+            samtools sort -@ 2 -o "sorted_$(basename "$bam")" "$bam"
+        done
+
+        # Merge sorted BAMs and index
+        samtools merge -@ 2 -o ~{output_name} sorted_*.bam
         samtools index -@ 2 ~{output_name}
     >>>
 
