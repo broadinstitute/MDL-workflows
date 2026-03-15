@@ -287,7 +287,7 @@ task MergeFinalBams {
         memory: "4 GB"
         disks: "local-disk ~{diskGB} SSD"
         preemptible: 2
-        predefinedMachineType: "n4d-highcpu-4"
+        predefinedMachineType: "n2d-highcpu-4"
     }
 }
 
@@ -323,6 +323,6 @@ task MergeUnsortedBams {
         memory: "4 GB"
         disks: "local-disk ~{diskGB} SSD"
         preemptible: 2
-        predefinedMachineType: "n4d-highcpu-4"
+        predefinedMachineType: "n2d-highcpu-4"
     }
 }
