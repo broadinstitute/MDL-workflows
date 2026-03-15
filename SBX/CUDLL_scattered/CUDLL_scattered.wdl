@@ -284,10 +284,10 @@ task MergeFinalBams {
     runtime {
         docker: "us-central1-docker.pkg.dev/methods-dev-lab/samtools/samtools:latest"
         cpu: 4
-        memory: "16 GB"
+        memory: "32 GB"
         disks: "local-disk ~{diskGB} SSD"
         preemptible: 2
-        predefinedMachineType: "n2d-standard-4"
+        predefinedMachineType: "n2d-highmem-4"
     }
 }
 
@@ -320,9 +320,9 @@ task MergeUnsortedBams {
     runtime {
         docker: "us-central1-docker.pkg.dev/methods-dev-lab/samtools/samtools:latest"
         cpu: 4
-        memory: "16 GB"
+        memory: "32 GB"
         disks: "local-disk ~{diskGB} SSD"
         preemptible: 2
-        predefinedMachineType: "n2d-standard-4"
+        predefinedMachineType: "n2d-highmem-4"
     }
 }
