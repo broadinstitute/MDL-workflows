@@ -49,7 +49,7 @@ task mergeBAMs {
 
     command <<<
 
-        samtools merge --threads 4 -o ~{sampleName}.sorted.bam '~{sep="' '" bams_to_merge}'
+        samtools merge --no-PG --threads 4 -o ~{sampleName}.sorted.bam '~{sep="' '" bams_to_merge}'
         samtools index  ~{sampleName}.sorted.bam
         samtools flagstats  ~{sampleName}.sorted.bam > ~{sampleName}.sorted.flagstat.txt
 

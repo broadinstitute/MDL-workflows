@@ -59,7 +59,7 @@ task Minimap2MultiFastqTask {
             preset_arg=""
         fi
         minimap2 ~{extra_arg2} ~{extra_arg3} -a ${preset_arg} ~{custom_args} ~{if defined(juncBED) then "--junc-bed " + juncBED else ""} ~{extra_arg} -t ~{cpu} ~{referenceGenome} '~{sep="' '" inputFastqs}' \
-            | samtools sort -@ ~{cpu} -O BAM -o ~{sampleName}.aligned.sorted.bam -
+            | samtools sort --no-PG -@ ~{cpu} -O BAM -o ~{sampleName}.aligned.sorted.bam -
 
         samtools index -@ ~{cpu} ~{sampleName}.aligned.sorted.bam
         samtools flagstat ~{sampleName}.aligned.sorted.bam > ~{sampleName}_alignment.flagstat.txt

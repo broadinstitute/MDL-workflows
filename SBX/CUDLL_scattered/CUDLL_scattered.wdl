@@ -178,7 +178,7 @@ task LocalOverlap {
             --umi-hamming-only
 
         if [ "~{emit_consensus_sorted}" = "true" ]; then
-            samtools sort -@ ~{task_cpu} \
+            samtools sort --no-PG -@ ~{task_cpu} \
             -o "~{output_prefix}.consensus.sorted.bam" \
             "~{output_prefix}.consensus.bam"
             samtools index -@ ~{task_cpu} "~{output_prefix}.consensus.sorted.bam"
@@ -225,7 +225,7 @@ task CrossLocus {
     command <<<
         set -euo pipefail
 
-        samtools sort -@ ~{task_cpu} -t ~{barcode_tag} \
+        samtools sort --no-PG -@ ~{task_cpu} -t ~{barcode_tag} \
             -o "~{output_prefix}.consensus.~{barcode_tag}_sorted.bam" \
             "~{consensus_bam}"
 
@@ -239,7 +239,7 @@ task CrossLocus {
             --umi-hamming-only \
             --rank-by-aligned-bases
 
-        samtools sort -@ ~{task_cpu} \
+        samtools sort --no-PG -@ ~{task_cpu} \
             -o "~{output_prefix}.consensus.homology_dedup.sorted.bam" \
             "~{output_prefix}.consensus.homology_dedup.~{barcode_tag}_sorted.bam"
 
@@ -272,7 +272,7 @@ task MergeFinalBams {
     command <<<
         set -euo pipefail
 
-        samtools merge -@ 4 -o ~{output_name} ~{sep=' ' bams}
+        samtools merge --no-PG -@ 4 -o ~{output_name} ~{sep=' ' bams}
         samtools index -@ 4 ~{output_name}
     >>>
 
@@ -304,11 +304,11 @@ task MergeUnsortedBams {
 
         # Sort each BAM by coordinate before merging
         for bam in ~{sep=' ' bams}; do
-            samtools sort -@ 2 -o "sorted_$(basename "$bam")" "$bam"
+            samtools sort --no-PG -@ 2 -o "sorted_$(basename "$bam")" "$bam"
         done
 
         # Merge sorted BAMs and index
-        samtools merge -@ 4 -o ~{output_name} sorted_*.bam
+        samtools merge --no-PG -@ 4 -o ~{output_name} sorted_*.bam
         samtools index -@ 4 ~{output_name}
     >>>
 

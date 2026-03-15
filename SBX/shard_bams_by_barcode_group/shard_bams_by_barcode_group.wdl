@@ -62,7 +62,7 @@ task Merge_Batch_Bams {
     command <<<
         set -euo pipefail
 
-        samtools merge -@ 2 -o batch~{batch_index}_merged.bam ~{sep=' ' bams}
+        samtools merge --no-PG -@ 2 -o batch~{batch_index}_merged.bam ~{sep=' ' bams}
     >>>
 
     output {
@@ -130,7 +130,7 @@ task Merge_Group_Bams {
         set -euo pipefail
 
         # k-way merge of coordinate-sorted inputs; output remains sorted.
-        samtools merge -@ 2 -o ~{output_name} ~{sep=' ' bams}
+        samtools merge --no-PG -@ 2 -o ~{output_name} ~{sep=' ' bams}
 
         # Index the merged BAM file.
         samtools index -@ 2 ~{output_name}
