@@ -130,7 +130,7 @@ task Merge_Group_Bams {
         set -euo pipefail
 
         # k-way merge of coordinate-sorted inputs; output remains sorted.
-        samtools merge --no-PG -@ 2 -o ~{output_name} ~{sep=' ' bams}
+        samtools merge --no-PG -p -@ 2 -o ~{output_name} ~{sep=' ' bams}
 
         # Index the merged BAM file.
         samtools index -@ 2 ~{output_name}

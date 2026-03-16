@@ -15,6 +15,7 @@ workflow CUDLL_scattered {
         Boolean no_consensus = false
         Boolean emit_supplementary_alignments = true
         Boolean emit_consensus_sorted = false
+        Boolean prune_pg_header_merge_final_bams = false
 
         Int? cpu
         Int? memory_gb
@@ -73,6 +74,7 @@ workflow CUDLL_scattered {
     call MergeFinalBams {
         input:
             bams = CrossLocus.final_bam,
+            prune_pg_header = prune_pg_header_merge_final_bams,
             output_name = sample_name + ".merged.bam"
     }
 
@@ -83,6 +85,7 @@ workflow CUDLL_scattered {
             call MergeUnsortedBams as MergeSupplementaryBams {
                 input:
                     bams = supplementary_bams_filtered,
+                    prune_pg_header = prune_pg_header_merge_final_bams,
                     output_name = sample_name + ".supplementary_alignments.merged.bam"
             }
         }
@@ -264,15 +267,65 @@ task CrossLocus {
 task MergeFinalBams {
     input {
         Array[File] bams
+        Boolean prune_pg_header = false
         String output_name
     }
 
-    Int diskGB = ceil(size(bams, "GB") * 2.5 + 20)
+    Int diskGB = ceil(size(bams, "GB") * (if prune_pg_header then 3.5 else 2.5) + 20)
 
     command <<<
         set -euo pipefail
 
-        samtools merge --no-PG -@ 4 -o ~{output_name} ~{sep=' ' bams}
+        prune_pg_header() {
+            local input_bam="$1"
+            local output_bam="$2"
+            local header_sam="$3"
+
+            samtools view -H "${input_bam}" | awk '
+                !/^@PG\t/ { print; next }
+                /\tPN:minimap2(\t|$)/ { print; next }
+                /\tPN:cudll_local_overlap(\t|$)/ {
+                    if (local_line == "") {
+                        local_line = $0
+                        sub(/\tPP:[^\t]+/, "", local_line)
+                    }
+                    next
+                }
+                /\tPN:cudll_cross_locus(\t|$)/ {
+                    if (cross_line == "") {
+                        cross_line = $0
+                        sub(/\tPP:[^\t]+/, "", cross_line)
+                        sub(/\tPN:cudll_cross_locus/, "\tPN:cudll_cross_locus\tPP:cudll_local_overlap", cross_line)
+                    }
+                    next
+                }
+                { next }
+                END {
+                    if (local_line != "") print local_line
+                    if (cross_line != "") print cross_line
+                }
+            ' > "${header_sam}"
+
+            samtools reheader -P "${header_sam}" "${input_bam}" > "${output_bam}"
+        }
+
+        if [ "~{prune_pg_header}" = "true" ]; then
+            declare -a merge_inputs=()
+
+            for bam in ~{sep=' ' bams}; do
+                pruned_bam="pruned_$(basename "$bam")"
+                header_sam="${pruned_bam%.bam}.header.sam"
+
+                prune_pg_header "$bam" "$pruned_bam" "$header_sam"
+                merge_inputs+=("${pruned_bam}")
+                rm -f "${header_sam}"
+            done
+
+            samtools merge --no-PG -p -@ 4 -o ~{output_name} "${merge_inputs[@]}"
+        else
+            samtools merge --no-PG -p -@ 4 -o ~{output_name} ~{sep=' ' bams}
+        fi
+
         samtools index -@ 4 ~{output_name}
     >>>
 
@@ -284,31 +337,76 @@ task MergeFinalBams {
     runtime {
         docker: "us-central1-docker.pkg.dev/methods-dev-lab/samtools/samtools:latest"
         cpu: 4
-        memory: "32 GB"
+        memory: "4 GB"
         disks: "local-disk ~{diskGB} SSD"
         preemptible: 2
-        predefinedMachineType: "n2d-highmem-4"
+        predefinedMachineType: "n2d-highcpu-4"
     }
 }
 
 task MergeUnsortedBams {
     input {
         Array[File] bams
+        Boolean prune_pg_header = false
         String output_name
     }
 
-    Int diskGB = ceil(size(bams, "GB") * 3 + 20)
+    Int diskGB = ceil(size(bams, "GB") * (if prune_pg_header then 4 else 3) + 20)
 
     command <<<
         set -euo pipefail
 
+        prune_pg_header() {
+            local input_bam="$1"
+            local output_bam="$2"
+            local header_sam="$3"
+
+            samtools view -H "${input_bam}" | awk '
+                !/^@PG\t/ { print; next }
+                /\tPN:minimap2(\t|$)/ { print; next }
+                /\tPN:cudll_local_overlap(\t|$)/ {
+                    if (local_line == "") {
+                        local_line = $0
+                        sub(/\tPP:[^\t]+/, "", local_line)
+                    }
+                    next
+                }
+                /\tPN:cudll_cross_locus(\t|$)/ {
+                    if (cross_line == "") {
+                        cross_line = $0
+                        sub(/\tPP:[^\t]+/, "", cross_line)
+                        sub(/\tPN:cudll_cross_locus/, "\tPN:cudll_cross_locus\tPP:cudll_local_overlap", cross_line)
+                    }
+                    next
+                }
+                { next }
+                END {
+                    if (local_line != "") print local_line
+                    if (cross_line != "") print cross_line
+                }
+            ' > "${header_sam}"
+
+            samtools reheader -P "${header_sam}" "${input_bam}" > "${output_bam}"
+        }
+
         # Sort each BAM by coordinate before merging
         for bam in ~{sep=' ' bams}; do
-            samtools sort --no-PG -@ 2 -o "sorted_$(basename "$bam")" "$bam"
+            sorted_bam="sorted_$(basename "$bam")"
+
+            samtools sort --no-PG -@ 2 -o "${sorted_bam}" "$bam"
+
+            if [ "~{prune_pg_header}" = "true" ]; then
+                pruned_bam="${sorted_bam%.bam}.pruned.bam"
+                header_sam="${sorted_bam%.bam}.header.sam"
+
+                prune_pg_header "${sorted_bam}" "${pruned_bam}" "${header_sam}"
+                mv "${pruned_bam}" "${sorted_bam}"
+                rm -f "${header_sam}"
+            fi
         done
 
         # Merge sorted BAMs and index
-        samtools merge --no-PG -@ 4 -o ~{output_name} sorted_*.bam
+        samtools merge --no-PG -p -@ 4 -o ~{output_name} sorted_*.bam
         samtools index -@ 4 ~{output_name}
     >>>
 
@@ -320,9 +418,9 @@ task MergeUnsortedBams {
     runtime {
         docker: "us-central1-docker.pkg.dev/methods-dev-lab/samtools/samtools:latest"
         cpu: 4
-        memory: "32 GB"
+        memory: "4 GB"
         disks: "local-disk ~{diskGB} SSD"
         preemptible: 2
-        predefinedMachineType: "n2d-highmem-4"
+        predefinedMachineType: "n2d-highcpu-4"
     }
 }
