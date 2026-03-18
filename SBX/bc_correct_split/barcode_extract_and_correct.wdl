@@ -98,6 +98,7 @@ task BC_Correct_Pass1 {
         docker: docker
         cpu: 2
         memory: "4 GB"
+        predefinedMachineType: "n2d-custom-2-4096"
         disks: "local-disk ~{diskGB} SSD"
         preemptible: 3
     }
@@ -133,6 +134,7 @@ task Merge_Whitelist_Counts {
         docker: docker
         cpu: 1
         memory: "4 GB"
+        predefinedMachineType: "n2d-custom-1-4096"
         disks: "local-disk ~{diskGB} SSD"
         preemptible: 3
     }
@@ -246,6 +248,7 @@ task Resolve_BC_Params_From_Config {
         docker: docker
         cpu: 1
         memory: "1 GB"
+        predefinedMachineType: "n1-custom-1-1024"
         preemptible: 3
     }
 }
@@ -336,6 +339,7 @@ task BC_Correct_Pass2 {
         docker: docker
         cpu: 1
         memory: "4 GB"
+        predefinedMachineType: "n2d-custom-1-4096"
         disks: "local-disk ~{diskGB} SSD"
         preemptible: 3
     }

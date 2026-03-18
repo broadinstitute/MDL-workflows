@@ -112,6 +112,7 @@ task Split_Batch_Bams {
         docker:      "us-central1-docker.pkg.dev/methods-dev-lab/mdl-cudll/pysam-samtools:latest"
         cpu:         1
         memory:      "2 GB"
+        predefinedMachineType: "n2d-custom-1-2048"
         disks:       "local-disk ~{diskGB} SSD"
         preemptible: 3
     }
@@ -145,9 +146,9 @@ task Merge_Group_Bams {
         docker:      "us-central1-docker.pkg.dev/methods-dev-lab/samtools/samtools:latest"
         cpu:         2
         memory:      "2 GB"
+        predefinedMachineType: "n2d-highcpu-2"
         disks:       "local-disk ~{diskGB} SSD"
         preemptible: 2
-        predefinedMachineType: "n2d-highcpu-2"
     }
 }
 

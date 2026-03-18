@@ -70,7 +70,7 @@ task Minimap2Task {
 
         ${input_pipe} minimap2 ~{extra_arg2} ~{extra_arg3} -ax ${minimap2_preset} ~{customArguments} ${juncbed_arg} ~{extra_arg} -t ~{cpu} ~{referenceGenome} ${fastq_name} > temp.sam
 
-        samtools sort -@ ~{cpu} temp.sam > ~{sampleName}.aligned.sorted.bam
+        samtools sort --no-PG -@ ~{cpu} temp.sam > ~{sampleName}.aligned.sorted.bam
         samtools index -@ ~{cpu} ~{sampleName}.aligned.sorted.bam
 
         samtools flagstat ~{sampleName}.aligned.sorted.bam > ~{sampleName}_alignment.flagstat.txt
