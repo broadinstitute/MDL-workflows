@@ -21,14 +21,27 @@ task Minimap2Task {
     }
 
     String docker = "us-central1-docker.pkg.dev/methods-dev-lab/minimap2/minimap2:latest"
+    Boolean use_predefined_machine_type = cpu == 2 || cpu == 4 || cpu == 8 || cpu == 16 || cpu == 32 || cpu == 48 || cpu == 64 || cpu == 80 || cpu == 96
+    String machine_type = if (use_predefined_machine_type && memoryGB == cpu * 4)
+        then "n2d-standard-~{cpu}"
+        else if (use_predefined_machine_type && memoryGB == cpu * 8)
+        then "n2d-highmem-~{cpu}"
+        else if (use_predefined_machine_type && memoryGB == cpu)
+        then "n2d-highcpu-~{cpu}"
+        else "n2d-custom-~{cpu}-~{memoryGB * 1024}"
 
     String extra_arg = if allowSecondary then "" else "--secondary=no"
     String extra_arg2 = if keepUnmapped then "" else "--sam-hit-only"
     String extra_arg3 = if keepComments then "-y" else ""
 
     String extract_tags = if defined(tagsToExtract) && tagsToExtract != "" then "-T ~{tagsToExtract}" else ""
+    String custom_args = select_first([customArguments, ""])
+    String sorted_bam_name = "~{sampleName}.aligned.sorted.bam"
+    String sorted_bam_index_name = "~{sampleName}.aligned.sorted.bam.bai"
 
     command <<<
+        set -euo pipefail
+
         minimap2_preset=""
 
         if [ "~{readType}" == "PacBioCLR" ]; then
@@ -52,39 +65,38 @@ task Minimap2Task {
             exit 1
         fi
 
-        fastq_name="temp.fastq"
-        input_pipe=""
-        if [[ "~{inputExtension}" == "bam" ]] || [[ "$file_extension" == "ubam" ]]; then
-            samtools fastq ~{extract_tags} ~{inputFile} > temp.fastq
+        if [[ "~{inputExtension}" == "bam" ]]; then
+            samtools fastq ~{extract_tags} ~{inputFile} \
+                | minimap2 ~{extra_arg2} ~{extra_arg3} -ax ${minimap2_preset} ~{custom_args} ~{if defined(juncBED) then "--junc-bed " + juncBED else ""} ~{extra_arg} -t ~{cpu} ~{referenceGenome} - \
+                | samtools sort --no-PG --write-index -@ ~{cpu} -O BAM \
+                    -o ~{sorted_bam_name}##idx##~{sorted_bam_index_name} -
         elif [[ "~{inputExtension}" == "fastq.zst" ]]; then
-            input_pipe = "zstd -d -c reads.fq.zst |"
-            fastq_name = ""
-        elif [[ "~{inputExtension}" == "fastq.gz" ]]; then
-            mv ~{inputFile} temp.fastq.gz
-            fastq_name="temp.fastq.gz"
-        elif [[ "~{inputExtension}" == "fastq" ]]; then
-            mv ~{inputFile} temp.fastq
+            zstd -d -c ~{inputFile} \
+                | minimap2 ~{extra_arg2} ~{extra_arg3} -ax ${minimap2_preset} ~{custom_args} ~{if defined(juncBED) then "--junc-bed " + juncBED else ""} ~{extra_arg} -t ~{cpu} ~{referenceGenome} - \
+                | samtools sort --no-PG --write-index -@ ~{cpu} -O BAM \
+                    -o ~{sorted_bam_name}##idx##~{sorted_bam_index_name} -
+        elif [[ "~{inputExtension}" == "fastq.gz" ]] || [[ "~{inputExtension}" == "fastq" ]]; then
+            minimap2 ~{extra_arg2} ~{extra_arg3} -ax ${minimap2_preset} ~{custom_args} ~{if defined(juncBED) then "--junc-bed " + juncBED else ""} ~{extra_arg} -t ~{cpu} ~{referenceGenome} ~{inputFile} \
+                | samtools sort --no-PG --write-index -@ ~{cpu} -O BAM \
+                    -o ~{sorted_bam_name}##idx##~{sorted_bam_index_name} -
+        else
+            echo "Unsupported inputExtension: ~{inputExtension}"
+            exit 1
         fi
 
-        juncbed_arg=~{if defined(juncBED) then '"--junc-bed ${juncBED}"' else '""'}
-
-        ${input_pipe} minimap2 ~{extra_arg2} ~{extra_arg3} -ax ${minimap2_preset} ~{customArguments} ${juncbed_arg} ~{extra_arg} -t ~{cpu} ~{referenceGenome} ${fastq_name} > temp.sam
-
-        samtools sort --no-PG -@ ~{cpu} temp.sam > ~{sampleName}.aligned.sorted.bam
-        samtools index -@ ~{cpu} ~{sampleName}.aligned.sorted.bam
-
-        samtools flagstat ~{sampleName}.aligned.sorted.bam > ~{sampleName}_alignment.flagstat.txt
+        samtools flagstat ~{sorted_bam_name} > ~{sampleName}_alignment.flagstat.txt
     >>>
 
     output {
-        File minimap2_bam = "~{sampleName}.aligned.sorted.bam"
-        File minimap2_bam_index = "~{sampleName}.aligned.sorted.bam.bai"
+        File minimap2_bam = "~{sorted_bam_name}"
+        File minimap2_bam_index = "~{sorted_bam_index_name}"
         File alignment_flagstat = "~{sampleName}_alignment.flagstat.txt"
     }
 
     runtime {
         cpu: cpu
         memory: "~{memoryGB} GB"
+        predefinedMachineType: "~{machine_type}"
         disks: "local-disk ~{diskSizeGB} SSD"
         docker: docker
         preemptible: preemptible_tries
