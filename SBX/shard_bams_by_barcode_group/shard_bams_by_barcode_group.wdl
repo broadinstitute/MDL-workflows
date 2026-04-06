@@ -51,10 +51,12 @@ task Assign_Barcode_Groups {
 }
 
 
-task Merge_Batch_Bams {
+task Merge_And_Split_Batch_Bams {
     input {
         Array[File] bams
+        File        group_table
         Int         batch_index
+        String      barcode_tag = "CB"
     }
 
     Int diskGB = ceil(size(bams, "GB") * 2 + 20)
@@ -62,43 +64,13 @@ task Merge_Batch_Bams {
     command <<<
         set -euo pipefail
 
-        samtools merge --no-PG -@ 2 -o batch~{batch_index}_merged.bam ~{sep=' ' bams}
-    >>>
-
-    output {
-        File merged_bam = "batch~{batch_index}_merged.bam"
-    }
-
-    runtime {
-        docker:        "us-central1-docker.pkg.dev/methods-dev-lab/mdl-cudll/pysam-samtools:latest"
-        cpu:           2
-        memory:        "2 GB"
-        disks:         "local-disk ~{diskGB} SSD"
-        preemptible:   3
-        predefinedMachineType: "n2d-highcpu-2"
-    }
-}
-
-
-task Split_Batch_Bams {
-    input {
-        File   merged_bam
-        File   group_table
-        Int    batch_index
-        String barcode_tag = "CB"
-    }
-
-    Int diskGB = ceil(size(merged_bam, "GB") * 2 + 10)
-
-    command <<<
-        set -euo pipefail
-
-        # Split the sorted merged BAM by barcode group.
-        # Output group BAMs inherit coordinate order from the sorted input.
-        python3 /usr/local/bin/split_bams_by_cb_group.py \
-            --bams ~{merged_bam} \
+        # Merge coordinate-sorted inputs on the fly while splitting by barcode group,
+        # avoiding an intermediate merged BAM on local disk.
+        /usr/local/bin/split_bams_by_cb_group \
+            --bams ~{sep=' ' bams} \
             --group-table ~{group_table} \
             --barcode-tag ~{barcode_tag} \
+            --threads 2 \
             --output-prefix batch~{batch_index}_group_
     >>>
 
@@ -110,9 +82,9 @@ task Split_Batch_Bams {
 
     runtime {
         docker:      "us-central1-docker.pkg.dev/methods-dev-lab/mdl-cudll/pysam-samtools:latest"
-        cpu:         1
+        cpu:         2
         memory:      "2 GB"
-        predefinedMachineType: "n2d-custom-1-2048"
+        predefinedMachineType: "n2d-highcpu-2"
         disks:       "local-disk ~{diskGB} SSD"
         preemptible: 3
     }
@@ -125,21 +97,21 @@ task Merge_Group_Bams {
         String      output_name = "merged.bam"
     }
 
+    String output_index_name = "~{output_name}.bai"
     Int diskGB = ceil(size(bams, "GB") * 2.5 + 20)
 
     command <<<
         set -euo pipefail
 
         # k-way merge of coordinate-sorted inputs; output remains sorted.
-        samtools merge --no-PG -p -@ 2 -o ~{output_name} ~{sep=' ' bams}
-
-        # Index the merged BAM file.
-        samtools index -@ 2 ~{output_name}
+        samtools merge --no-PG --write-index -p -@ 2 \
+            -o ~{output_name}##idx##~{output_index_name} \
+            ~{sep=' ' bams}
     >>>
 
     output {
         File merged_bam = "~{output_name}"
-        File merged_bam_index = "~{output_name}.bai"
+        File merged_bam_index = "~{output_index_name}"
     }
 
     runtime {
@@ -192,7 +164,8 @@ workflow Shard_Bams_By_Barcode_Group {
     }
 
     # ------------------------------------------------------------------
-    # Step 2: Batch BAMs in groups of 10, then split each batch by group.
+    # Step 2: Batch BAMs in groups of 10, then merge each batch in memory
+    # while splitting directly by barcode group.
     #
     # Uses the select_all / None pattern to handle the last partial batch.
     # ------------------------------------------------------------------
@@ -225,15 +198,9 @@ workflow Shard_Bams_By_Barcode_Group {
             if (b9 < total_bams) then input_bams[b9] else None
         ])
 
-        call Merge_Batch_Bams {
+        call Merge_And_Split_Batch_Bams {
             input:
                 bams        = batch_bams,
-                batch_index = b_idx,
-        }
-
-        call Split_Batch_Bams {
-            input:
-                merged_bam  = Merge_Batch_Bams.merged_bam,
                 group_table = Assign_Barcode_Groups.group_table,
                 batch_index = b_idx,
                 barcode_tag = barcode_tag,
@@ -245,10 +212,10 @@ workflow Shard_Bams_By_Barcode_Group {
     # each group's BAMs into a single output BAM.
     #
     # transpose() requires every inner array to have the same length, which
-    # is guaranteed because split_bams_by_cb_group.py always emits exactly
+    # is guaranteed because split_bams_by_cb_group always emits exactly
     # n_groups files (even if empty) with zero-padded names that glob in order.
     # ------------------------------------------------------------------
-    Array[Array[File]] group_bam_matrix = transpose(Split_Batch_Bams.group_bams)
+    Array[Array[File]] group_bam_matrix = transpose(Merge_And_Split_Batch_Bams.group_bams)
 
     scatter (g in zip(range(length(group_bam_matrix)), group_bam_matrix)) {
         call Merge_Group_Bams {
