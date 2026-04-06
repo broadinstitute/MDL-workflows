@@ -19,13 +19,22 @@ task Minimap2MultiFastqTask {
     }
 
     String docker = "us-central1-docker.pkg.dev/methods-dev-lab/minimap2/minimap2:2.30-slim"
-    String machine_type = if (cpu != 48 || memoryGB != 48) then "n2d-custom-~{cpu}-~{memoryGB * 1024}" else "n2d-highcpu-48"
+    Boolean use_predefined_machine_type = cpu == 2 || cpu == 4 || cpu == 8 || cpu == 16 || cpu == 32 || cpu == 48 || cpu == 64 || cpu == 80 || cpu == 96
+    String machine_type = if (use_predefined_machine_type && memoryGB == cpu * 4)
+        then "n2d-standard-~{cpu}"
+        else if (use_predefined_machine_type && memoryGB == cpu * 8)
+        then "n2d-highmem-~{cpu}"
+        else if (use_predefined_machine_type && memoryGB == cpu)
+        then "n2d-highcpu-~{cpu}"
+        else "n2d-custom-~{cpu}-~{memoryGB * 1024}"
 
     Int effective_disk = select_first([diskSizeGB, ceil(size(inputFastqs, "GB") * 4 + size(referenceGenome, "GB") + 20)])
     String extra_arg = if allowSecondary then "" else "--secondary=no"
     String extra_arg2 = if keepUnmapped then "" else "--sam-hit-only"
     String extra_arg3 = if keepComments then "-y" else ""
     String custom_args = select_first([customArguments, ""])
+    String sorted_bam_name = "~{sampleName}.aligned.sorted.bam"
+    String sorted_bam_index_name = "~{sampleName}.aligned.sorted.bam.bai"
 
     command <<<
         set -euo pipefail
@@ -59,15 +68,15 @@ task Minimap2MultiFastqTask {
             preset_arg=""
         fi
         minimap2 ~{extra_arg2} ~{extra_arg3} -a ${preset_arg} ~{custom_args} ~{if defined(juncBED) then "--junc-bed " + juncBED else ""} ~{extra_arg} -t ~{cpu} ~{referenceGenome} '~{sep="' '" inputFastqs}' \
-            | samtools sort --no-PG -@ ~{cpu} -O BAM -o ~{sampleName}.aligned.sorted.bam -
+            | samtools sort --no-PG --write-index -@ ~{cpu} -O BAM \
+                -o ~{sorted_bam_name}##idx##~{sorted_bam_index_name} -
 
-        samtools index -@ ~{cpu} ~{sampleName}.aligned.sorted.bam
-        samtools flagstat ~{sampleName}.aligned.sorted.bam > ~{sampleName}_alignment.flagstat.txt
+        samtools flagstat ~{sorted_bam_name} > ~{sampleName}_alignment.flagstat.txt
     >>>
 
     output {
-        File minimap2_bam = "~{sampleName}.aligned.sorted.bam"
-        File minimap2_bam_index = "~{sampleName}.aligned.sorted.bam.bai"
+        File minimap2_bam = "~{sorted_bam_name}"
+        File minimap2_bam_index = "~{sorted_bam_index_name}"
         File alignment_flagstat = "~{sampleName}_alignment.flagstat.txt"
     }
 
