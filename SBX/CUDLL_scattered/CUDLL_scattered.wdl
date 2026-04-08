@@ -181,10 +181,9 @@ task LocalOverlap {
             --umi-hamming-only
 
         if [ "~{emit_consensus_sorted}" = "true" ]; then
-            samtools sort --no-PG -@ ~{task_cpu} \
-            -o "~{output_prefix}.consensus.sorted.bam" \
+            samtools sort --no-PG --write-index -@ ~{task_cpu} \
+            -o "~{output_prefix}.consensus.sorted.bam##idx##~{output_prefix}.consensus.sorted.bam.bai" \
             "~{output_prefix}.consensus.bam"
-            samtools index -@ ~{task_cpu} "~{output_prefix}.consensus.sorted.bam"
         fi
     >>>
 
@@ -242,11 +241,9 @@ task CrossLocus {
             --umi-hamming-only \
             --rank-by-aligned-bases
 
-        samtools sort --no-PG -@ ~{task_cpu} \
-            -o "~{output_prefix}.consensus.homology_dedup.sorted.bam" \
+        samtools sort --no-PG --write-index -@ ~{task_cpu} \
+            -o "~{output_prefix}.consensus.homology_dedup.sorted.bam##idx##~{output_prefix}.consensus.homology_dedup.sorted.bam.bai" \
             "~{output_prefix}.consensus.homology_dedup.~{barcode_tag}_sorted.bam"
-
-        samtools index -@ ~{task_cpu} "~{output_prefix}.consensus.homology_dedup.sorted.bam"
     >>>
 
     output {
@@ -321,12 +318,10 @@ task MergeFinalBams {
                 rm -f "${header_sam}"
             done
 
-            samtools merge --no-PG -p -@ 4 -o ~{output_name} "${merge_inputs[@]}"
+            samtools merge --no-PG --write-index -p -@ 4 -o ~{output_name}##idx##~{output_name}.bai "${merge_inputs[@]}"
         else
-            samtools merge --no-PG -p -@ 4 -o ~{output_name} ~{sep=' ' bams}
+            samtools merge --no-PG --write-index -p -@ 4 -o ~{output_name}##idx##~{output_name}.bai ~{sep=' ' bams}
         fi
-
-        samtools index -@ 4 ~{output_name}
     >>>
 
     output {
@@ -406,8 +401,7 @@ task MergeUnsortedBams {
         done
 
         # Merge sorted BAMs and index
-        samtools merge --no-PG -p -@ 4 -o ~{output_name} sorted_*.bam
-        samtools index -@ 4 ~{output_name}
+        samtools merge --no-PG --write-index -p -@ 4 -o ~{output_name}##idx##~{output_name}.bai sorted_*.bam
     >>>
 
     output {
