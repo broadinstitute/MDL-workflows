@@ -16,9 +16,12 @@ workflow CUDLL_scattered {
         Boolean emit_supplementary_alignments = true
         Boolean emit_consensus_sorted = false
         Boolean prune_pg_header_merge_final_bams = false
+        String mitochondrial_contig_name = "chrM"
 
         Int? cpu
         Int? memory_gb
+        Int? local_overlap_mito_cpu
+        Int? local_overlap_mito_memory_gb
 
         String docker_image_cudll
     }
@@ -40,27 +43,64 @@ workflow CUDLL_scattered {
                 else CreateIndex.bam_index
         ])
 
-        call LocalOverlap {
+        call LocalOverlap as LocalOverlapNonMito {
             input:
                 input_bam = input_bam,
                 input_bai = bam_index,
                 reference_fasta = reference_fasta,
                 reference_fai = reference_fai,
-                output_prefix = shard_prefix,
+                output_prefix = shard_prefix + ".non_mito",
                 barcode_tag = barcode_tag,
                 umi_tag = umi_tag,
                 tags = tags,
                 no_consensus = no_consensus,
                 emit_supplementary_alignments = emit_supplementary_alignments,
                 emit_consensus_sorted = emit_consensus_sorted,
+                mitochondrial_only = false,
+                mitochondrial_contig_name = mitochondrial_contig_name,
                 cpu = cpu,
                 memory_gb = memory_gb,
                 docker_image = docker_image_cudll
         }
 
+        call LocalOverlap as LocalOverlapMito {
+            input:
+                input_bam = input_bam,
+                input_bai = bam_index,
+                reference_fasta = reference_fasta,
+                reference_fai = reference_fai,
+                output_prefix = shard_prefix + ".mito",
+                barcode_tag = barcode_tag,
+                umi_tag = umi_tag,
+                tags = tags,
+                no_consensus = no_consensus,
+                emit_supplementary_alignments = emit_supplementary_alignments,
+                emit_consensus_sorted = emit_consensus_sorted,
+                mitochondrial_only = true,
+                mitochondrial_contig_name = mitochondrial_contig_name,
+                cpu = select_first([local_overlap_mito_cpu, 32]),
+                memory_gb = if defined(local_overlap_mito_memory_gb) then local_overlap_mito_memory_gb else if defined(local_overlap_mito_cpu) then select_first([local_overlap_mito_cpu]) * 4 else if defined(memory_gb) then memory_gb * 4 else 128,
+                docker_image = docker_image_cudll
+        }
+
+        call MergeTagSortedBams as MergeShardConsensusBams {
+            input:
+                bams = [LocalOverlapNonMito.consensus_bam, LocalOverlapMito.consensus_bam],
+                sort_tag = barcode_tag,
+                output_name = shard_prefix + ".consensus.bam"
+        }
+
+        if (emit_consensus_sorted) {
+            call MergeFinalBams as MergeShardConsensusSortedBams {
+                input:
+                    bams = [select_first([LocalOverlapNonMito.consensus_sorted_bam]), select_first([LocalOverlapMito.consensus_sorted_bam])],
+                    output_name = shard_prefix + ".consensus.sorted.bam"
+            }
+        }
+
         call CrossLocus {
             input:
-                consensus_bam = LocalOverlap.consensus_bam,
+                consensus_bam = MergeShardConsensusBams.output_bam,
                 output_prefix = shard_prefix,
                 barcode_tag = barcode_tag,
                 umi_tag = umi_tag,
@@ -78,11 +118,15 @@ workflow CUDLL_scattered {
             output_name = sample_name + ".merged.bam"
     }
 
-    # Merge supplementary alignment BAMs if they exist (they are not guaranteed to be sorted)
+    # Supplementary alignment BAMs are coordinate-sorted by construction for non-mito
+    # and explicitly sorted in the mito branch before final merge.
     if (emit_supplementary_alignments) {
-        Array[File] supplementary_bams_filtered = select_all(LocalOverlap.supplementary_alignments_bam)
+        Array[File] supplementary_bams_filtered = flatten([
+            select_all(LocalOverlapNonMito.supplementary_alignments_bam),
+            select_all(LocalOverlapMito.supplementary_alignments_bam)
+        ])
         if (length(supplementary_bams_filtered) > 0) {
-            call MergeUnsortedBams as MergeSupplementaryBams {
+            call MergeFinalBams as MergeSupplementaryBams {
                 input:
                     bams = supplementary_bams_filtered,
                     prune_pg_header = prune_pg_header_merge_final_bams,
@@ -98,9 +142,8 @@ workflow CUDLL_scattered {
         File?  merged_supplementary_bai         = MergeSupplementaryBams.merged_bai
         Array[File]  shard_final_bams           = CrossLocus.final_bam
         Array[File]  shard_final_bais           = CrossLocus.final_bai
-        Array[File?] shard_supplementary_bams   = LocalOverlap.supplementary_alignments_bam
-        Array[File?] shard_consensus_sorted_bam = LocalOverlap.consensus_sorted_bam
-        Array[File?] shard_consensus_sorted_bai = LocalOverlap.consensus_sorted_bai
+        Array[File?] shard_consensus_sorted_bam = MergeShardConsensusSortedBams.merged_bam
+        Array[File?] shard_consensus_sorted_bai = MergeShardConsensusSortedBams.merged_bai
     }
 }
 
@@ -145,6 +188,8 @@ task LocalOverlap {
         Boolean no_consensus
         Boolean emit_supplementary_alignments
         Boolean emit_consensus_sorted
+        Boolean mitochondrial_only = false
+        String mitochondrial_contig_name = "chrM"
 
         Int? cpu
         Int? memory_gb
@@ -154,12 +199,19 @@ task LocalOverlap {
 
     Int task_cpu = select_first([cpu, 48])
     Int task_memory_gb = select_first([memory_gb, 48])
-    String machine_type = if defined(cpu) || defined(memory_gb) then "n2d-custom-${task_cpu}-${task_memory_gb * 1024}" else "n2d-highcpu-48"
+    Boolean use_predefined_machine_type = task_cpu == 2 || task_cpu == 4 || task_cpu == 8 || task_cpu == 16 || task_cpu == 32 || task_cpu == 48 || task_cpu == 64 || task_cpu == 80 || task_cpu == 96
+    String machine_type = if (use_predefined_machine_type && task_memory_gb == task_cpu * 4)
+        then "n2d-standard-${task_cpu}"
+        else if (use_predefined_machine_type && task_memory_gb == task_cpu * 8)
+        then "n2d-highmem-${task_cpu}"
+        else if (use_predefined_machine_type && task_memory_gb == task_cpu)
+        then "n2d-highcpu-${task_cpu}"
+        else "n2d-custom-${task_cpu}-${task_memory_gb * 1024}"
 
     String tags_arg = if defined(tags) then "--tags " + tags else ""
     String supplementary_alignments_bam_path = output_prefix + ".supplementary_alignments.bam"
     String supplementary_alignments_arg = if emit_supplementary_alignments then "--sa-read-bam " + supplementary_alignments_bam_path else ""
-    Int disk_gb = ceil(size(input_bam, "GB") * (if emit_consensus_sorted then 3 else 2)) + 20
+    Int disk_gb = ceil(size(input_bam, "GB") * (if emit_consensus_sorted then 4 else 3)) + 20
 
     command <<<
         set -euo pipefail
@@ -168,17 +220,51 @@ task LocalOverlap {
         mv "~{input_bam}" "~{basename(input_bam)}"
         mv "~{input_bai}" "~{basename(input_bam)}.bai"
 
+        chrom_list=$(samtools view -H "~{basename(input_bam)}" | awk -v mito="~{mitochondrial_contig_name}" -v mito_only="~{if mitochondrial_only then "1" else "0"}" '
+            $1 == "@SQ" {
+                contig = ""
+                for (i = 2; i <= NF; ++i) {
+                    if ($i ~ /^SN:/) {
+                        contig = substr($i, 4)
+                        break
+                    }
+                }
+                if (contig == "") {
+                    next
+                }
+                if ((mito_only == 1 && contig == mito) || (mito_only == 0 && contig != mito)) {
+                    if (out != "") {
+                        out = out " "
+                    }
+                    out = out contig
+                }
+            }
+            END {
+                print out
+            }
+        ')
+
         cudll_local_overlap \
             -i "~{basename(input_bam)}" \
-            -o "~{output_prefix}.consensus.bam" \
+            -o - \
             ~{if defined(reference_fasta) then "-r \"" + select_first([reference_fasta]) + "\"" else ""} \
             ~{tags_arg} \
             ~{supplementary_alignments_arg} \
             ~{if no_consensus then "--no-consensus" else ""} \
             -t ~{task_cpu} \
+            -c "${chrom_list}" \
             --barcode ~{barcode_tag} \
             --umi ~{umi_tag} \
-            --umi-hamming-only
+            --umi-hamming-only | \
+            samtools sort --no-PG -@ ~{task_cpu} -t ~{barcode_tag} \
+            -o "~{output_prefix}.consensus.bam" -
+
+        if [ "~{emit_supplementary_alignments}" = "true" ] && [ "~{mitochondrial_only}" = "true" ]; then
+            samtools sort --no-PG -@ ~{task_cpu} \
+            -o "~{output_prefix}.supplementary_alignments.sorted.bam" \
+            "~{supplementary_alignments_bam_path}"
+            mv "~{output_prefix}.supplementary_alignments.sorted.bam" "~{supplementary_alignments_bam_path}"
+        fi
 
         if [ "~{emit_consensus_sorted}" = "true" ]; then
             samtools sort --no-PG --write-index -@ ~{task_cpu} \
@@ -204,6 +290,35 @@ task LocalOverlap {
     }
 }
 
+task MergeTagSortedBams {
+    input {
+        Array[File] bams
+        String sort_tag
+        String output_name
+    }
+
+    Int diskGB = ceil(size(bams, "GB") + 20)
+
+    command <<<
+        set -euo pipefail
+
+        samtools merge --no-PG -@ 2 -t "~{sort_tag}" -o "~{output_name}" ~{sep=' ' bams}
+    >>>
+
+    output {
+        File output_bam = "~{output_name}"
+    }
+
+    runtime {
+        docker: "us-central1-docker.pkg.dev/methods-dev-lab/samtools/samtools:latest"
+        cpu: 2
+        memory: "2 GB"
+        disks: "local-disk ~{diskGB} SSD"
+        preemptible: 2
+        predefinedMachineType: "n2d-highcpu-2"
+    }
+}
+
 task CrossLocus {
     input {
         File consensus_bam
@@ -222,28 +337,23 @@ task CrossLocus {
     Int task_memory_gb = select_first([memory_gb, 32])
     String machine_type = if defined(cpu) || defined(memory_gb) then "n2d-custom-${task_cpu}-${task_memory_gb * 1024}" else "n2d-highcpu-32"
 
-    Int disk_gb = ceil(size(consensus_bam, "GB") * 7) + 20
+    Int disk_gb = ceil(size(consensus_bam, "GB") * 3) + 20
 
     command <<<
         set -euo pipefail
 
-        samtools sort --no-PG -@ ~{task_cpu} -t ~{barcode_tag} \
-            -o "~{output_prefix}.consensus.~{barcode_tag}_sorted.bam" \
-            "~{consensus_bam}"
-
         cudll_cross_locus \
-            -i "~{output_prefix}.consensus.~{barcode_tag}_sorted.bam" \
-            -o "~{output_prefix}.consensus.homology_dedup.~{barcode_tag}_sorted.bam" \
+            -i "~{consensus_bam}" \
+            -o - \
             -t ~{task_cpu} \
             --barcode ~{barcode_tag} \
             --umi ~{umi_tag} \
             --identity ~{identity} \
             --umi-hamming-only \
-            --rank-by-aligned-bases
-
-        samtools sort --no-PG --write-index -@ ~{task_cpu} \
+            --rank-by-aligned-bases | \
+            samtools sort --no-PG --write-index -@ ~{task_cpu} \
             -o "~{output_prefix}.consensus.homology_dedup.sorted.bam##idx##~{output_prefix}.consensus.homology_dedup.sorted.bam.bai" \
-            "~{output_prefix}.consensus.homology_dedup.~{barcode_tag}_sorted.bam"
+            -
     >>>
 
     output {
@@ -322,86 +432,6 @@ task MergeFinalBams {
         else
             samtools merge --no-PG --write-index -p -@ 4 -o ~{output_name}##idx##~{output_name}.bai ~{sep=' ' bams}
         fi
-    >>>
-
-    output {
-        File merged_bam = "~{output_name}"
-        File merged_bai = "~{output_name}.bai"
-    }
-
-    runtime {
-        docker: "us-central1-docker.pkg.dev/methods-dev-lab/samtools/samtools:latest"
-        cpu: 4
-        memory: "4 GB"
-        disks: "local-disk ~{diskGB} SSD"
-        preemptible: 2
-        predefinedMachineType: "n2d-highcpu-4"
-    }
-}
-
-task MergeUnsortedBams {
-    input {
-        Array[File] bams
-        Boolean prune_pg_header = false
-        String output_name
-    }
-
-    Int diskGB = ceil(size(bams, "GB") * (if prune_pg_header then 4 else 3) + 20)
-
-    command <<<
-        set -euo pipefail
-
-        prune_pg_header() {
-            local input_bam="$1"
-            local output_bam="$2"
-            local header_sam="$3"
-
-            samtools view -H "${input_bam}" | awk '
-                !/^@PG\t/ { print; next }
-                /\tPN:minimap2(\t|$)/ { print; next }
-                /\tPN:cudll_local_overlap(\t|$)/ {
-                    if (local_line == "") {
-                        local_line = $0
-                        sub(/\tPP:[^\t]+/, "", local_line)
-                    }
-                    next
-                }
-                /\tPN:cudll_cross_locus(\t|$)/ {
-                    if (cross_line == "") {
-                        cross_line = $0
-                        sub(/\tPP:[^\t]+/, "", cross_line)
-                        sub(/\tPN:cudll_cross_locus/, "\tPN:cudll_cross_locus\tPP:cudll_local_overlap", cross_line)
-                    }
-                    next
-                }
-                { next }
-                END {
-                    if (local_line != "") print local_line
-                    if (cross_line != "") print cross_line
-                }
-            ' > "${header_sam}"
-
-            samtools reheader -P "${header_sam}" "${input_bam}" > "${output_bam}"
-        }
-
-        # Sort each BAM by coordinate before merging
-        for bam in ~{sep=' ' bams}; do
-            sorted_bam="sorted_$(basename "$bam")"
-
-            samtools sort --no-PG -@ 2 -o "${sorted_bam}" "$bam"
-
-            if [ "~{prune_pg_header}" = "true" ]; then
-                pruned_bam="${sorted_bam%.bam}.pruned.bam"
-                header_sam="${sorted_bam%.bam}.header.sam"
-
-                prune_pg_header "${sorted_bam}" "${pruned_bam}" "${header_sam}"
-                mv "${pruned_bam}" "${sorted_bam}"
-                rm -f "${header_sam}"
-            fi
-        done
-
-        # Merge sorted BAMs and index
-        samtools merge --no-PG --write-index -p -@ 4 -o ~{output_name}##idx##~{output_name}.bai sorted_*.bam
     >>>
 
     output {
