@@ -132,9 +132,9 @@ task Merge_Whitelist_Counts {
 
     runtime {
         docker: docker
-        cpu: 1
+        cpu: 2
         memory: "4 GB"
-        predefinedMachineType: "n2d-custom-1-4096"
+        predefinedMachineType: "n2d-custom-2-4096"
         disks: "local-disk ~{diskGB} SSD"
         preemptible: 3
     }
@@ -337,9 +337,9 @@ task BC_Correct_Pass2 {
 
     runtime {
         docker: docker
-        cpu: 1
+        cpu: 2
         memory: "4 GB"
-        predefinedMachineType: "n2d-custom-1-4096"
+        predefinedMachineType: "n2d-custom-2-4096"
         disks: "local-disk ~{diskGB} SSD"
         preemptible: 3
     }
