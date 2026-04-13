@@ -97,6 +97,12 @@ workflows:
     authors:
       - name: bhaas
 
+  - name: Sum_fastq_read_stats
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/Fastq_read_stats/Sum_fastq_read_stats.wdl
+    authors:
+      - orcid: 0000-0002-2603-1660
+
   - name: BamToFastqGz
     subclass: WDL
     primaryDescriptorPath: /misc_tools/BamToFastq/BamToFastq.wdl
