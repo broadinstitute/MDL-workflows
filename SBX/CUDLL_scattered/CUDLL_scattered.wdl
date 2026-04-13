@@ -87,6 +87,7 @@ workflow CUDLL_scattered {
             input:
                 bams = [LocalOverlapNonMito.consensus_bam, LocalOverlapMito.consensus_bam],
                 sort_tag = barcode_tag,
+                prune_pg_header = prune_pg_header_merge_final_bams,
                 output_name = shard_prefix + ".consensus.bam"
         }
 
@@ -294,15 +295,64 @@ task MergeTagSortedBams {
     input {
         Array[File] bams
         String sort_tag
+        Boolean prune_pg_header = false
         String output_name
     }
 
-    Int diskGB = ceil(size(bams, "GB") + 20)
+    Int diskGB = ceil(size(bams, "GB") * (if prune_pg_header then 3.5 else 2.5) + 20)
 
     command <<<
         set -euo pipefail
 
-        samtools merge --no-PG -@ 2 -t "~{sort_tag}" -o "~{output_name}" ~{sep=' ' bams}
+        prune_pg_header() {
+            local input_bam="$1"
+            local output_bam="$2"
+            local header_sam="$3"
+
+            samtools view -H "${input_bam}" | awk '
+                !/^@PG\t/ { print; next }
+                /\tPN:minimap2(\t|$)/ { print; next }
+                /\tPN:cudll_local_overlap(\t|$)/ {
+                    if (local_line == "") {
+                        local_line = $0
+                        sub(/\tPP:[^\t]+/, "", local_line)
+                    }
+                    next
+                }
+                /\tPN:cudll_cross_locus(\t|$)/ {
+                    if (cross_line == "") {
+                        cross_line = $0
+                        sub(/\tPP:[^\t]+/, "", cross_line)
+                        sub(/\tPN:cudll_cross_locus/, "\tPN:cudll_cross_locus\tPP:cudll_local_overlap", cross_line)
+                    }
+                    next
+                }
+                { next }
+                END {
+                    if (local_line != "") print local_line
+                    if (cross_line != "") print cross_line
+                }
+            ' > "${header_sam}"
+
+            samtools reheader -P "${header_sam}" "${input_bam}" > "${output_bam}"
+        }
+
+        if [ "~{prune_pg_header}" = "true" ]; then
+            declare -a merge_inputs=()
+
+            for bam in ~{sep=' ' bams}; do
+                pruned_bam="pruned_$(basename "$bam")"
+                header_sam="${pruned_bam%.bam}.header.sam"
+
+                prune_pg_header "$bam" "$pruned_bam" "$header_sam"
+                merge_inputs+=("${pruned_bam}")
+                rm -f "${header_sam}"
+            done
+
+            samtools merge --no-PG -@ 2 -t "~{sort_tag}" -o "~{output_name}" "${merge_inputs[@]}"
+        else
+            samtools merge --no-PG -@ 2 -t "~{sort_tag}" -o "~{output_name}" ~{sep=' ' bams}
+        fi
     >>>
 
     output {
