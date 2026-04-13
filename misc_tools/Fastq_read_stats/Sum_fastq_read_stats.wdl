@@ -63,7 +63,7 @@ task Sum_fastq_read_stats_task {
    runtime {
         docker:"python"
         memory: "2 GB"
-        predefinedMachineType: "n2d-custom-1-2048"
+        predefinedMachineType: "n2d-highcpu-2"
         bootDiskSizeGb: 12
         disks: "local-disk 10 HDD"
         cpu: 1

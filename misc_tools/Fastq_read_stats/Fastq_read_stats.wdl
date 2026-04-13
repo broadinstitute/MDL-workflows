@@ -90,7 +90,7 @@ task Fastq_read_stats_task {
    runtime {
         docker:"python"
         memory: "2 GB"
-        predefinedMachineType: "n2d-custom-1-2048"
+        predefinedMachineType: "n2d-highcpu-2"
         bootDiskSizeGb: 12
         disks: "local-disk ~{disk_space} HDD"
         cpu: 1
