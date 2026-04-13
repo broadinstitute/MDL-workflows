@@ -93,7 +93,7 @@ task Fastq_read_stats_task {
         predefinedMachineType: "n2d-highcpu-2"
         bootDiskSizeGb: 12
         disks: "local-disk ~{disk_space} HDD"
-        cpu: 1
+        cpu: 2
         preemptible: preemptible
     }
     
