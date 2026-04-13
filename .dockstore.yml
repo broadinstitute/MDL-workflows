@@ -103,6 +103,12 @@ workflows:
     authors:
       - orcid: 0000-0002-2603-1660
 
+  - name: Fastq_read_stats
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/Fastq_read_stats/Fastq_read_stats.wdl
+    authors:
+      - name: bhaas
+
   - name: BamToFastqGz
     subclass: WDL
     primaryDescriptorPath: /misc_tools/BamToFastq/BamToFastq.wdl
