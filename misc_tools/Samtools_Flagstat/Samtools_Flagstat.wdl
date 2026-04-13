@@ -38,7 +38,7 @@ task Flagstat_task {
     command <<<
         set -ex
 
-        samtools flagstat ~{input_bam} > ~{stats_filename}
+        samtools flagstat -@ 4 ~{input_bam} > ~{stats_filename}
 
         # Extract total reads count from primary alignments line (QC-passed + QC-failed)
         sed -n '2p' ~{stats_filename} | awk '{print $1 + $3}' > total_reads.txt
@@ -51,11 +51,12 @@ task Flagstat_task {
     }
 
    runtime {
-        docker:"quay.io/biocontainers/samtools:1.21--h96c455f_1"
-        memory: "8GB"
+        docker:"us-central1-docker.pkg.dev/methods-dev-lab/samtools/samtools:latest"
+        memory: "4 GB"
+        predefinedMachineType: "n2d-highcpu-4"
         bootDiskSizeGb: 12
         disks: "local-disk ~{disk_space} HDD"
-        cpu: 1
+        cpu: 4
         preemptible: preemptible
     }
     
