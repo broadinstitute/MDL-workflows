@@ -26,17 +26,14 @@ task Sum_fastq_read_stats_task {
         Int preemptible = 0
     }
 
-    File fastq_stats_list = write_lines(fastq_stats_files)
-
     command <<<
 
-        python3 <<CODE
+        python3 - ~{sep=" " fastq_stats_files} <<CODE
+        import sys
+
         total_reads = 0
 
-        with open("~{fastq_stats_list}", "rt") as list_fh:
-            stats_files = [line.strip() for line in list_fh if line.strip()]
-
-        for stats_file in stats_files:
+        for stats_file in sys.argv[1:]:
             with open(stats_file, "rt") as fh:
                 fields = fh.read().strip().split("\t")
 
