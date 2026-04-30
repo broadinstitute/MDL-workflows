@@ -14,7 +14,7 @@ workflow Sum_fastq_read_stats_wf {
     }
 
     output {
-        Int total_reads = Sum_fastq_read_stats_task.total_reads
+        String total_reads = Sum_fastq_read_stats_task.total_reads
     }
 
 }
@@ -54,7 +54,7 @@ task Sum_fastq_read_stats_task {
     >>>
 
     output {
-        Int total_reads = read_int("total_reads.txt")
+        String total_reads = read_string("total_reads.txt")
     }
 
    runtime {
