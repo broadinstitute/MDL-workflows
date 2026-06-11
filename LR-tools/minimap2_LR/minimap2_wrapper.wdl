@@ -101,6 +101,7 @@ task Minimap2Task {
         predefinedMachineType: "~{machine_type}"
         disks: "local-disk ~{diskSizeGB} SSD"
         docker: docker
+        checkpointFiles: "monitoring.log"
         preemptible: preemptible_tries
     }
 }

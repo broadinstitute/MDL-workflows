@@ -88,6 +88,7 @@ task Minimap2MultiFastqTask {
         predefinedMachineType: "~{machine_type}"
         disks: "local-disk ~{effective_disk} SSD"
         docker: docker
+        checkpointFiles: "monitoring.log"
         preemptible: preemptible_tries
     }
 }
