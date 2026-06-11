@@ -13,6 +13,8 @@ task Minimap2MultiFastqTask {
         Boolean keepUnmapped = true
         Boolean allowSecondary = true
         Int cpu = 48
+        Int sortThreads = 2
+        String sortMemory = "768M"
         Int memoryGB = 48
         Int? diskSizeGB
         Int preemptible_tries = 3
@@ -68,7 +70,7 @@ task Minimap2MultiFastqTask {
             preset_arg=""
         fi
         minimap2 ~{extra_arg2} ~{extra_arg3} -a ${preset_arg} ~{custom_args} ~{if defined(juncBED) then "--junc-bed " + juncBED else ""} ~{extra_arg} -t ~{cpu} ~{referenceGenome} '~{sep="' '" inputFastqs}' \
-            | samtools sort --no-PG --write-index -@ ~{cpu} -O BAM \
+            | samtools sort --no-PG --write-index -@ ~{sortThreads} -m ~{sortMemory} -O BAM \
                 -o ~{sorted_bam_name}##idx##~{sorted_bam_index_name} -
 
         samtools flagstat ~{sorted_bam_name} > ~{sampleName}_alignment.flagstat.txt
@@ -107,6 +109,8 @@ workflow Minimap2_LR_fastq_list {
         Boolean keepUnmapped = true
         Boolean allowSecondary = false
         Int cpu = 48
+        Int sortThreads = 2
+        String sortMemory = "768M"
         Int memoryGB = 48
         Int ?diskSizeGB
         Int preemptible_tries = 3
@@ -126,6 +130,8 @@ workflow Minimap2_LR_fastq_list {
             keepUnmapped = keepUnmapped,
             allowSecondary = allowSecondary,
             cpu = cpu,
+            sortThreads = sortThreads,
+            sortMemory = sortMemory,
             memoryGB = memoryGB,
             diskSizeGB = effective_diskSizeGB,
             preemptible_tries = preemptible_tries

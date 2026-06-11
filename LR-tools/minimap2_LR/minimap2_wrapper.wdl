@@ -15,6 +15,8 @@ task Minimap2Task {
         Boolean keepUnmapped = true
         Boolean allowSecondary = true
         Int cpu = 8
+        Int sortThreads = 2
+        String sortMemory = "768M"
         Int memoryGB = 32
         Int diskSizeGB
         Int preemptible_tries
@@ -68,16 +70,16 @@ task Minimap2Task {
         if [[ "~{inputExtension}" == "bam" ]]; then
             samtools fastq ~{extract_tags} ~{inputFile} \
                 | minimap2 ~{extra_arg2} ~{extra_arg3} -ax ${minimap2_preset} ~{custom_args} ~{if defined(juncBED) then "--junc-bed " + juncBED else ""} ~{extra_arg} -t ~{cpu} ~{referenceGenome} - \
-                | samtools sort --no-PG --write-index -@ ~{cpu} -O BAM \
+                | samtools sort --no-PG --write-index -@ ~{sortThreads} -m ~{sortMemory} -O BAM \
                     -o ~{sorted_bam_name}##idx##~{sorted_bam_index_name} -
         elif [[ "~{inputExtension}" == "fastq.zst" ]]; then
             zstd -d -c ~{inputFile} \
                 | minimap2 ~{extra_arg2} ~{extra_arg3} -ax ${minimap2_preset} ~{custom_args} ~{if defined(juncBED) then "--junc-bed " + juncBED else ""} ~{extra_arg} -t ~{cpu} ~{referenceGenome} - \
-                | samtools sort --no-PG --write-index -@ ~{cpu} -O BAM \
+                | samtools sort --no-PG --write-index -@ ~{sortThreads} -m ~{sortMemory} -O BAM \
                     -o ~{sorted_bam_name}##idx##~{sorted_bam_index_name} -
         elif [[ "~{inputExtension}" == "fastq.gz" ]] || [[ "~{inputExtension}" == "fastq" ]]; then
             minimap2 ~{extra_arg2} ~{extra_arg3} -ax ${minimap2_preset} ~{custom_args} ~{if defined(juncBED) then "--junc-bed " + juncBED else ""} ~{extra_arg} -t ~{cpu} ~{referenceGenome} ~{inputFile} \
-                | samtools sort --no-PG --write-index -@ ~{cpu} -O BAM \
+                | samtools sort --no-PG --write-index -@ ~{sortThreads} -m ~{sortMemory} -O BAM \
                     -o ~{sorted_bam_name}##idx##~{sorted_bam_index_name} -
         else
             echo "Unsupported inputExtension: ~{inputExtension}"
@@ -122,6 +124,8 @@ workflow Minimap2_wrapper {
         Boolean keepUnmapped = true
         Boolean allowSecondary = false
         Int cpu = 8
+        Int sortThreads = 2
+        String sortMemory = "768M"
         Int memoryGB = 32
         Int ?diskSizeGB
         Int preemptible_tries = 3
@@ -172,6 +176,8 @@ workflow Minimap2_wrapper {
             allowSecondary = allowSecondary,
             diskSizeGB = effective_diskSizeGB,
             cpu = cpu,
+            sortThreads = sortThreads,
+            sortMemory = sortMemory,
             memoryGB = memoryGB,
             preemptible_tries = preemptible_tries
     }

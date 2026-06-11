@@ -19,6 +19,8 @@ workflow Minimap2_LR_fastq_list_from_set {
         Boolean keepUnmapped = true
         Boolean allowSecondary = true
         Int cpu = 48
+        Int sortThreads = 2
+        String sortMemory = "768M"
         Int memoryGB = 48
         Int preemptible_tries = 3
     }
@@ -38,6 +40,8 @@ workflow Minimap2_LR_fastq_list_from_set {
                 keepUnmapped = keepUnmapped,
                 allowSecondary = allowSecondary,
                 cpu = cpu,
+                sortThreads = sortThreads,
+                sortMemory = sortMemory,
                 memoryGB = memoryGB,
                 preemptible_tries = preemptible_tries
         }

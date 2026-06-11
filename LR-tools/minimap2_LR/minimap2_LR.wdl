@@ -89,6 +89,8 @@ workflow Minimap2_LR {
         Boolean allowSecondary = false
         Int? reads_per_shard
         Int cpu = 8
+        Int sortThreads = 2
+        String sortMemory = "768M"
         Int memoryGB = 32
         Int ?diskSizeGB
         Int preemptible_tries = 3
@@ -119,6 +121,8 @@ workflow Minimap2_LR {
                         keepUnmapped = keepUnmapped,
                         allowSecondary = allowSecondary,
                         cpu = cpu,
+                        sortThreads = sortThreads,
+                        sortMemory = sortMemory,
                         memoryGB = memoryGB,
                         preemptible_tries = preemptible_tries
                 }
@@ -147,6 +151,8 @@ workflow Minimap2_LR {
                 keepUnmapped = keepUnmapped,
                 allowSecondary = allowSecondary,
                 cpu = cpu,
+                sortThreads = sortThreads,
+                sortMemory = sortMemory,
                 memoryGB = memoryGB,
                 preemptible_tries = preemptible_tries
         }
