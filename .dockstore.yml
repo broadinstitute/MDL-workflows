@@ -175,6 +175,12 @@ workflows:
     authors:
       - name: bhaas
 
+  - name: RSeQC_GeneBodyCoverage
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/RSeQC/GeneBodyCoverage.wdl
+    authors:
+      - name: bhaas
+
   - name: Picard_MarkDuplicates
     subclass: WDL
     primaryDescriptorPath: /misc_tools/Picard_MarkDuplicates/Picard_MarkDuplicates.wdl

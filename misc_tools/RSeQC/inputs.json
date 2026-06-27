@@ -1,0 +1,13 @@
+{
+  "rseqc_gene_body_coverage.analysis_id": "example_gene_body_coverage",
+  "rseqc_gene_body_coverage.sample_ids": ["sample_1"],
+  "rseqc_gene_body_coverage.bams": ["gs://bucket/path/sample_1.bam"],
+  "rseqc_gene_body_coverage.bais": ["gs://bucket/path/sample_1.bam.bai"],
+  "rseqc_gene_body_coverage.refgene_bed": "gs://bucket/path/refgene.bed",
+  "rseqc_gene_body_coverage.min_mrna_length": 100,
+  "rseqc_gene_body_coverage.output_format": "pdf",
+  "rseqc_gene_body_coverage.cpu": 2,
+  "rseqc_gene_body_coverage.memory_gb": 16,
+  "rseqc_gene_body_coverage.disk_gb": 100,
+  "rseqc_gene_body_coverage.preemptible": 1
+}

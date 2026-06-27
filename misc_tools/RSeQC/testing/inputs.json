@@ -1,0 +1,13 @@
+{
+  "rseqc_gene_body_coverage.analysis_id": "sirv_gene_body_coverage",
+  "rseqc_gene_body_coverage.sample_ids": ["sirv_sim"],
+  "rseqc_gene_body_coverage.bams": ["RSeQC/testing/data/sim.fasta.mm2.bam"],
+  "rseqc_gene_body_coverage.bais": ["RSeQC/testing/data/sim.fasta.mm2.bam.bai"],
+  "rseqc_gene_body_coverage.refgene_bed": "RSeQC/testing/data/SIRVs1-7.annot.reduced.bed12",
+  "rseqc_gene_body_coverage.min_mrna_length": 100,
+  "rseqc_gene_body_coverage.output_format": "pdf",
+  "rseqc_gene_body_coverage.cpu": 2,
+  "rseqc_gene_body_coverage.memory_gb": 8,
+  "rseqc_gene_body_coverage.disk_gb": 10,
+  "rseqc_gene_body_coverage.preemptible": 0
+}
