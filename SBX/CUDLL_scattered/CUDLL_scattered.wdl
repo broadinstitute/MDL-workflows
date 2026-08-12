@@ -394,9 +394,16 @@ task CrossLocus {
         String docker_image
     }
 
-    Int task_cpu = select_first([cpu, 32])
-    Int task_memory_gb = select_first([memory_gb, 32])
-    String machine_type = if defined(cpu) || defined(memory_gb) then "n2d-custom-${task_cpu}-${task_memory_gb * 1024}" else "n2d-highcpu-32"
+    # Defaults sized from 2026-08-12 v10 (Type C) measurements on the
+    # realistic pass-2 input (group_0001.XP132160_merged, 4.4M reads,
+    # includes the mega-CB pathology). Peak RSS scales ~50 MB per thread
+    # and stays well under 3 GB even at t=48 — cross_locus reads CB-by-CB
+    # so memory is bounded by peak per-CB survivor count, not input size.
+    # At t=16 the realistic wall was 19s / RSS 1.25 GB; t=32 shaves only
+    # 2s at 2x CPU cost. n2d-highcpu-16 (16 GB RAM) leaves ~12x headroom.
+    Int task_cpu = select_first([cpu, 16])
+    Int task_memory_gb = select_first([memory_gb, 16])
+    String machine_type = if defined(cpu) || defined(memory_gb) then "n2d-custom-${task_cpu}-${task_memory_gb * 1024}" else "n2d-highcpu-16"
 
     Int disk_gb = ceil(size(consensus_bam, "GB") * 3) + 20
 
