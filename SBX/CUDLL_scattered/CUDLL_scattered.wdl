@@ -2,7 +2,7 @@ version 1.0
 
 workflow CUDLL_scattered {
     input {
-        Array[File] input_bams
+        Array[File]+ input_bams
         Array[File]? input_bais
         File? reference_fasta
         File? reference_fai
