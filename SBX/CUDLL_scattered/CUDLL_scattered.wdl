@@ -11,6 +11,7 @@ workflow CUDLL_scattered {
         String barcode_tag = "CB"
         String umi_tag = "UB"
         Float identity = 0.95
+        String priming
         String? tags
         Boolean no_consensus = false
         Boolean emit_supplementary_alignments = true
@@ -52,6 +53,7 @@ workflow CUDLL_scattered {
                 output_prefix = shard_prefix + ".non_mito",
                 barcode_tag = barcode_tag,
                 umi_tag = umi_tag,
+                priming = priming,
                 tags = tags,
                 no_consensus = no_consensus,
                 emit_supplementary_alignments = emit_supplementary_alignments,
@@ -72,6 +74,7 @@ workflow CUDLL_scattered {
                 output_prefix = shard_prefix + ".mito",
                 barcode_tag = barcode_tag,
                 umi_tag = umi_tag,
+                priming = priming,
                 tags = tags,
                 no_consensus = no_consensus,
                 emit_supplementary_alignments = emit_supplementary_alignments,
@@ -185,6 +188,7 @@ task LocalOverlap {
         String output_prefix
         String barcode_tag
         String umi_tag
+        String priming
         String? tags
         Boolean no_consensus
         Boolean emit_supplementary_alignments
@@ -262,6 +266,7 @@ task LocalOverlap {
             -c "${chrom_list}" \
             --barcode ~{barcode_tag} \
             --umi ~{umi_tag} \
+            --priming ~{priming} \
             --umi-hamming-only | \
             samtools sort --no-PG -@ ~{task_cpu} -t ~{barcode_tag} \
             -o "~{output_prefix}.consensus.bam" -
