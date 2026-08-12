@@ -198,8 +198,14 @@ task LocalOverlap {
         String docker_image
     }
 
-    Int task_cpu = select_first([cpu, 48])
-    Int task_memory_gb = select_first([memory_gb, 48])
+    # Defaults sized from 2026-08 chr22 sweeps: cudll_local_overlap plateaus
+    # at ~10 physical cores on this workload, so n2d-standard-16 (8 physical
+    # cores, 64 GB RAM) is only ~5% slower than n2d-highcpu-48 while being
+    # ~1.8x cheaper per unit of work. RAM ceiling (64 GB) is well above the
+    # ~30 GB peak RSS observed and comfortable for chr6-class density given
+    # upstream sharding to ~300M reads/shard.
+    Int task_cpu = select_first([cpu, 16])
+    Int task_memory_gb = select_first([memory_gb, 64])
     Boolean use_predefined_machine_type = task_cpu == 2 || task_cpu == 4 || task_cpu == 8 || task_cpu == 16 || task_cpu == 32 || task_cpu == 48 || task_cpu == 64 || task_cpu == 80 || task_cpu == 96
     String machine_type = if (use_predefined_machine_type && task_memory_gb == task_cpu * 4)
         then "n2d-standard-${task_cpu}"
