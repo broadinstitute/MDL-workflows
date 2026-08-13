@@ -255,6 +255,13 @@ task LocalOverlap {
             }
         ')
 
+        # samtools sort -@ 4 (not task_cpu). Same rationale as CrossLocus:
+        # the pipe is bottlenecked by cudll_local_overlap (outputs even more
+        # slowly than cross_locus), so sort mostly idle-waits regardless of
+        # thread count. -@ 16 would reserve ~12 GB (768 MB/thread) just for
+        # sort buffers; -@ 4 caps it at ~3 GB. LocalOverlap's 64 GB budget
+        # isn't at OOM risk today, but the headroom matters for pathological
+        # inputs where cudll_local_overlap's RSS can climb.
         cudll_local_overlap \
             -i "~{basename(input_bam)}" \
             -o - \
@@ -268,7 +275,7 @@ task LocalOverlap {
             --umi ~{umi_tag} \
             --priming ~{priming} \
             --umi-hamming-only | \
-            samtools sort --no-PG -@ ~{task_cpu} -t ~{barcode_tag} \
+            samtools sort --no-PG -@ 4 -t ~{barcode_tag} \
             -o "~{output_prefix}.consensus.bam" -
 
         if [ "~{emit_supplementary_alignments}" = "true" ] && [ "~{mitochondrial_only}" = "true" ]; then
