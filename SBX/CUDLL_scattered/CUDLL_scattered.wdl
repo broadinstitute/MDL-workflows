@@ -410,6 +410,13 @@ task CrossLocus {
     command <<<
         set -euo pipefail
 
+        # samtools sort -@ 4 (not task_cpu). The pipe is bottlenecked by
+        # cudll_cross_locus (~250k rec/s at t=16), so sort mostly idle-waits.
+        # samtools sort reserves -m per thread (default 768 MB); at -@ 16 that
+        # would peak ~12 GB just for sort buffers, and combined with
+        # cudll_cross_locus's ~3.6 GB peak the pipeline runs the 16 GB VM out
+        # of RAM (measured 2026-08-13: 13 GB peak @-@16 vs 3.6 GB peak @-@4,
+        # +34s wall on a 21.2M-record shard — worth it).
         cudll_cross_locus \
             -i "~{consensus_bam}" \
             -o - \
@@ -419,7 +426,7 @@ task CrossLocus {
             --identity ~{identity} \
             --umi-hamming-only \
             --rank-by-aligned-bases | \
-            samtools sort --no-PG --write-index -@ ~{task_cpu} \
+            samtools sort --no-PG --write-index -@ 4 \
             -o "~{output_prefix}.consensus.homology_dedup.sorted.bam##idx##~{output_prefix}.consensus.homology_dedup.sorted.bam.bai" \
             -
     >>>
