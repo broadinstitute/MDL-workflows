@@ -202,22 +202,26 @@ task LocalOverlap {
         String docker_image
     }
 
-    # Defaults sized from 2026-08 chr22 sweeps: cudll_local_overlap plateaus
-    # at ~10 physical cores on this workload, so n2d-standard-16 (8 physical
-    # cores, 64 GB RAM) is only ~5% slower than n2d-highcpu-48 while being
-    # ~1.8x cheaper per unit of work. RAM ceiling (64 GB) is well above the
-    # ~30 GB peak RSS observed and comfortable for chr6-class density given
-    # upstream sharding to ~300M reads/shard.
-    Int task_cpu = select_first([cpu, 16])
-    Int task_memory_gb = select_first([memory_gb, 64])
-    Boolean use_predefined_machine_type = task_cpu == 2 || task_cpu == 4 || task_cpu == 8 || task_cpu == 16 || task_cpu == 32 || task_cpu == 48 || task_cpu == 64 || task_cpu == 80 || task_cpu == 96
+    # Defaults sized from 2026-08-15 full-shard sweep (34.6 GB, 319M reads,
+    # 3 reps per config, N2D vs C3D at cpu=4/8/16). Full results in the
+    # commit that changed this comment. Top-line: c3d-standard-8 is the
+    # cheapest per shard on SPOT ($0.0080 vs $0.0143 for the previous
+    # n2d-standard-16 default -- 44% cheaper) with only ~40% more wall
+    # (12.4 min vs 8.9 min for c3d-16). CPU efficiency peaks at low core
+    # counts (~79% at 8 cpu, ~60% at 16 cpu) because pass1's reader loop
+    # doesn't fully saturate 16 physical cores. Peak RSS ~11-12 GB across
+    # all configs, comfortably inside c3d-standard-8's 32 GB.
+    Int task_cpu = select_first([cpu, 8])
+    Int task_memory_gb = select_first([memory_gb, 32])
+    # C3D valid predefined vCPU counts: 4, 8, 16, 30, 60, 90, 180, 360.
+    Boolean use_predefined_machine_type = task_cpu == 4 || task_cpu == 8 || task_cpu == 16 || task_cpu == 30 || task_cpu == 60 || task_cpu == 90 || task_cpu == 180 || task_cpu == 360
     String machine_type = if (use_predefined_machine_type && task_memory_gb == task_cpu * 4)
-        then "n2d-standard-${task_cpu}"
+        then "c3d-standard-${task_cpu}"
         else if (use_predefined_machine_type && task_memory_gb == task_cpu * 8)
-        then "n2d-highmem-${task_cpu}"
-        else if (use_predefined_machine_type && task_memory_gb == task_cpu)
-        then "n2d-highcpu-${task_cpu}"
-        else "n2d-custom-${task_cpu}-${task_memory_gb * 1024}"
+        then "c3d-highmem-${task_cpu}"
+        else if (use_predefined_machine_type && task_memory_gb == task_cpu * 2)
+        then "c3d-highcpu-${task_cpu}"
+        else "c3d-custom-${task_cpu}-${task_memory_gb * 1024}"
 
     String tags_arg = if defined(tags) then "--tags " + tags else ""
     String supplementary_alignments_bam_path = output_prefix + ".supplementary_alignments.bam"
