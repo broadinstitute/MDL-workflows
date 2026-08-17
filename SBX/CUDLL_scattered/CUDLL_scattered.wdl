@@ -235,6 +235,24 @@ task LocalOverlap {
         mv "~{input_bam}" "~{basename(input_bam)}"
         mv "~{input_bai}" "~{basename(input_bam)}.bai"
 
+        # Bump read-ahead on the block device that backs the input BAM.
+        # From the 2026-08-17 tuning sweep on c3d-standard-16, going from
+        # the Linux default (128 KB) to 4 MB shaved ~1.8% off wall clock
+        # with a small CPU-efficiency gain. 16 MB was not better than 4 MB.
+        # Failures are non-fatal: any container that can't write to
+        # /sys/block/*/queue (read-only /sys, sysfs unavailable, no PKNAME
+        # in lsblk) just runs at the default 128 KB.
+        set +e
+        _input_dev=$(df --output=source "$(dirname "$(readlink -f "~{basename(input_bam)}")")" 2>/dev/null | tail -n1)
+        _base_dev=$(lsblk -no PKNAME "$_input_dev" 2>/dev/null | head -n1)
+        if [ -n "$_base_dev" ] && [ -w "/sys/block/$_base_dev/queue/read_ahead_kb" ]; then
+            echo 4096 > "/sys/block/$_base_dev/queue/read_ahead_kb"
+            echo "[info] set read_ahead_kb=4096 on $_base_dev"
+        else
+            echo "[info] read_ahead tune skipped (base_dev='$_base_dev', input_dev='$_input_dev')"
+        fi
+        set -e
+
         chrom_list=$(samtools view -H "~{basename(input_bam)}" | awk -v mito="~{mitochondrial_contig_name}" -v mito_only="~{if mitochondrial_only then "1" else "0"}" '
             $1 == "@SQ" {
                 contig = ""
