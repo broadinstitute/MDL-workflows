@@ -59,18 +59,22 @@ task Merge_And_Split_Batch_Bams {
         String      barcode_tag = "CB"
     }
 
+    # Sized from 2026-08-22 sweep. c3d-highcpu-4 × batch=25 × --compression-level 1
+    # gave $0.309/pipeline vs $0.498 for the previous n2d-highcpu-2 × batch=10 ×
+    # default level=6 (38% cheaper compute). Efficiency: 87% at 4 threads on c3d.
+    # At level=1 BGZF is 2-3x faster than the previous default level=6; outputs
+    # are ~10-15% larger but go straight into Step 3's re-merge (also level=1).
     Int diskGB = ceil(size(bams, "GB") * 2 + 20)
 
     command <<<
         set -euo pipefail
 
-        # Merge coordinate-sorted inputs on the fly while splitting by barcode group,
-        # avoiding an intermediate merged BAM on local disk.
         /usr/local/bin/split_bams_by_cb_group \
             --bams ~{sep=' ' bams} \
             --group-table ~{group_table} \
             --barcode-tag ~{barcode_tag} \
-            --threads 2 \
+            --threads 4 \
+            --compression-level 1 \
             --output-prefix batch~{batch_index}_group_
     >>>
 
@@ -82,9 +86,9 @@ task Merge_And_Split_Batch_Bams {
 
     runtime {
         docker:      "us-central1-docker.pkg.dev/methods-dev-lab/mdl-cudll/pysam-samtools:latest"
-        cpu:         2
-        memory:      "2 GB"
-        predefinedMachineType: "n2d-highcpu-2"
+        cpu:         4
+        memory:      "8 GB"
+        predefinedMachineType: "c3d-highcpu-4"
         disks:       "local-disk ~{diskGB} SSD"
         preemptible: 3
     }
@@ -104,7 +108,11 @@ task Merge_Group_Bams {
         set -euo pipefail
 
         # k-way merge of coordinate-sorted inputs; output remains sorted.
+        # level=1 output because these BAMs feed straight into CUDLL (which
+        # decodes+re-encodes them anyway). Level 1 is ~3x faster than the
+        # samtools default (level 6) with ~10-15% larger output.
         samtools merge --no-PG --write-index -p -@ 2 \
+            --output-fmt-option level=1 \
             -o ~{output_name}##idx##~{output_index_name} \
             ~{sep=' ' bams}
     >>>
@@ -164,39 +172,26 @@ workflow Shard_Bams_By_Barcode_Group {
     }
 
     # ------------------------------------------------------------------
-    # Step 2: Batch BAMs in groups of 10, then merge each batch in memory
+    # Step 2: Batch BAMs in groups of 25, then merge each batch in memory
     # while splitting directly by barcode group.
     #
-    # Uses the select_all / None pattern to handle the last partial batch.
+    # batch_size=25 from the 2026-08-22 sweep: at c3d-highcpu-4 (8 GB RAM),
+    # b=25 amortizes the ~12s barcode-map load and yields ~4-5% better $/GB
+    # than b=10 while staying well under the RAM budget. Do NOT raise b above
+    # 25 without moving to a larger-RAM machine — b=25 needs > 2 GB RAM.
     # ------------------------------------------------------------------
-    Int batch_size   = 10
+    Int batch_size   = 25
     Int total_bams   = length(input_bams)
     Int n_batches    = (total_bams + batch_size - 1) / batch_size
 
     scatter (b_idx in range(n_batches)) {
-        Int b0 = b_idx * batch_size + 0
-        Int b1 = b_idx * batch_size + 1
-        Int b2 = b_idx * batch_size + 2
-        Int b3 = b_idx * batch_size + 3
-        Int b4 = b_idx * batch_size + 4
-        Int b5 = b_idx * batch_size + 5
-        Int b6 = b_idx * batch_size + 6
-        Int b7 = b_idx * batch_size + 7
-        Int b8 = b_idx * batch_size + 8
-        Int b9 = b_idx * batch_size + 9
-
-        Array[File] batch_bams = select_all([
-            if (b0 < total_bams) then input_bams[b0] else None,
-            if (b1 < total_bams) then input_bams[b1] else None,
-            if (b2 < total_bams) then input_bams[b2] else None,
-            if (b3 < total_bams) then input_bams[b3] else None,
-            if (b4 < total_bams) then input_bams[b4] else None,
-            if (b5 < total_bams) then input_bams[b5] else None,
-            if (b6 < total_bams) then input_bams[b6] else None,
-            if (b7 < total_bams) then input_bams[b7] else None,
-            if (b8 < total_bams) then input_bams[b8] else None,
-            if (b9 < total_bams) then input_bams[b9] else None
-        ])
+        # Inner scatter builds a File? per slot; outer collects into Array[File?]
+        # which select_all trims. Cheaper than unrolling 25 conditional slots.
+        scatter (j in range(batch_size)) {
+            Int slot_idx = b_idx * batch_size + j
+            File? maybe_bam = if (slot_idx < total_bams) then input_bams[slot_idx] else None
+        }
+        Array[File] batch_bams = select_all(maybe_bam)
 
         call Merge_And_Split_Batch_Bams {
             input:
