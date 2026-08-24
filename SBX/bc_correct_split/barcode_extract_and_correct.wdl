@@ -29,7 +29,6 @@ task BC_Correct_Pass1 {
 
     Boolean poly_enabled = (poly_logic != "") || (poly_start != "") || (poly_window != "") || (poly_t_min != "") || (poly_a_min != "") || (poly_err != "")
     String resolved_poly_logic = if (poly_enabled) then (if (poly_logic != "") then poly_logic else "cutadapt") else ""
-    String trim_poly_logic_arg = if (poly_enabled) then ("-l " + resolved_poly_logic) else ""
     String poly_start_arg = if (poly_start != "") then ("--poly-start " + poly_start) else ""
     String poly_window_arg = if (poly_window != "") then ("--poly-window " + poly_window) else ""
     String poly_t_min_arg = if (poly_t_min != "") then ("--polyT-min " + poly_t_min) else ""
@@ -40,10 +39,9 @@ task BC_Correct_Pass1 {
     String revcomp_arg = if (revcomp_trimmed) then "--revcomp-trimmed" else ""
 
     String trimmed_prefix = sample_name
-    String counts_path = trimmed_prefix + ".whitelist.counts.txt.gz"
-    String matched_fastq = trimmed_prefix + ".matched.fastq.gz"
-    String unmatched_fastq = trimmed_prefix + ".unmatched.fastq.gz"
-    String counts_table_name = counts_path
+    String counts_table_name = trimmed_prefix + ".whitelist.counts.txt.gz"
+    String matched_fastq_path = trimmed_prefix + ".matched.fastq.gz"
+    String unmatched_fastq_path = trimmed_prefix + ".unmatched.fastq.gz"
 
     Int diskGB = select_first([disk_size_gb, ceil(size(input_fastq, "GB") * 3 + 20)])
 
@@ -63,7 +61,6 @@ task BC_Correct_Pass1 {
           -a ~{end_adapter} \
           -g ~{start_adapter} \
           -e ~{endedness} \
-          ~{trim_poly_logic_arg} \
         | bc_correct_split \
           --fastq4 \
           --whitelist ~{whitelist} \
@@ -89,9 +86,11 @@ task BC_Correct_Pass1 {
     >>>
 
     output {
-        File matched_fastq = "~{matched_fastq}"
-        File unmatched_fastq = "~{unmatched_fastq}"
+        File matched_fastq = "~{matched_fastq_path}"
+        File unmatched_fastq = "~{unmatched_fastq_path}"
         File counts_table = "~{counts_table_name}"
+        File trim_stats = "~{trimmed_prefix}_trim_stats.txt"
+        File read_stats = "~{trimmed_prefix}.pass1.readstats.txt"
     }
 
     runtime {
@@ -136,6 +135,36 @@ task Merge_Whitelist_Counts {
         memory: "4 GB"
         predefinedMachineType: "n2d-custom-2-4096"
         disks: "local-disk ~{diskGB} SSD"
+        preemptible: 3
+    }
+}
+
+
+task Assert_Input_Size {
+    # The whitelist-counts merge downstream is a fixed 5-round, 10-way tree, so it only fully
+    # collapses to one file for up to `capacity` (= merge_chunk_size^5) total pass1 shards, i.e.
+    # length(raw_fastqs). This fails the workflow upfront if that would be exceeded, instead of
+    # silently taking round5_merge.merged_counts[0] later and dropping the rest.
+    input {
+        Int total_shards
+        Int capacity
+        String docker
+    }
+
+    command <<<
+        set -euo pipefail
+        if [ "~{total_shards}" -gt "~{capacity}" ]; then
+          echo "ERROR: length(raw_fastqs) = ~{total_shards} exceeds ~{capacity}, the maximum this workflow's fixed 5-round, 10-way whitelist-counts merge tree can fully collapse to a single output file." >&2
+          echo "Increase merge_chunk_size, add another merge round, or split raw_fastqs into multiple workflow runs." >&2
+          exit 1
+        fi
+    >>>
+
+    runtime {
+        docker: docker
+        cpu: 1
+        memory: "1 GB"
+        predefinedMachineType: "n1-custom-1-1024"
         preemptible: 3
     }
 }
@@ -290,10 +319,10 @@ task BC_Correct_Pass2 {
     String poly_logic_arg = if (poly_enabled) then ("--poly-logic " + resolved_poly_logic) else ""
     String qual_tags_arg = if (qual_tags) then "--qual-tags" else ""
     String revcomp_arg = if (revcomp_trimmed) then "--revcomp-trimmed" else ""
-    String discard_arg = if (generate_discarded) then "--discarded" else ""
+    String discard_arg = if (generate_discarded) then "--discarded" else "--no-discarded"
 
     String output_prefix = sample_name
-    String corrected_fastq = output_prefix + ".corrected.fastq.gz"
+    String corrected_fastq_path = output_prefix + ".corrected.fastq.gz"
 
     Int diskGB = select_first([disk_size_gb, ceil(size(unmatched_fastq, "GB") * 3 + 20)])
 
@@ -331,8 +360,9 @@ task BC_Correct_Pass2 {
     >>>
 
     output {
-        File corrected_fastq = "~{corrected_fastq}"
+        File corrected_fastq = "~{corrected_fastq_path}"
         Array[File] discarded_fastqs = glob("~{output_prefix}*.discarded*.fastq.gz")
+        File read_stats = "~{output_prefix}.pass2.readstats.txt"
     }
 
     runtime {
@@ -369,7 +399,28 @@ workflow BC_Barcode_Extract_And_Correct_Array {
 
     }
 
+    # The whitelist-counts merge below is a fixed 5-round, 10-way tree, so it only fully
+    # collapses to one file for up to merge_tree_capacity total pass1 shards (= length(raw_fastqs)).
+    # length() is pure WDL and gives us that count immediately, before any task runs. Actually
+    # failing the workflow on it still needs a task (WDL has no native assert) -- but gated inside
+    # this `if`, that task is only ever scheduled (and only ever costs anything) when the input
+    # is actually oversized; a normal run pays nothing for it. Nothing downstream depends on its
+    # output, so Pass1 isn't blocked waiting on it either -- Cromwell's default failure mode
+    # (NoNewCalls) just stops any *new* calls (including the whole merge tree) once it fails.
+    Int merge_chunk_size = 10
+    Int merge_tree_capacity = merge_chunk_size * merge_chunk_size * merge_chunk_size * merge_chunk_size * merge_chunk_size
+
+    if (length(raw_fastqs) > merge_tree_capacity) {
+        call Assert_Input_Size as fail_on_oversized_input {
+            input:
+                total_shards = length(raw_fastqs),
+                capacity = merge_tree_capacity,
+                docker = docker
+        }
+    }
+
     Array[Int] lane_indexes = range(length(raw_fastqs))
+
     call Resolve_BC_Params_From_Config as resolved_config {
         input:
             library_config = library_config,
@@ -413,7 +464,6 @@ workflow BC_Barcode_Extract_And_Correct_Array {
         }
     }
 
-    Int merge_chunk_size = 10
     Int round1_total_chunks = length(pass1.counts_table)
     Int round1_num_chunks = (round1_total_chunks + merge_chunk_size - 1) / merge_chunk_size
     Array[Int] round1_indexes = range(round1_num_chunks)
@@ -612,6 +662,8 @@ workflow BC_Barcode_Extract_And_Correct_Array {
         }
     }
 
+    # round5_num_chunks == 1 is guaranteed here by assert_input_size (see above), which already
+    # validated length(raw_fastqs) <= merge_tree_capacity before Pass1 was even allowed to start.
     File merged_counts_output = r5_merge.merged_counts[0]
 
     scatter (i in lane_indexes) {
