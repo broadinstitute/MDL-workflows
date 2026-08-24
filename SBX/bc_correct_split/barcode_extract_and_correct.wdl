@@ -172,32 +172,21 @@ task Assert_Input_Size {
 
 task Resolve_BC_Params_From_Config {
     input {
-        String? library_config
-        File? library_config_file
+        String library_config
         String docker
     }
 
     command <<<
         set -euo pipefail
 
-        has_preset="~{if (defined(library_config)) then "1" else "0"}"
-        has_file="~{if (defined(library_config_file)) then "1" else "0"}"
-        if [ "$has_preset" = "1" ] && [ "$has_file" = "1" ]; then
-          echo "Error: provide exactly one of library_config (preset) or library_config_file." >&2
-          exit 1
-        fi
-        if [ "$has_preset" = "0" ] && [ "$has_file" = "0" ]; then
-          echo "Error: library_config (preset) or library_config_file is required." >&2
-          exit 1
-        fi
-
-        if [ "$has_file" = "1" ]; then
-          config_path="~{library_config_file}"
+        value="~{library_config}"
+        if [[ "$value" == gs://* ]]; then
+          gsutil cp "$value" ./custom_library_config.yaml
+          config_path="./custom_library_config.yaml"
+        elif [[ "$value" == *.yaml ]] || [[ "$value" == *.yml ]]; then
+          config_path="$value"
         else
-          preset_name="~{library_config}"
-          preset_base="${preset_name##*/}"
-          preset_base="${preset_base%.yaml}"
-          preset_base="${preset_base%.yml}"
+          preset_base="${value##*/}"
           case "$preset_base" in
             "10x_3p_v3"|"10x_3p_v3.1")
               preset_base="10x_3p_v3-3.1"
@@ -386,8 +375,7 @@ workflow BC_Barcode_Extract_And_Correct_Array {
         Array[String] sample_names
         File? whitelist
         Float min_post = 0.975
-        String? library_config
-        File? library_config_file
+        String library_config
 
         Boolean qual_tags = false
         Boolean generate_discarded = false
@@ -424,7 +412,6 @@ workflow BC_Barcode_Extract_And_Correct_Array {
     call Resolve_BC_Params_From_Config as resolved_config {
         input:
             library_config = library_config,
-            library_config_file = library_config_file,
             docker = docker
     }
 
