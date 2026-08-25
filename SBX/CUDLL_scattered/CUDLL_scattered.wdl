@@ -321,9 +321,13 @@ task LocalOverlap {
         File? consensus_sorted_bai = "~{output_prefix}.consensus.sorted.bam.bai"
     }
 
+    # cpu/memory intentionally omitted: GCP Batch has a known bug where specifying both
+    # predefinedMachineType and an explicit compute_resource (cpu_milli/memory_mib) can spuriously
+    # reject an otherwise-valid combination, even when the values exactly match the machine
+    # type's real spec. Let predefinedMachineType alone determine the shape (task_cpu/
+    # task_memory_gb are still used above to build the machine_type string and are passed
+    # directly to samtools, so removing them here doesn't lose the sizing).
     runtime {
-        cpu: task_cpu
-        memory: "~{task_memory_gb} GB"
         docker: docker_image
         disks: "local-disk ~{disk_gb} SSD"
         predefinedMachineType: "~{machine_type}"
@@ -465,9 +469,13 @@ task CrossLocus {
         File final_bai = "~{output_prefix}.consensus.homology_dedup.sorted.bam.bai"
     }
 
+    # cpu/memory intentionally omitted: GCP Batch has a known bug where specifying both
+    # predefinedMachineType and an explicit compute_resource (cpu_milli/memory_mib) can spuriously
+    # reject an otherwise-valid combination, even when the values exactly match the machine
+    # type's real spec. Let predefinedMachineType alone determine the shape (task_cpu/
+    # task_memory_gb are still used above to build the machine_type string, so removing them
+    # here doesn't lose the sizing).
     runtime {
-        cpu: task_cpu
-        memory: "~{task_memory_gb} GB"
         docker: docker_image
         disks: "local-disk ~{disk_gb} SSD"
         predefinedMachineType: "~{machine_type}"
