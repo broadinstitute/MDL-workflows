@@ -93,10 +93,13 @@ task BC_Correct_Pass1 {
         File read_stats = "~{trimmed_prefix}.pass1.readstats.txt"
     }
 
+    # cpu/memory intentionally omitted: GCP Batch has a known bug where specifying both
+    # predefinedMachineType and an explicit compute_resource (cpu_milli/memory_mib) can spuriously
+    # reject an otherwise-valid combination ("machine_type ... cannot satisfy compute_resource
+    # ..."), even when the values exactly match the machine type's real spec. Workaround: let
+    # predefinedMachineType alone determine the shape (c3d-highcpu-4 = 4 vCPU / 8 GB).
     runtime {
         docker: docker
-        cpu: 4
-        memory: "8 GB"
         predefinedMachineType: "c3d-highcpu-4"
         disks: "local-disk ~{diskGB} SSD"
         preemptible: 3
@@ -367,10 +370,13 @@ task BC_Correct_Pass2 {
         File read_stats = "~{output_prefix}.pass2.readstats.txt"
     }
 
+    # cpu/memory intentionally omitted: GCP Batch has a known bug where specifying both
+    # predefinedMachineType and an explicit compute_resource (cpu_milli/memory_mib) can spuriously
+    # reject an otherwise-valid combination ("machine_type ... cannot satisfy compute_resource
+    # ..."), even when the values exactly match the machine type's real spec. Workaround: let
+    # predefinedMachineType alone determine the shape (c3d-highcpu-4 = 4 vCPU / 8 GB).
     runtime {
         docker: docker
-        cpu: 4
-        memory: "8 GB"
         predefinedMachineType: "c3d-highcpu-4"
         disks: "local-disk ~{diskGB} SSD"
         preemptible: 3
