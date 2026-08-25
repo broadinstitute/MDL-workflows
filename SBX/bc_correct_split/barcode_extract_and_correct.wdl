@@ -57,7 +57,7 @@ task BC_Correct_Pass1 {
           --stdout-found \
           -i ~{input_fastq} \
           -o ~{trimmed_prefix} \
-          -t 1 \
+          -t 2 \
           -a ~{end_adapter} \
           -g ~{start_adapter} \
           -e ~{endedness} \
@@ -65,7 +65,7 @@ task BC_Correct_Pass1 {
           --fastq4 \
           --whitelist ~{whitelist} \
           --outdir . \
-          --threads 1 \
+          --threads 2 \
           --bc ~{bc_range} \
           --umi ~{umi_range} \
           --trim ~{trim_len} \
@@ -95,9 +95,9 @@ task BC_Correct_Pass1 {
 
     runtime {
         docker: docker
-        cpu: 2
-        memory: "4 GB"
-        predefinedMachineType: "n2d-custom-2-4096"
+        cpu: 4
+        memory: "8 GB"
+        predefinedMachineType: "c3d-highcpu-4"
         disks: "local-disk ~{diskGB} SSD"
         preemptible: 3
     }
@@ -327,7 +327,7 @@ task BC_Correct_Pass2 {
           --fastq4 \
           --whitelist ~{whitelist} \
           --outdir . \
-          --threads 1 \
+          --threads 2 \
           --bc ~{bc_range} \
           --umi ~{umi_range} \
           --trim ~{trim_len} \
@@ -356,9 +356,9 @@ task BC_Correct_Pass2 {
 
     runtime {
         docker: docker
-        cpu: 2
-        memory: "4 GB"
-        predefinedMachineType: "n2d-custom-2-4096"
+        cpu: 4
+        memory: "8 GB"
+        predefinedMachineType: "c3d-highcpu-4"
         disks: "local-disk ~{diskGB} SSD"
         preemptible: 3
     }
