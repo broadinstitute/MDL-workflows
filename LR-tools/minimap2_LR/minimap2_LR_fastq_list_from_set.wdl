@@ -18,10 +18,10 @@ workflow Minimap2_LR_fastq_list_from_set {
         Boolean keepComments = true
         Boolean keepUnmapped = true
         Boolean allowSecondary = true
-        Int cpu = 48
+        Int cpu = 30
         Int sortThreads = 2
         String sortMemory = "768M"
-        Int memoryGB = 48
+        Int memoryGB = 30
         Int preemptible_tries = 3
     }
 
