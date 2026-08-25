@@ -143,8 +143,16 @@ task Merge_Whitelist_Counts {
 task Assert_Input_Size {
     # The whitelist-counts merge downstream is a fixed 5-round, 10-way tree, so it only fully
     # collapses to one file for up to `capacity` (= merge_chunk_size^5) total pass1 shards, i.e.
-    # length(raw_fastqs). This fails the workflow upfront if that would be exceeded, instead of
+    # length(raw_fastqs). This fails the workflow upfront if that bound is exceeded, instead of
     # silently taking round5_merge.merged_counts[0] later and dropping the rest.
+    #
+    # Also catches the empty case (total_shards == 0): an empty raw_fastqs -- e.g. from
+    # submitting against a Terra set with per-member expansion instead of against the set
+    # itself, so a set-aggregation input expression like `this.foo_set.raw_fastq` resolves
+    # against an individual member (no such attribute) and silently defaults to [] -- scatters
+    # over zero shards and fails downstream with the exact same opaque
+    # "r5_merge.merged_counts[0]: Array size 0" error as the oversized case, so it gets the same
+    # upfront, actionable check here.
     input {
         Int total_shards
         Int capacity
@@ -153,6 +161,11 @@ task Assert_Input_Size {
 
     command <<<
         set -euo pipefail
+        if [ "~{total_shards}" -lt 1 ]; then
+          echo "ERROR: length(raw_fastqs) = 0. raw_fastqs/sample_names resolved to empty arrays." >&2
+          echo "If this was submitted against a Terra set entity, check whether it ran as a single call against the set (this.<set>) rather than expanded per-member -- an aggregation expression like this.<set>.raw_fastq only resolves on the set itself, not on an individual member." >&2
+          exit 1
+        fi
         if [ "~{total_shards}" -gt "~{capacity}" ]; then
           echo "ERROR: length(raw_fastqs) = ~{total_shards} exceeds ~{capacity}, the maximum this workflow's fixed 5-round, 10-way whitelist-counts merge tree can fully collapse to a single output file." >&2
           echo "Increase merge_chunk_size, add another merge round, or split raw_fastqs into multiple workflow runs." >&2
@@ -388,18 +401,19 @@ workflow BC_Barcode_Extract_And_Correct_Array {
     }
 
     # The whitelist-counts merge below is a fixed 5-round, 10-way tree, so it only fully
-    # collapses to one file for up to merge_tree_capacity total pass1 shards (= length(raw_fastqs)).
-    # length() is pure WDL and gives us that count immediately, before any task runs. Actually
-    # failing the workflow on it still needs a task (WDL has no native assert) -- but gated inside
-    # this `if`, that task is only ever scheduled (and only ever costs anything) when the input
-    # is actually oversized; a normal run pays nothing for it. Nothing downstream depends on its
-    # output, so Pass1 isn't blocked waiting on it either -- Cromwell's default failure mode
-    # (NoNewCalls) just stops any *new* calls (including the whole merge tree) once it fails.
+    # collapses to one file for up to merge_tree_capacity total pass1 shards (= length(raw_fastqs)),
+    # and needs at least 1. length() is pure WDL and gives us that count immediately, before any
+    # task runs. Actually failing the workflow on it still needs a task (WDL has no native assert)
+    # -- but gated inside this `if`, that task is only ever scheduled (and only ever costs
+    # anything) when the input is actually out of bounds (empty or oversized); a normal run pays
+    # nothing for it. Nothing downstream depends on its output, so Pass1 isn't blocked waiting on
+    # it either -- Cromwell's default failure mode (NoNewCalls) just stops any *new* calls
+    # (including the whole merge tree) once it fails.
     Int merge_chunk_size = 10
     Int merge_tree_capacity = merge_chunk_size * merge_chunk_size * merge_chunk_size * merge_chunk_size * merge_chunk_size
 
-    if (length(raw_fastqs) > merge_tree_capacity) {
-        call Assert_Input_Size as fail_on_oversized_input {
+    if (length(raw_fastqs) > merge_tree_capacity || length(raw_fastqs) < 1) {
+        call Assert_Input_Size as fail_on_bad_input_size {
             input:
                 total_shards = length(raw_fastqs),
                 capacity = merge_tree_capacity,
