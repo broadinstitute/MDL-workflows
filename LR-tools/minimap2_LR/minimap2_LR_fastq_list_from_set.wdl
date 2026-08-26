@@ -21,7 +21,7 @@ workflow Minimap2_LR_fastq_list_from_set {
         Int cpu = 30
         Int sortThreads = 2
         String sortMemory = "768M"
-        Int memoryGB = 30
+        Int memoryGB = 59
         Int preemptible_tries = 3
     }
 
