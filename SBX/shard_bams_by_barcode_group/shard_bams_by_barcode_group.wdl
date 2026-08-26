@@ -111,7 +111,7 @@ task Merge_Group_Bams {
         # level=1 output because these BAMs feed straight into CUDLL (which
         # decodes+re-encodes them anyway). Level 1 is ~3x faster than the
         # samtools default (level 6) with ~10-15% larger output.
-        samtools merge --no-PG --write-index -p -@ 2 \
+        samtools merge --no-PG --write-index -p -@ 4 \
             --output-fmt-option level=1 \
             -o ~{output_name}##idx##~{output_index_name} \
             ~{sep=' ' bams}
@@ -124,9 +124,7 @@ task Merge_Group_Bams {
 
     runtime {
         docker:      "us-central1-docker.pkg.dev/methods-dev-lab/samtools/samtools:latest"
-        cpu:         2
-        memory:      "2 GB"
-        predefinedMachineType: "n2d-highcpu-2"
+        predefinedMachineType: "c3d-highcpu-4"
         disks:       "local-disk ~{diskGB} SSD"
         preemptible: 2
     }
