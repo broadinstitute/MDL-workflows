@@ -15,7 +15,7 @@ task Minimap2MultiFastqTask {
         Int cpu = 30
         Int sortThreads = 2
         String sortMemory = "768M"
-        Int memoryGB = 30
+        Int memoryGB = 59
         Int? diskSizeGB
         Int preemptible_tries = 3
     }
@@ -147,7 +147,7 @@ workflow Minimap2_LR_fastq_list {
         Int cpu = 30
         Int sortThreads = 2
         String sortMemory = "768M"
-        Int memoryGB = 30
+        Int memoryGB = 59
         Int ?diskSizeGB
         Int preemptible_tries = 3
     }
