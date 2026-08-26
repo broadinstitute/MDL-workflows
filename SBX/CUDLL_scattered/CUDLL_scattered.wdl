@@ -553,10 +553,8 @@ task MergeFinalBams {
 
     runtime {
         docker: "us-central1-docker.pkg.dev/methods-dev-lab/samtools/samtools:latest"
-        cpu: 4
-        memory: "4 GB"
         disks: "local-disk ~{diskGB} SSD"
         preemptible: 2
-        predefinedMachineType: "n2d-highcpu-4"
+        predefinedMachineType: "c3d-highcpu-4"
     }
 }

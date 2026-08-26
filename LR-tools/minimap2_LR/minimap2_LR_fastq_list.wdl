@@ -12,23 +12,55 @@ task Minimap2MultiFastqTask {
         Boolean keepComments = true
         Boolean keepUnmapped = true
         Boolean allowSecondary = true
-        Int cpu = 48
+        Int cpu = 30
         Int sortThreads = 2
         String sortMemory = "768M"
-        Int memoryGB = 48
+        Int memoryGB = 30
         Int? diskSizeGB
         Int preemptible_tries = 3
     }
 
     String docker = "us-central1-docker.pkg.dev/methods-dev-lab/minimap2/minimap2:2.30-slim"
-    Boolean use_predefined_machine_type = cpu == 2 || cpu == 4 || cpu == 8 || cpu == 16 || cpu == 32 || cpu == 48 || cpu == 64 || cpu == 80 || cpu == 96
-    String machine_type = if (use_predefined_machine_type && memoryGB == cpu * 4)
-        then "n2d-standard-~{cpu}"
-        else if (use_predefined_machine_type && memoryGB == cpu * 8)
-        then "n2d-highmem-~{cpu}"
-        else if (use_predefined_machine_type && memoryGB == cpu)
-        then "n2d-highcpu-~{cpu}"
-        else "n2d-custom-~{cpu}-~{memoryGB * 1024}"
+
+    # C3D only ships fixed vCPU tiers (4/8/16/30/60/90/180/360). Round the requested cpu up to
+    # the smallest tier that covers it, and separately round memoryGB up to the smallest tier
+    # whose highmem variant covers it; the larger of the two tiers is what actually gets
+    # provisioned. Benchmarking (2026-08-25, see
+    # minimap2_LR_n2d_vs_c3d_benchmark_20260825.md) showed c3d-highcpu-30 beats the old
+    # n2d-highcpu-48 default at less than half the SPOT cost, so paying for a full tier instead
+    # of chasing an exact custom match is the right tradeoff.
+    Int cpu_tier = if cpu <= 4 then 4
+        else if cpu <= 8 then 8
+        else if cpu <= 16 then 16
+        else if cpu <= 30 then 30
+        else if cpu <= 60 then 60
+        else if cpu <= 90 then 90
+        else if cpu <= 180 then 180
+        else 360
+    Int mem_tier = if memoryGB <= 32 then 4
+        else if memoryGB <= 64 then 8
+        else if memoryGB <= 128 then 16
+        else if memoryGB <= 240 then 30
+        else if memoryGB <= 480 then 60
+        else if memoryGB <= 720 then 90
+        else if memoryGB <= 1440 then 180
+        else 360
+    Int effective_cpu = if cpu_tier >= mem_tier then cpu_tier else mem_tier
+    # c3d-highcpu RAM per tier isn't a clean 2 GB/vCPU multiple at every size (e.g. 59 GB, not
+    # 60, at the 30-vCPU tier), so the real values are listed explicitly.
+    Int highcpu_ram = if effective_cpu == 4 then 8
+        else if effective_cpu == 8 then 16
+        else if effective_cpu == 16 then 32
+        else if effective_cpu == 30 then 59
+        else if effective_cpu == 60 then 118
+        else if effective_cpu == 90 then 177
+        else if effective_cpu == 180 then 354
+        else 708
+    String machine_type = if memoryGB <= highcpu_ram
+        then "c3d-highcpu-~{effective_cpu}"
+        else if memoryGB <= effective_cpu * 4
+        then "c3d-standard-~{effective_cpu}"
+        else "c3d-highmem-~{effective_cpu}"
 
     Int effective_disk = select_first([diskSizeGB, ceil(size(inputFastqs, "GB") * 4 + size(referenceGenome, "GB") + 20)])
     String extra_arg = if allowSecondary then "" else "--secondary=no"
@@ -69,7 +101,7 @@ task Minimap2MultiFastqTask {
         else
             preset_arg=""
         fi
-        minimap2 ~{extra_arg2} ~{extra_arg3} -a ${preset_arg} ~{custom_args} ~{if defined(juncBED) then "--junc-bed " + juncBED else ""} ~{extra_arg} -t ~{cpu} ~{referenceGenome} '~{sep="' '" inputFastqs}' \
+        minimap2 ~{extra_arg2} ~{extra_arg3} -a ${preset_arg} ~{custom_args} ~{if defined(juncBED) then "--junc-bed " + juncBED else ""} ~{extra_arg} -t ~{effective_cpu} ~{referenceGenome} '~{sep="' '" inputFastqs}' \
             | samtools sort --no-PG --write-index -@ ~{sortThreads} -m ~{sortMemory} -O BAM \
                 -o ~{sorted_bam_name}##idx##~{sorted_bam_index_name} -
 
@@ -82,9 +114,12 @@ task Minimap2MultiFastqTask {
         File alignment_flagstat = "~{sampleName}_alignment.flagstat.txt"
     }
 
+    # cpu/memory intentionally omitted: GCP Batch has a known bug where specifying both
+    # predefinedMachineType and an explicit compute_resource (cpu_milli/memory_mib) can
+    # spuriously reject an otherwise-valid combination ("machine_type ... cannot satisfy
+    # compute_resource ..."), even when the values exactly match the machine type's real spec.
+    # Let predefinedMachineType alone determine the shape.
     runtime {
-        cpu: cpu
-        memory: "~{memoryGB} GB"
         predefinedMachineType: "~{machine_type}"
         disks: "local-disk ~{effective_disk} SSD"
         docker: docker
@@ -109,10 +144,10 @@ workflow Minimap2_LR_fastq_list {
         Boolean keepComments = true
         Boolean keepUnmapped = true
         Boolean allowSecondary = false
-        Int cpu = 48
+        Int cpu = 30
         Int sortThreads = 2
         String sortMemory = "768M"
-        Int memoryGB = 48
+        Int memoryGB = 30
         Int ?diskSizeGB
         Int preemptible_tries = 3
     }
