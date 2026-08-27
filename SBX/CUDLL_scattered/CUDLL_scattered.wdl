@@ -81,8 +81,8 @@ workflow CUDLL_scattered {
                 emit_consensus_sorted = emit_consensus_sorted,
                 mitochondrial_only = true,
                 mitochondrial_contig_name = mitochondrial_contig_name,
-                cpu = select_first([local_overlap_mito_cpu, 32]),
-                memory_gb = if defined(local_overlap_mito_memory_gb) then local_overlap_mito_memory_gb else if defined(local_overlap_mito_cpu) then select_first([local_overlap_mito_cpu]) * 4 else if defined(memory_gb) then memory_gb * 4 else 128,
+                cpu = select_first([local_overlap_mito_cpu, 30]),
+                memory_gb = if defined(local_overlap_mito_memory_gb) then local_overlap_mito_memory_gb else if defined(local_overlap_mito_cpu) then select_first([local_overlap_mito_cpu]) * 4 else if defined(memory_gb) then memory_gb * 4 else 120,
                 docker_image = docker_image_cudll
         }
 
@@ -213,15 +213,42 @@ task LocalOverlap {
     # all configs, comfortably inside c3d-standard-8's 32 GB.
     Int task_cpu = select_first([cpu, 8])
     Int task_memory_gb = select_first([memory_gb, 32])
-    # C3D valid predefined vCPU counts: 4, 8, 16, 30, 60, 90, 180, 360.
-    Boolean use_predefined_machine_type = task_cpu == 4 || task_cpu == 8 || task_cpu == 16 || task_cpu == 30 || task_cpu == 60 || task_cpu == 90 || task_cpu == 180 || task_cpu == 360
-    String machine_type = if (use_predefined_machine_type && task_memory_gb == task_cpu * 4)
-        then "c3d-standard-${task_cpu}"
-        else if (use_predefined_machine_type && task_memory_gb == task_cpu * 8)
-        then "c3d-highmem-${task_cpu}"
-        else if (use_predefined_machine_type && task_memory_gb == task_cpu * 2)
-        then "c3d-highcpu-${task_cpu}"
-        else "c3d-custom-${task_cpu}-${task_memory_gb * 1024}"
+    # C3D only ships fixed vCPU tiers (4/8/16/30/60/90/180/360) -- there is no c3d-custom
+    # shape. Round cpu/memory up to the smallest tier that covers both (mirrors
+    # LR-tools/minimap2_LR/minimap2_LR_fastq_list.wdl) so this always lands on a real
+    # predefinedMachineType instead of an invalid "c3d-custom-*" string.
+    Int cpu_tier = if task_cpu <= 4 then 4
+        else if task_cpu <= 8 then 8
+        else if task_cpu <= 16 then 16
+        else if task_cpu <= 30 then 30
+        else if task_cpu <= 60 then 60
+        else if task_cpu <= 90 then 90
+        else if task_cpu <= 180 then 180
+        else 360
+    Int mem_tier = if task_memory_gb <= 32 then 4
+        else if task_memory_gb <= 64 then 8
+        else if task_memory_gb <= 128 then 16
+        else if task_memory_gb <= 240 then 30
+        else if task_memory_gb <= 480 then 60
+        else if task_memory_gb <= 720 then 90
+        else if task_memory_gb <= 1440 then 180
+        else 360
+    Int effective_cpu = if cpu_tier >= mem_tier then cpu_tier else mem_tier
+    # c3d-highcpu RAM per tier isn't a clean 2 GB/vCPU multiple at every size (e.g. 59 GB,
+    # not 60, at the 30-vCPU tier), so the real values are listed explicitly.
+    Int highcpu_ram = if effective_cpu == 4 then 8
+        else if effective_cpu == 8 then 16
+        else if effective_cpu == 16 then 32
+        else if effective_cpu == 30 then 59
+        else if effective_cpu == 60 then 118
+        else if effective_cpu == 90 then 177
+        else if effective_cpu == 180 then 354
+        else 708
+    String machine_type = if task_memory_gb <= highcpu_ram
+        then "c3d-highcpu-${effective_cpu}"
+        else if task_memory_gb <= effective_cpu * 4
+        then "c3d-standard-${effective_cpu}"
+        else "c3d-highmem-${effective_cpu}"
 
     String tags_arg = if defined(tags) then "--tags " + tags else ""
     String supplementary_alignments_bam_path = output_prefix + ".supplementary_alignments.bam"
@@ -291,7 +318,7 @@ task LocalOverlap {
             ~{tags_arg} \
             ~{supplementary_alignments_arg} \
             ~{if no_consensus then "--no-consensus" else ""} \
-            -t ~{task_cpu} \
+            -t ~{effective_cpu} \
             -c "${chrom_list}" \
             --barcode ~{barcode_tag} \
             --umi ~{umi_tag} \
@@ -301,14 +328,14 @@ task LocalOverlap {
             -o "~{output_prefix}.consensus.bam" -
 
         if [ "~{emit_supplementary_alignments}" = "true" ] && [ "~{mitochondrial_only}" = "true" ]; then
-            samtools sort --no-PG -@ ~{task_cpu} \
+            samtools sort --no-PG -@ 4 \
             -o "~{output_prefix}.supplementary_alignments.sorted.bam" \
             "~{supplementary_alignments_bam_path}"
             mv "~{output_prefix}.supplementary_alignments.sorted.bam" "~{supplementary_alignments_bam_path}"
         fi
 
         if [ "~{emit_consensus_sorted}" = "true" ]; then
-            samtools sort --no-PG --write-index -@ ~{task_cpu} \
+            samtools sort --no-PG --write-index -@ 4 \
             -o "~{output_prefix}.consensus.sorted.bam##idx##~{output_prefix}.consensus.sorted.bam.bai" \
             "~{output_prefix}.consensus.bam"
         fi
@@ -324,9 +351,8 @@ task LocalOverlap {
     # cpu/memory intentionally omitted: GCP Batch has a known bug where specifying both
     # predefinedMachineType and an explicit compute_resource (cpu_milli/memory_mib) can spuriously
     # reject an otherwise-valid combination, even when the values exactly match the machine
-    # type's real spec. Let predefinedMachineType alone determine the shape (task_cpu/
-    # task_memory_gb are still used above to build the machine_type string and are passed
-    # directly to samtools, so removing them here doesn't lose the sizing).
+    # type's real spec. Let predefinedMachineType alone determine the shape (effective_cpu is
+    # still used above/in-command for thread counts, so removing this doesn't lose the sizing).
     runtime {
         docker: docker_image
         disks: "local-disk ~{disk_gb} SSD"
