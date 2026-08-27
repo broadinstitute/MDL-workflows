@@ -86,8 +86,6 @@ task Merge_And_Split_Batch_Bams {
 
     runtime {
         docker:      "us-central1-docker.pkg.dev/methods-dev-lab/mdl-cudll/pysam-samtools:latest"
-        cpu:         4
-        memory:      "8 GB"
         predefinedMachineType: "c3d-highcpu-4"
         disks:       "local-disk ~{diskGB} SSD"
         preemptible: 3
