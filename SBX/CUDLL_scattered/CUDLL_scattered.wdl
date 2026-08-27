@@ -459,10 +459,45 @@ task CrossLocus {
     # and stays well under 3 GB even at t=48 — cross_locus reads CB-by-CB
     # so memory is bounded by peak per-CB survivor count, not input size.
     # At t=16 the realistic wall was 19s / RSS 1.25 GB; t=32 shaves only
-    # 2s at 2x CPU cost. n2d-highcpu-16 (16 GB RAM) leaves ~12x headroom.
+    # 2s at 2x CPU cost. 16 GB RAM leaves ~12x headroom.
     Int task_cpu = select_first([cpu, 16])
     Int task_memory_gb = select_first([memory_gb, 16])
-    String machine_type = if defined(cpu) || defined(memory_gb) then "n2d-custom-${task_cpu}-${task_memory_gb * 1024}" else "n2d-highcpu-16"
+    # C3D only ships fixed vCPU tiers (4/8/16/30/60/90/180/360) -- there is no c3d-custom
+    # shape. Round cpu/memory up to the smallest tier that covers both (same logic as
+    # LocalOverlap above) so this always lands on a real predefinedMachineType instead of
+    # an invalid "c3d-custom-*" string.
+    Int cpu_tier = if task_cpu <= 4 then 4
+        else if task_cpu <= 8 then 8
+        else if task_cpu <= 16 then 16
+        else if task_cpu <= 30 then 30
+        else if task_cpu <= 60 then 60
+        else if task_cpu <= 90 then 90
+        else if task_cpu <= 180 then 180
+        else 360
+    Int mem_tier = if task_memory_gb <= 32 then 4
+        else if task_memory_gb <= 64 then 8
+        else if task_memory_gb <= 128 then 16
+        else if task_memory_gb <= 240 then 30
+        else if task_memory_gb <= 480 then 60
+        else if task_memory_gb <= 720 then 90
+        else if task_memory_gb <= 1440 then 180
+        else 360
+    Int effective_cpu = if cpu_tier >= mem_tier then cpu_tier else mem_tier
+    # c3d-highcpu RAM per tier isn't a clean 2 GB/vCPU multiple at every size (e.g. 59 GB,
+    # not 60, at the 30-vCPU tier), so the real values are listed explicitly.
+    Int highcpu_ram = if effective_cpu == 4 then 8
+        else if effective_cpu == 8 then 16
+        else if effective_cpu == 16 then 32
+        else if effective_cpu == 30 then 59
+        else if effective_cpu == 60 then 118
+        else if effective_cpu == 90 then 177
+        else if effective_cpu == 180 then 354
+        else 708
+    String machine_type = if task_memory_gb <= highcpu_ram
+        then "c3d-highcpu-${effective_cpu}"
+        else if task_memory_gb <= effective_cpu * 4
+        then "c3d-standard-${effective_cpu}"
+        else "c3d-highmem-${effective_cpu}"
 
     Int disk_gb = ceil(size(consensus_bam, "GB") * 3) + 20
 
@@ -479,7 +514,7 @@ task CrossLocus {
         cudll_cross_locus \
             -i "~{consensus_bam}" \
             -o - \
-            -t ~{task_cpu} \
+            -t ~{effective_cpu} \
             --barcode ~{barcode_tag} \
             --umi ~{umi_tag} \
             --identity ~{identity} \
@@ -498,9 +533,8 @@ task CrossLocus {
     # cpu/memory intentionally omitted: GCP Batch has a known bug where specifying both
     # predefinedMachineType and an explicit compute_resource (cpu_milli/memory_mib) can spuriously
     # reject an otherwise-valid combination, even when the values exactly match the machine
-    # type's real spec. Let predefinedMachineType alone determine the shape (task_cpu/
-    # task_memory_gb are still used above to build the machine_type string, so removing them
-    # here doesn't lose the sizing).
+    # type's real spec. Let predefinedMachineType alone determine the shape (effective_cpu is
+    # still used above/in-command for thread counts, so removing this doesn't lose the sizing).
     runtime {
         docker: docker_image
         disks: "local-disk ~{disk_gb} SSD"
