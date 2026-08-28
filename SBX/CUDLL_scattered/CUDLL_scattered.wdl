@@ -81,8 +81,18 @@ workflow CUDLL_scattered {
                 emit_consensus_sorted = emit_consensus_sorted,
                 mitochondrial_only = true,
                 mitochondrial_contig_name = mitochondrial_contig_name,
-                cpu = select_first([local_overlap_mito_cpu, 30]),
-                memory_gb = if defined(local_overlap_mito_memory_gb) then local_overlap_mito_memory_gb else if defined(local_overlap_mito_cpu) then select_first([local_overlap_mito_cpu]) * 4 else if defined(memory_gb) then memory_gb * 4 else 120,
+                # 30 cpu / 120 GB was sized to survive process_region's
+                # position-based flush deadline never tripping at chrM's
+                # depth (100M+ reads in a 16.5kb window all resident at
+                # once). cudll_local_overlap >=0.11.0's --cb-sorted-input
+                # bounds memory by the largest single CB's depth instead,
+                # which a partial 2026-08-28 chrM scan put in the low
+                # hundreds of thousands of reads per CB -- much smaller
+                # than whole-locus depth. 16 cpu / 64 GB gives generous
+                # headroom over that without a full production sizing
+                # sweep; revisit once one exists.
+                cpu = select_first([local_overlap_mito_cpu, 16]),
+                memory_gb = if defined(local_overlap_mito_memory_gb) then local_overlap_mito_memory_gb else if defined(local_overlap_mito_cpu) then select_first([local_overlap_mito_cpu]) * 4 else if defined(memory_gb) then memory_gb * 4 else 64,
                 docker_image = docker_image_cudll
         }
 
@@ -311,21 +321,47 @@ task LocalOverlap {
         # sort buffers; -@ 4 caps it at ~3 GB. LocalOverlap's 64 GB budget
         # isn't at OOM risk today, but the headroom matters for pathological
         # inputs where cudll_local_overlap's RSS can climb.
-        cudll_local_overlap \
-            -i "~{basename(input_bam)}" \
-            -o - \
-            ~{if defined(reference_fasta) then "-r \"" + select_first([reference_fasta]) + "\"" else ""} \
-            ~{tags_arg} \
-            ~{supplementary_alignments_arg} \
-            ~{if no_consensus then "--no-consensus" else ""} \
-            -t ~{effective_cpu} \
-            -c "${chrom_list}" \
-            --barcode ~{barcode_tag} \
-            --umi ~{umi_tag} \
-            --priming ~{priming} \
-            --umi-hamming-only | \
-            samtools sort --no-PG -@ 4 -t ~{barcode_tag} \
-            -o "~{output_prefix}.consensus.bam" -
+        if [ "~{mitochondrial_only}" = "true" ] && [ "~{priming}" != "auto" ]; then
+            # --cb-sorted-input (cudll_local_overlap >=0.11.0) bounds memory
+            # by the largest single CB's depth instead of chrM's whole-locus
+            # depth -- see the cpu/memory_gb comment on the LocalOverlapMito
+            # call. Falls back to the index-based path below for
+            # priming=auto, which needs random access to non-mito loci to
+            # calibrate and can't be fed a single-locus presorted stream.
+            samtools view -h "~{basename(input_bam)}" "${chrom_list}" | \
+                samtools sort -t ~{barcode_tag} | \
+                cudll_local_overlap \
+                    -i - \
+                    -o - \
+                    ~{if defined(reference_fasta) then "-r \"" + select_first([reference_fasta]) + "\"" else ""} \
+                    ~{tags_arg} \
+                    ~{supplementary_alignments_arg} \
+                    ~{if no_consensus then "--no-consensus" else ""} \
+                    -t ~{effective_cpu} \
+                    --barcode ~{barcode_tag} \
+                    --umi ~{umi_tag} \
+                    --priming ~{priming} \
+                    --umi-hamming-only \
+                    --cb-sorted-input | \
+                samtools sort --no-PG -@ 4 -t ~{barcode_tag} \
+                -o "~{output_prefix}.consensus.bam" -
+        else
+            cudll_local_overlap \
+                -i "~{basename(input_bam)}" \
+                -o - \
+                ~{if defined(reference_fasta) then "-r \"" + select_first([reference_fasta]) + "\"" else ""} \
+                ~{tags_arg} \
+                ~{supplementary_alignments_arg} \
+                ~{if no_consensus then "--no-consensus" else ""} \
+                -t ~{effective_cpu} \
+                -c "${chrom_list}" \
+                --barcode ~{barcode_tag} \
+                --umi ~{umi_tag} \
+                --priming ~{priming} \
+                --umi-hamming-only | \
+                samtools sort --no-PG -@ 4 -t ~{barcode_tag} \
+                -o "~{output_prefix}.consensus.bam" -
+        fi
 
         if [ "~{emit_supplementary_alignments}" = "true" ] && [ "~{mitochondrial_only}" = "true" ]; then
             samtools sort --no-PG -@ 4 \
