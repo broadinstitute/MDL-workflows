@@ -358,6 +358,9 @@ task LocalOverlap {
         disks: "local-disk ~{disk_gb} SSD"
         predefinedMachineType: "~{machine_type}"
         preemptible: 3
+        # Required for the submission-level memoryRetryMultiplier option to have any effect:
+        # Cromwell only escalates memory on a retry attempt, and won't create one without this.
+        maxRetries: 2
     }
 }
 
