@@ -349,8 +349,46 @@ task LocalOverlap {
             # call. Falls back to the index-based path below for
             # priming=auto, which needs random access to non-mito loci to
             # calibrate and can't be fed a single-locus presorted stream.
-            samtools view -h "~{basename(input_bam)}" "${chrom_list}" | \
-                samtools sort -t ~{barcode_tag} | \
+            #
+            # view: -@ 1, not more. 2026-08-30 measurement (same
+            # group_0.bam, 107,169,481 reads, real chrM extraction) piped
+            # to /dev/null: 116s at -@1 vs 125s at -@4 -- view is
+            # GCS/network-bound, not CPU-bound, so extra threads just add
+            # sync overhead for zero benefit. (A first attempt at isolating
+            # these stages wrote intermediates to disk and measured the
+            # write, not samtools -- see git history. /dev/null avoids that,
+            # and is a fair test for `view` since it's a straight
+            # decompress-and-emit stream with no merge phase to short-
+            # circuit.)
+            #
+            # sort: keep -@ 4. /dev/null is *not* a fair test for sort --
+            # samtools appears to skip the merge/emit phase entirely when
+            # writing to a null sink (a 107M-read sort "completing" in 3.4s
+            # is not physically plausible for a real external merge sort).
+            # Re-tested with a real consumer (`wc -c`, forces full
+            # merge+emit) on a 5M-read real subset of the same chrM data:
+            # -@1 26.17s vs -@4 15.24s, ~1.7x real speedup, both producing
+            # identical output byte counts. -@4 does cost ~4x the memory
+            # (824 MB vs 3.3 GB peak on the full input, ~768 MB/thread) but
+            # the wall-clock win is real, unlike view's.
+            #
+            # -u on both: not separately measured (every benchmark run
+            # above had -u fixed on both stages), but reasoned the same way
+            # CrossLocus's tail sort already is -- this BAM never touches
+            # disk, so compressing it out of `view` just to decompress it
+            # back into `sort` (and again into cudll_local_overlap) is pure
+            # wasted CPU with no correctness or memory benefit.
+            #
+            # Both view and sort numbers above were first measured on a
+            # local dev box backed by hyperdisk, then reproduced on a real
+            # c3d-standard-4 VM with a pd-ssd boot disk (matching
+            # production's machine family and disk class) to rule out
+            # storage-tier artifacts: view stayed flat (132s at both -@1
+            # and -@4) and sort showed the same real speedup (30.6s at -@1
+            # vs 18.7s at -@4, ~1.6x, byte-identical output) -- same
+            # conclusions on both machines.
+            samtools view -h -u -@ 1 "~{basename(input_bam)}" "${chrom_list}" | \
+                samtools sort -u -@ 4 -t ~{barcode_tag} | \
                 cudll_local_overlap \
                     -i - \
                     -o - \
