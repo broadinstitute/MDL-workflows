@@ -85,14 +85,35 @@ workflow CUDLL_scattered {
                 # position-based flush deadline never tripping at chrM's
                 # depth (100M+ reads in a 16.5kb window all resident at
                 # once). cudll_local_overlap >=0.11.0's --cb-sorted-input
-                # bounds memory by the largest single CB's depth instead,
-                # which a partial 2026-08-28 chrM scan put in the low
-                # hundreds of thousands of reads per CB -- much smaller
-                # than whole-locus depth. 16 cpu / 64 GB gives generous
-                # headroom over that without a full production sizing
-                # sweep; revisit once one exists.
-                cpu = select_first([local_overlap_mito_cpu, 16]),
-                memory_gb = if defined(local_overlap_mito_memory_gb) then local_overlap_mito_memory_gb else if defined(local_overlap_mito_cpu) then select_first([local_overlap_mito_cpu]) * 4 else if defined(memory_gb) then memory_gb * 4 else 64,
+                # bounds memory by the largest single CB's depth instead.
+                # 2026-08-28 measurement, full chrM locus, real production
+                # data (group_0.bam, 107,169,481 reads, 132,478 distinct
+                # CBs, deepest single CB 1,138,197 reads), the exact
+                # `samtools view chrM -u -@4 | sort -u -@4 -t CB |
+                # cudll_local_overlap --cb-sorted-input` pipeline this
+                # branch runs, timed end-to-end with /usr/bin/time -v on
+                # the cudll_local_overlap stage:
+                #   -t 4: 15m36s wall, 2148 CPU-s, peak 6.12 GB RSS
+                #   -t 8: 10m35s wall, 2087 CPU-s, peak 8.35 GB RSS
+                # Total CPU-seconds is ~flat across both -- the algorithm
+                # does about the same total work regardless of thread
+                # count -- so 8 cpu buys a real 32% wall-clock win for 2x
+                # the vCPU cost (worse $/shard, better latency), while 4
+                # cpu is both the cheaper and lower-memory choice. Picking
+                # 4 cpu for cost efficiency, paired with c3d-highmem-4 (4
+                # cpu / 32 GB, double the plain c3d-standard-4's 16 GB) for
+                # ~5.2x headroom over the measured 6.12 GB peak -- since
+                # CPU count and memory tier are independent knobs here, no
+                # need to pay for 8 cpu just to get more RAM headroom. An
+                # earlier synthetic stress test -- the 50 single deepest
+                # CBs stacked together, far more adversarial than any real
+                # CB-sort window since depth is heavily right-skewed
+                # (median 23 reads, only ~10 CBs above 300K) -- peaked
+                # higher (11.7 GB at -t 16) purely from that artificial
+                # clustering; the real full-locus runs above are the
+                # numbers that matter.
+                cpu = select_first([local_overlap_mito_cpu, 4]),
+                memory_gb = if defined(local_overlap_mito_memory_gb) then local_overlap_mito_memory_gb else if defined(local_overlap_mito_cpu) then select_first([local_overlap_mito_cpu]) * 8 else if defined(memory_gb) then memory_gb * 8 else 32,
                 docker_image = docker_image_cudll
         }
 
