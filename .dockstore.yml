@@ -204,3 +204,9 @@ workflows:
     primaryDescriptorPath: /misc_tools/Kallisto/Kallisto.wdl
     authors:
       - name: bhaas
+
+  - name: MergeBams
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/MergeBams/MergeBams.wdl
+    authors:
+      - orcid: 0000-0002-2603-1660
