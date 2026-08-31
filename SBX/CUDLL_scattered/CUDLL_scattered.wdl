@@ -171,14 +171,14 @@ workflow CUDLL_scattered {
     }
 
     output {
-        File   merged_bam                       = MergeFinalBams.merged_bam
-        File   merged_bai                       = MergeFinalBams.merged_bai
-        File?  merged_supplementary_bam         = MergeSupplementaryBams.merged_bam
-        File?  merged_supplementary_bai         = MergeSupplementaryBams.merged_bai
-        Array[File]  shard_final_bams           = CrossLocus.final_bam
-        Array[File]  shard_final_bais           = CrossLocus.final_bai
-        Array[File?] shard_consensus_sorted_bam = MergeShardConsensusSortedBams.merged_bam
-        Array[File?] shard_consensus_sorted_bai = MergeShardConsensusSortedBams.merged_bai
+        File   CUDLL_bam                       = MergeFinalBams.merged_bam
+        File   CUDLL_bai                       = MergeFinalBams.merged_bai
+        File?  CUDLL_supplementary_bam         = MergeSupplementaryBams.merged_bam
+        File?  CUDLL_supplementary_bai         = MergeSupplementaryBams.merged_bai
+        Array[File]  CUDLL_pass2_shards_bam    = CrossLocus.final_bam
+        Array[File]  CUDLL_pass2_shards_bai    = CrossLocus.final_bai
+        Array[File?] CUDLL_pass1_only_bam      = MergeShardConsensusSortedBams.merged_bam
+        Array[File?] CUDLL_pass1_only_bai      = MergeShardConsensusSortedBams.merged_bai
     }
 }
 
