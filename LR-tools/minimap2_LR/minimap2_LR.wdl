@@ -29,8 +29,7 @@ task splitReadsTask {
     }
 
     runtime {
-        cpu: 4
-        memory: "4 GB"
+        predefinedMachineType: "c3d-highcpu-4"
         disks: "local-disk ~{diskSizeGB} SSD"
         docker: docker
         preemptible: preemptible_tries
@@ -49,8 +48,8 @@ task mergeBAMs {
 
     command <<<
 
-        samtools merge --no-PG --threads 4 -o ~{sampleName}.sorted.bam '~{sep="' '" bams_to_merge}'
-        samtools index  ~{sampleName}.sorted.bam
+        samtools merge --no-PG --write-index --threads 4 \
+            -o ~{sampleName}.sorted.bam##idx##~{sampleName}.sorted.bam.bai '~{sep="' '" bams_to_merge}'
         samtools flagstats  ~{sampleName}.sorted.bam > ~{sampleName}.sorted.flagstat.txt
 
     >>>
@@ -62,8 +61,7 @@ task mergeBAMs {
     }
 
     runtime {
-        cpu: 4
-        memory: "4 GB"
+        predefinedMachineType: "c3d-highcpu-4"
         disks: "local-disk ~{diskSizeGB} SSD"
         docker: "mgibio/samtools:v1.21-noble"
         preemptible: preemptible_tries
@@ -88,10 +86,10 @@ workflow Minimap2_LR {
         Boolean keepUnmapped = true
         Boolean allowSecondary = false
         Int? reads_per_shard
-        Int cpu = 8
+        Int cpu = 30
         Int sortThreads = 2
         String sortMemory = "768M"
-        Int memoryGB = 32
+        Int memoryGB = 59
         Int ?diskSizeGB
         Int preemptible_tries = 3
     }
@@ -120,6 +118,7 @@ workflow Minimap2_LR {
                         keepComments = keepComments,
                         keepUnmapped = keepUnmapped,
                         allowSecondary = allowSecondary,
+                        writeIndex = false,
                         cpu = cpu,
                         sortThreads = sortThreads,
                         sortMemory = sortMemory,
