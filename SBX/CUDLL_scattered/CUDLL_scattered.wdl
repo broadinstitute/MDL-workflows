@@ -81,37 +81,6 @@ workflow CUDLL_scattered {
                 emit_consensus_sorted = emit_consensus_sorted,
                 mitochondrial_only = true,
                 mitochondrial_contig_name = mitochondrial_contig_name,
-                # 30 cpu / 120 GB was sized to survive process_region's
-                # position-based flush deadline never tripping at chrM's
-                # depth (100M+ reads in a 16.5kb window all resident at
-                # once). cudll_local_overlap >=0.11.0's --cb-sorted-input
-                # bounds memory by the largest single CB's depth instead.
-                # 2026-08-28 measurement, full chrM locus, real production
-                # data (group_0.bam, 107,169,481 reads, 132,478 distinct
-                # CBs, deepest single CB 1,138,197 reads), the exact
-                # `samtools view chrM -u -@4 | sort -u -@4 -t CB |
-                # cudll_local_overlap --cb-sorted-input` pipeline this
-                # branch runs, timed end-to-end with /usr/bin/time -v on
-                # the cudll_local_overlap stage:
-                #   -t 4: 15m36s wall, 2148 CPU-s, peak 6.12 GB RSS
-                #   -t 8: 10m35s wall, 2087 CPU-s, peak 8.35 GB RSS
-                # Total CPU-seconds is ~flat across both -- the algorithm
-                # does about the same total work regardless of thread
-                # count -- so 8 cpu buys a real 32% wall-clock win for 2x
-                # the vCPU cost (worse $/shard, better latency), while 4
-                # cpu is both the cheaper and lower-memory choice. Picking
-                # 4 cpu for cost efficiency, paired with c3d-highmem-4 (4
-                # cpu / 32 GB, double the plain c3d-standard-4's 16 GB) for
-                # ~5.2x headroom over the measured 6.12 GB peak -- since
-                # CPU count and memory tier are independent knobs here, no
-                # need to pay for 8 cpu just to get more RAM headroom. An
-                # earlier synthetic stress test -- the 50 single deepest
-                # CBs stacked together, far more adversarial than any real
-                # CB-sort window since depth is heavily right-skewed
-                # (median 23 reads, only ~10 CBs above 300K) -- peaked
-                # higher (11.7 GB at -t 16) purely from that artificial
-                # clustering; the real full-locus runs above are the
-                # numbers that matter.
                 cpu = select_first([local_overlap_mito_cpu, 4]),
                 memory_gb = if defined(local_overlap_mito_memory_gb) then local_overlap_mito_memory_gb else if defined(local_overlap_mito_cpu) then select_first([local_overlap_mito_cpu]) * 8 else if defined(memory_gb) then memory_gb * 8 else 32,
                 docker_image = docker_image_cudll
@@ -150,11 +119,10 @@ workflow CUDLL_scattered {
         input:
             bams = CrossLocus.final_bam,
             prune_pg_header = prune_pg_header_merge_final_bams,
-            output_name = sample_name + ".merged.bam"
+            output_name = sample_name + ".CUDLL.bam"
     }
 
-    # Supplementary alignment BAMs are coordinate-sorted by construction for non-mito
-    # and explicitly sorted in the mito branch before final merge.
+    # Supplementary BAMs: non-mito sorted by construction; mito branch sorts explicitly before merge.
     if (emit_supplementary_alignments) {
         Array[File] supplementary_bams_filtered = flatten([
             select_all(LocalOverlapNonMito.supplementary_alignments_bam),
@@ -233,21 +201,9 @@ task LocalOverlap {
         String docker_image
     }
 
-    # Defaults sized from 2026-08-15 full-shard sweep (34.6 GB, 319M reads,
-    # 3 reps per config, N2D vs C3D at cpu=4/8/16). Full results in the
-    # commit that changed this comment. Top-line: c3d-standard-8 is the
-    # cheapest per shard on SPOT ($0.0080 vs $0.0143 for the previous
-    # n2d-standard-16 default -- 44% cheaper) with only ~40% more wall
-    # (12.4 min vs 8.9 min for c3d-16). CPU efficiency peaks at low core
-    # counts (~79% at 8 cpu, ~60% at 16 cpu) because pass1's reader loop
-    # doesn't fully saturate 16 physical cores. Peak RSS ~11-12 GB across
-    # all configs, comfortably inside c3d-standard-8's 32 GB.
     Int task_cpu = select_first([cpu, 8])
     Int task_memory_gb = select_first([memory_gb, 32])
-    # C3D only ships fixed vCPU tiers (4/8/16/30/60/90/180/360) -- there is no c3d-custom
-    # shape. Round cpu/memory up to the smallest tier that covers both (mirrors
-    # LR-tools/minimap2_LR/minimap2_LR_fastq_list.wdl) so this always lands on a real
-    # predefinedMachineType instead of an invalid "c3d-custom-*" string.
+    # C3D has no custom shape; round up to the nearest fixed tier (4/8/16/30/60/90/180/360).
     Int cpu_tier = if task_cpu <= 4 then 4
         else if task_cpu <= 8 then 8
         else if task_cpu <= 16 then 16
@@ -265,8 +221,7 @@ task LocalOverlap {
         else if task_memory_gb <= 1440 then 180
         else 360
     Int effective_cpu = if cpu_tier >= mem_tier then cpu_tier else mem_tier
-    # c3d-highcpu RAM per tier isn't a clean 2 GB/vCPU multiple at every size (e.g. 59 GB,
-    # not 60, at the 30-vCPU tier), so the real values are listed explicitly.
+    # c3d-highcpu RAM is non-uniform per tier; use exact values.
     Int highcpu_ram = if effective_cpu == 4 then 8
         else if effective_cpu == 8 then 16
         else if effective_cpu == 16 then 32
@@ -289,17 +244,9 @@ task LocalOverlap {
     command <<<
         set -euo pipefail
 
-        # Move input BAM and index to root working directory
         mv "~{input_bam}" "~{basename(input_bam)}"
         mv "~{input_bai}" "~{basename(input_bam)}.bai"
 
-        # Bump read-ahead on the block device that backs the input BAM.
-        # From the 2026-08-17 tuning sweep on c3d-standard-16, going from
-        # the Linux default (128 KB) to 4 MB shaved ~1.8% off wall clock
-        # with a small CPU-efficiency gain. 16 MB was not better than 4 MB.
-        # Failures are non-fatal: any container that can't write to
-        # /sys/block/*/queue (read-only /sys, sysfs unavailable, no PKNAME
-        # in lsblk) just runs at the default 128 KB.
         set +e
         _input_dev=$(df --output=source "$(dirname "$(readlink -f "~{basename(input_bam)}")")" 2>/dev/null | tail -n1)
         _base_dev=$(lsblk -no PKNAME "$_input_dev" 2>/dev/null | head -n1)
@@ -335,58 +282,8 @@ task LocalOverlap {
             }
         ')
 
-        # samtools sort -@ 4 (not task_cpu). Same rationale as CrossLocus:
-        # the pipe is bottlenecked by cudll_local_overlap (outputs even more
-        # slowly than cross_locus), so sort mostly idle-waits regardless of
-        # thread count. -@ 16 would reserve ~12 GB (768 MB/thread) just for
-        # sort buffers; -@ 4 caps it at ~3 GB. LocalOverlap's 64 GB budget
-        # isn't at OOM risk today, but the headroom matters for pathological
-        # inputs where cudll_local_overlap's RSS can climb.
         if [ "~{mitochondrial_only}" = "true" ] && [ "~{priming}" != "auto" ]; then
-            # --cb-sorted-input (cudll_local_overlap >=0.11.0) bounds memory
-            # by the largest single CB's depth instead of chrM's whole-locus
-            # depth -- see the cpu/memory_gb comment on the LocalOverlapMito
-            # call. Falls back to the index-based path below for
-            # priming=auto, which needs random access to non-mito loci to
-            # calibrate and can't be fed a single-locus presorted stream.
-            #
-            # view: -@ 1, not more. 2026-08-30 measurement (same
-            # group_0.bam, 107,169,481 reads, real chrM extraction) piped
-            # to /dev/null: 116s at -@1 vs 125s at -@4 -- view is
-            # GCS/network-bound, not CPU-bound, so extra threads just add
-            # sync overhead for zero benefit. (A first attempt at isolating
-            # these stages wrote intermediates to disk and measured the
-            # write, not samtools -- see git history. /dev/null avoids that,
-            # and is a fair test for `view` since it's a straight
-            # decompress-and-emit stream with no merge phase to short-
-            # circuit.)
-            #
-            # sort: keep -@ 4. /dev/null is *not* a fair test for sort --
-            # samtools appears to skip the merge/emit phase entirely when
-            # writing to a null sink (a 107M-read sort "completing" in 3.4s
-            # is not physically plausible for a real external merge sort).
-            # Re-tested with a real consumer (`wc -c`, forces full
-            # merge+emit) on a 5M-read real subset of the same chrM data:
-            # -@1 26.17s vs -@4 15.24s, ~1.7x real speedup, both producing
-            # identical output byte counts. -@4 does cost ~4x the memory
-            # (824 MB vs 3.3 GB peak on the full input, ~768 MB/thread) but
-            # the wall-clock win is real, unlike view's.
-            #
-            # -u on both: not separately measured (every benchmark run
-            # above had -u fixed on both stages), but reasoned the same way
-            # CrossLocus's tail sort already is -- this BAM never touches
-            # disk, so compressing it out of `view` just to decompress it
-            # back into `sort` (and again into cudll_local_overlap) is pure
-            # wasted CPU with no correctness or memory benefit.
-            #
-            # Both view and sort numbers above were first measured on a
-            # local dev box backed by hyperdisk, then reproduced on a real
-            # c3d-standard-4 VM with a pd-ssd boot disk (matching
-            # production's machine family and disk class) to rule out
-            # storage-tier artifacts: view stayed flat (132s at both -@1
-            # and -@4) and sort showed the same real speedup (30.6s at -@1
-            # vs 18.7s at -@4, ~1.6x, byte-identical output) -- same
-            # conclusions on both machines.
+            # --cb-sorted-input bounds memory by per-CB depth; skipped for priming=auto (calibration needs random access).
             samtools view -h -u -@ 1 "~{basename(input_bam)}" "${chrom_list}" | \
                 samtools sort -u -@ 4 -t ~{barcode_tag} | \
                 cudll_local_overlap \
@@ -443,18 +340,13 @@ task LocalOverlap {
         File? consensus_sorted_bai = "~{output_prefix}.consensus.sorted.bam.bai"
     }
 
-    # cpu/memory intentionally omitted: GCP Batch has a known bug where specifying both
-    # predefinedMachineType and an explicit compute_resource (cpu_milli/memory_mib) can spuriously
-    # reject an otherwise-valid combination, even when the values exactly match the machine
-    # type's real spec. Let predefinedMachineType alone determine the shape (effective_cpu is
-    # still used above/in-command for thread counts, so removing this doesn't lose the sizing).
+    # GCP Batch rejects predefinedMachineType + explicit cpu/memory together; omit them.
     runtime {
         docker: docker_image
         disks: "local-disk ~{disk_gb} SSD"
         predefinedMachineType: "~{machine_type}"
         preemptible: 3
-        # Required for the submission-level memoryRetryMultiplier option to have any effect:
-        # Cromwell only escalates memory on a retry attempt, and won't create one without this.
+        # Enables memoryRetryMultiplier: Cromwell only triggers a retry when maxRetries > 0.
         maxRetries: 2
     }
 }
@@ -551,19 +443,9 @@ task CrossLocus {
         String docker_image
     }
 
-    # Defaults sized from 2026-08-12 v10 (Type C) measurements on the
-    # realistic pass-2 input (group_0001.XP132160_merged, 4.4M reads,
-    # includes the mega-CB pathology). Peak RSS scales ~50 MB per thread
-    # and stays well under 3 GB even at t=48 — cross_locus reads CB-by-CB
-    # so memory is bounded by peak per-CB survivor count, not input size.
-    # At t=16 the realistic wall was 19s / RSS 1.25 GB; t=32 shaves only
-    # 2s at 2x CPU cost. 16 GB RAM leaves ~12x headroom.
     Int task_cpu = select_first([cpu, 16])
     Int task_memory_gb = select_first([memory_gb, 16])
-    # C3D only ships fixed vCPU tiers (4/8/16/30/60/90/180/360) -- there is no c3d-custom
-    # shape. Round cpu/memory up to the smallest tier that covers both (same logic as
-    # LocalOverlap above) so this always lands on a real predefinedMachineType instead of
-    # an invalid "c3d-custom-*" string.
+    # C3D has no custom shape; round up to the nearest fixed tier (4/8/16/30/60/90/180/360).
     Int cpu_tier = if task_cpu <= 4 then 4
         else if task_cpu <= 8 then 8
         else if task_cpu <= 16 then 16
@@ -581,8 +463,7 @@ task CrossLocus {
         else if task_memory_gb <= 1440 then 180
         else 360
     Int effective_cpu = if cpu_tier >= mem_tier then cpu_tier else mem_tier
-    # c3d-highcpu RAM per tier isn't a clean 2 GB/vCPU multiple at every size (e.g. 59 GB,
-    # not 60, at the 30-vCPU tier), so the real values are listed explicitly.
+    # c3d-highcpu RAM is non-uniform per tier; use exact values.
     Int highcpu_ram = if effective_cpu == 4 then 8
         else if effective_cpu == 8 then 16
         else if effective_cpu == 16 then 32
@@ -602,13 +483,6 @@ task CrossLocus {
     command <<<
         set -euo pipefail
 
-        # samtools sort -@ 4 (not task_cpu). The pipe is bottlenecked by
-        # cudll_cross_locus (~250k rec/s at t=16), so sort mostly idle-waits.
-        # samtools sort reserves -m per thread (default 768 MB); at -@ 16 that
-        # would peak ~12 GB just for sort buffers, and combined with
-        # cudll_cross_locus's ~3.6 GB peak the pipeline runs the 16 GB VM out
-        # of RAM (measured 2026-08-13: 13 GB peak @-@16 vs 3.6 GB peak @-@4,
-        # +34s wall on a 21.2M-record shard — worth it).
         cudll_cross_locus \
             -i "~{consensus_bam}" \
             -o - \
@@ -628,11 +502,7 @@ task CrossLocus {
         File final_bai = "~{output_prefix}.consensus.homology_dedup.sorted.bam.bai"
     }
 
-    # cpu/memory intentionally omitted: GCP Batch has a known bug where specifying both
-    # predefinedMachineType and an explicit compute_resource (cpu_milli/memory_mib) can spuriously
-    # reject an otherwise-valid combination, even when the values exactly match the machine
-    # type's real spec. Let predefinedMachineType alone determine the shape (effective_cpu is
-    # still used above/in-command for thread counts, so removing this doesn't lose the sizing).
+    # GCP Batch rejects predefinedMachineType + explicit cpu/memory together; omit them.
     runtime {
         docker: docker_image
         disks: "local-disk ~{disk_gb} SSD"
