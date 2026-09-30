@@ -37,7 +37,6 @@ workflow CUDLL_scattered {
             call CreateIndex { input: input_bam = input_bam, docker_image = docker_image_cudll }
         }
 
-        # Use provided index if available and length matches, otherwise use generated index
         File bam_index = select_first([
             if defined(input_bais) && length(select_first([input_bais])) == length(input_bams)
                 then select_first([input_bais])[bam_idx]

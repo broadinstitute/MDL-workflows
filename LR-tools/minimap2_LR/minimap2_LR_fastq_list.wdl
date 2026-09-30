@@ -22,13 +22,6 @@ task Minimap2MultiFastqTask {
 
     String docker = "us-central1-docker.pkg.dev/methods-dev-lab/minimap2/minimap2:2.30-slim"
 
-    # C3D only ships fixed vCPU tiers (4/8/16/30/60/90/180/360). Round the requested cpu up to
-    # the smallest tier that covers it, and separately round memoryGB up to the smallest tier
-    # whose highmem variant covers it; the larger of the two tiers is what actually gets
-    # provisioned. Benchmarking (2026-08-25, see
-    # minimap2_LR_n2d_vs_c3d_benchmark_20260825.md) showed c3d-highcpu-30 beats the old
-    # n2d-highcpu-48 default at less than half the SPOT cost, so paying for a full tier instead
-    # of chasing an exact custom match is the right tradeoff.
     Int cpu_tier = if cpu <= 4 then 4
         else if cpu <= 8 then 8
         else if cpu <= 16 then 16
