@@ -34,15 +34,21 @@ task Assign_Barcode_Groups {
         # Extract N (max group number) from the output table.
         awk -F'\t' 'NR > 1 && $2 + 0 > max { max = $2 + 0 } END { print max }' \
             group_table.tsv > n_groups.txt
+
+        python3 /usr/local/bin/predict_mito_memory.py group_table.tsv \
+            --out-json mito_memory_gb.json \
+            --out-tsv group_memory_table.tsv
     >>>
 
     output {
         File group_table = "group_table.tsv"
         Int  n_groups    = read_int("n_groups.txt")
+        Array[Int] mito_memory_gb   = read_json("mito_memory_gb.json")
+        File       group_memory_table = "group_memory_table.tsv"
     }
 
     runtime {
-        docker:      "us-central1-docker.pkg.dev/methods-dev-lab/mdl-cudll/assign-barcode-groups:latest"
+        docker:      "us-central1-docker.pkg.dev/methods-dev-lab/mdl-cudll/assign-barcode-groups:0.2.0"
         cpu:         1
         memory:      "4 GB"
         disks:       "local-disk ~{diskGB} HDD"
@@ -221,5 +227,7 @@ workflow Shard_Bams_By_Barcode_Group {
         Array[File] merged_group_bam_indexes = Merge_Group_Bams.merged_bam_index
         File        group_table       = Assign_Barcode_Groups.group_table
         Int         n_groups          = Assign_Barcode_Groups.n_groups
+        Array[Int]  group_mito_memory_gb = Assign_Barcode_Groups.mito_memory_gb
+        File        group_memory_table   = Assign_Barcode_Groups.group_memory_table
     }
 }

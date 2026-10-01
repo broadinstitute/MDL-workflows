@@ -22,11 +22,15 @@ workflow CUDLL_scattered {
         Int? cpu
         Int? memory_gb
         Int? local_overlap_mito_cpu
+        # Mito-pass memory, in order: local_overlap_mito_memory_gb (all shards) > auto (mito_memory_gb_per_shard, one per BAM) > old default.
         Int? local_overlap_mito_memory_gb
+        Boolean local_overlap_mito_memory_auto = true
+        Array[Int]? mito_memory_gb_per_shard
 
         String docker_image_cudll
     }
 
+    Boolean mito_memory_auto_available = local_overlap_mito_memory_auto && defined(mito_memory_gb_per_shard) && length(select_first([mito_memory_gb_per_shard])) == length(input_bams)
     Boolean need_index = !defined(input_bais) || length(select_first([input_bais])) != length(input_bams)
 
     scatter (bam_idx in range(length(input_bams))) {
@@ -81,7 +85,7 @@ workflow CUDLL_scattered {
                 mitochondrial_only = true,
                 mitochondrial_contig_name = mitochondrial_contig_name,
                 cpu = select_first([local_overlap_mito_cpu, 4]),
-                memory_gb = if defined(local_overlap_mito_memory_gb) then local_overlap_mito_memory_gb else if defined(local_overlap_mito_cpu) then select_first([local_overlap_mito_cpu]) * 8 else if defined(memory_gb) then memory_gb * 8 else 32,
+                memory_gb = if defined(local_overlap_mito_memory_gb) then local_overlap_mito_memory_gb else if mito_memory_auto_available then select_first([mito_memory_gb_per_shard])[bam_idx] else if defined(local_overlap_mito_cpu) then select_first([local_overlap_mito_cpu]) * 8 else if defined(memory_gb) then memory_gb * 8 else 32,
                 docker_image = docker_image_cudll
         }
 
