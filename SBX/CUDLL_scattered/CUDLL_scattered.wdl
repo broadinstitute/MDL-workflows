@@ -14,6 +14,7 @@ workflow CUDLL_scattered {
         String priming
         String? tags
         Boolean no_consensus = false
+        Boolean umi_allow_indel = false
         Boolean emit_supplementary_alignments = true
         Boolean emit_consensus_sorted = false
         Boolean prune_pg_header_merge_final_bams = false
@@ -59,6 +60,7 @@ workflow CUDLL_scattered {
                 priming = priming,
                 tags = tags,
                 no_consensus = no_consensus,
+                umi_allow_indel = umi_allow_indel,
                 emit_supplementary_alignments = emit_supplementary_alignments,
                 emit_consensus_sorted = emit_consensus_sorted,
                 mitochondrial_only = false,
@@ -80,6 +82,7 @@ workflow CUDLL_scattered {
                 priming = priming,
                 tags = tags,
                 no_consensus = no_consensus,
+                umi_allow_indel = umi_allow_indel,
                 emit_supplementary_alignments = emit_supplementary_alignments,
                 emit_consensus_sorted = emit_consensus_sorted,
                 mitochondrial_only = true,
@@ -112,6 +115,7 @@ workflow CUDLL_scattered {
                 barcode_tag = barcode_tag,
                 umi_tag = umi_tag,
                 identity = identity,
+                umi_allow_indel = umi_allow_indel,
                 cpu = cpu,
                 memory_gb = memory_gb,
                 docker_image = docker_image_cudll
@@ -193,6 +197,7 @@ task LocalOverlap {
         String priming
         String? tags
         Boolean no_consensus
+        Boolean umi_allow_indel = false
         Boolean emit_supplementary_alignments
         Boolean emit_consensus_sorted
         Boolean mitochondrial_only = false
@@ -242,6 +247,7 @@ task LocalOverlap {
     String tags_arg = if defined(tags) then "--tags " + tags else ""
     String supplementary_alignments_bam_path = output_prefix + ".supplementary_alignments.bam"
     String supplementary_alignments_arg = if emit_supplementary_alignments then "--sa-read-bam " + supplementary_alignments_bam_path else ""
+    String umi_flag = if umi_allow_indel then "--umi-allow-indel" else "--umi-hamming-only"
     Int disk_gb = ceil(size(input_bam, "GB") * (if emit_consensus_sorted then 4 else 3)) + 20
 
     command <<<
@@ -300,7 +306,7 @@ task LocalOverlap {
                     --barcode ~{barcode_tag} \
                     --umi ~{umi_tag} \
                     --priming ~{priming} \
-                    --umi-hamming-only \
+                    ~{umi_flag} \
                     --cb-sorted-input | \
                 samtools sort --no-PG -@ 4 -t ~{barcode_tag} \
                 -o "~{output_prefix}.consensus.bam" -
@@ -317,7 +323,7 @@ task LocalOverlap {
                 --barcode ~{barcode_tag} \
                 --umi ~{umi_tag} \
                 --priming ~{priming} \
-                --umi-hamming-only | \
+                ~{umi_flag} | \
                 samtools sort --no-PG -@ 4 -t ~{barcode_tag} \
                 -o "~{output_prefix}.consensus.bam" -
         fi
@@ -439,6 +445,7 @@ task CrossLocus {
         String barcode_tag
         String umi_tag
         Float identity
+        Boolean umi_allow_indel = false
 
         Int? cpu
         Int? memory_gb
@@ -481,6 +488,7 @@ task CrossLocus {
         then "c3d-standard-${effective_cpu}"
         else "c3d-highmem-${effective_cpu}"
 
+    String umi_flag = if umi_allow_indel then "--umi-allow-indel" else "--umi-hamming-only"
     Int disk_gb = ceil(size(consensus_bam, "GB") * 3) + 20
 
     command <<<
@@ -493,7 +501,7 @@ task CrossLocus {
             --barcode ~{barcode_tag} \
             --umi ~{umi_tag} \
             --identity ~{identity} \
-            --umi-hamming-only \
+            ~{umi_flag} \
             --rank-by-aligned-bases | \
             samtools sort --no-PG --write-index -@ 4 \
             -o "~{output_prefix}.consensus.homology_dedup.sorted.bam##idx##~{output_prefix}.consensus.homology_dedup.sorted.bam.bai" \
