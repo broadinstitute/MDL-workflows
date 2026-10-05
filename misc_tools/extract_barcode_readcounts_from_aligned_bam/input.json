@@ -1,7 +1,6 @@
 {
-  "CountOneBAMWorkflow.bam": "gs://bucket/sample1.aligned.bam",
-  "CountOneBAMWorkflow.bai": "gs://bucket/sample1.aligned.bam.bai",
-  "CountOneBAMWorkflow.sample_id": "sample1",
-  "CountOneBAMWorkflow.cb_tag": "CB",
-  "CountOneBAMWorkflow.umi_tag": "XM"
+  "CountBarcodesWorkflow.bams": ["gs://bucket/sample1.aligned.sorted.bam", "gs://bucket/sample2.aligned.sorted.bam"],
+  "CountBarcodesWorkflow.bais": ["gs://bucket/sample1.aligned.sorted.bam.bai", "gs://bucket/sample2.aligned.sorted.bam.bai"],
+  "CountBarcodesWorkflow.cb_tag": "CB",
+  "CountBarcodesWorkflow.umi_tag": "XM"
 }
