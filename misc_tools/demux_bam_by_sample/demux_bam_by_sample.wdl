@@ -27,7 +27,7 @@ workflow Demux_Bam_By_Sample {
     }
 
     output {
-        # All four arrays share the order of demux_summary (sorted by sample).
+        # All four arrays share the same order (sorted by BAM file name).
         Array[File]   sample_bams    = Demux.sample_bams
         Array[File]   sample_bais    = Demux.sample_bais
         Array[String] donor_ids      = Demux.donor_ids
@@ -77,16 +77,17 @@ task Demux {
             --output-dir out 2> demux.log || { cat demux.log >&2; exit 1; }
         cat demux.log >&2
 
-        # Columns of the summary: donor_id, sample, bam, bai
-        tail -n +2 out/~{prefix}.demux_summary.tsv | cut -f1 > donor_ids.txt
-        tail -n +2 out/~{prefix}.demux_summary.tsv | cut -f2 > samples.txt
-        tail -n +2 out/~{prefix}.demux_summary.tsv | cut -f3 | sed 's|^|out/|' > bams.txt
-        tail -n +2 out/~{prefix}.demux_summary.tsv | cut -f4 | sed 's|^|out/|' > bais.txt
+        # Columns of the summary: donor_id, sample, bam, bai.
+        # sample_bams / sample_bais are globbed (read_lines would only give path strings, which Cromwell does not delocalize).
+        # glob() returns files sorted by name, so donor_ids / samples are written in the same (C-locale, by BAM name) order.
+        tail -n +2 out/~{prefix}.demux_summary.tsv | LC_ALL=C sort -t "$(printf '\t')" -k3,3 > summary_by_bam.tsv
+        cut -f1 summary_by_bam.tsv > donor_ids.txt
+        cut -f2 summary_by_bam.tsv > samples.txt
     >>>
 
     output {
-        Array[File]   sample_bams   = read_lines("bams.txt")
-        Array[File]   sample_bais   = read_lines("bais.txt")
+        Array[File]   sample_bams   = glob("out/*.bam")
+        Array[File]   sample_bais   = glob("out/*.bam.bai")
         Array[String] donor_ids     = read_lines("donor_ids.txt")
         Array[String] samples       = read_lines("samples.txt")
         File          demux_summary = "out/~{prefix}.demux_summary.tsv"
