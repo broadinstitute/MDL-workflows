@@ -13,7 +13,7 @@ workflow Demux_Bam_By_Sample {
         String pool_column    = "orig.ident"
         Int    threads = 4
         Int    preemptible = 3
-        String docker = "us-central1-docker.pkg.dev/methods-dev-lab/misc-utilities/demux_bam_by_sample:0.1.0"
+        String docker = "us-central1-docker.pkg.dev/methods-dev-lab/misc-utilities/demux_bam_by_sample:0.2.0"
     }
 
     call Demux {
@@ -56,25 +56,50 @@ task Demux {
 
     String prefix = basename(bam, ".bam")
     String trim_arg = if trim_barcode_suffix then "--trim-suffix" else "--no-trim-suffix"
-    # Outputs hold the same reads as the input, split in n files.
-    Int disk_gb = ceil(size(bam, "GB") * 2.3 + size(metadata_csv, "GB") + 20)
+    # Outputs hold the same reads as the input, split in n files; the factor 3 leaves room to sort one output when the input is unsorted.
+    Int disk_gb = ceil(size(bam, "GB") * 3 + size(metadata_csv, "GB") + 20)
 
     command <<<
         set -euo pipefail
+        # Declared as a bash function so the same call can be repeated with --no-index.
+        demux() {
+            demux_bam_by_sample \
+                --bam ~{bam} \
+                --metadata ~{metadata_csv} \
+                --pool ~{pool_name} \
+                --barcode-tag ~{barcode_tag} \
+                ~{trim_arg} \
+                --barcode-column ~{barcode_column} \
+                --donor-column ~{donor_column} \
+                --sample-column ~{sample_column} \
+                --pool-column ~{pool_column} \
+                --threads ~{threads} \
+                --output-prefix ~{prefix} \
+                --output-dir out "$@"
+        }
+
+        # Try with indexes first (needs coordinate order; a header that does not say SO:coordinate is accepted and checked read by read).
+        # Exit code 3 = a read broke the order: redo without indexes, then sort and index each sample BAM here.
         mkdir out
-        demux_bam_by_sample \
-            --bam ~{bam} \
-            --metadata ~{metadata_csv} \
-            --pool ~{pool_name} \
-            --barcode-tag ~{barcode_tag} \
-            ~{trim_arg} \
-            --barcode-column ~{barcode_column} \
-            --donor-column ~{donor_column} \
-            --sample-column ~{sample_column} \
-            --pool-column ~{pool_column} \
-            --threads ~{threads} \
-            --output-prefix ~{prefix} \
-            --output-dir out 2> demux.log || { cat demux.log >&2; exit 1; }
+        set +e
+        demux 2> demux.log
+        rc=$?
+        set -e
+        if [ "$rc" -eq 3 ]; then
+            echo "[info] input is not coordinate-sorted: rerunning with --no-index, then sorting and indexing the outputs" >> demux.log
+            mv demux.log demux.attempt1.log
+            rm -rf out && mkdir out
+            demux --no-index 2> demux.log || { cat demux.attempt1.log demux.log >&2; exit 1; }
+            for b in out/*.bam; do
+                samtools sort --no-PG --write-index -@ ~{threads} -T "$b.tmp" -o "$b.sorted##idx##$b.sorted.bai" "$b"
+                mv "$b.sorted" "$b"
+                mv "$b.sorted.bai" "$b.bai"
+            done
+            cat demux.attempt1.log demux.log > demux.both.log && mv demux.both.log demux.log && rm -f demux.attempt1.log
+        elif [ "$rc" -ne 0 ]; then
+            cat demux.log >&2
+            exit "$rc"
+        fi
         cat demux.log >&2
 
         # Columns of the summary: donor_id, sample, bam, bai.
