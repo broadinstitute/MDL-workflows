@@ -4,21 +4,16 @@ task CountUMI {
   input {
     File bam
     File bai
-    File process_barcodes_py # Python script
     String sample_id
     String cb_tag = "CB"
     String umi_tag = "XM"
+    String docker_image = "us-central1-docker.pkg.dev/methods-dev-lab/brca/sc-barcode-counting:1.0"
   }
 
   command <<<
-    set -euox pipefail
+    set -euo pipefail
 
-    # Install required Python packages
-    pip install pysam panda
-
-    cp ~{process_barcodes_py} process_barcodes_py.py
-
-    python3 process_barcodes_py.py \
+    process_barcodes.py \
       ~{bam} \
       --sample_id ~{sample_id} \
       --cb_tag ~{cb_tag} \
@@ -31,7 +26,7 @@ task CountUMI {
   }
 
   runtime {
-    docker: "python:3.10-slim"
+    docker: docker_image
     cpu: 4
     memory: "32G"
     disks: "local-disk 200 SSD"
@@ -42,20 +37,20 @@ workflow CountOneBAMWorkflow {
   input {
     File bam
     File bai
-    File process_barcodes_py
     String sample_id
     String cb_tag = "CB"
     String umi_tag = "XM"
+    String docker_image = "us-central1-docker.pkg.dev/methods-dev-lab/brca/sc-barcode-counting:1.0"
   }
 
   call CountUMI {
     input:
       bam = bam,
       bai = bai,
-      process_barcodes_py = process_barcodes_py,
       sample_id = sample_id,
       cb_tag = cb_tag,
-      umi_tag = umi_tag
+      umi_tag = umi_tag,
+      docker_image = docker_image
   }
 
   output {
