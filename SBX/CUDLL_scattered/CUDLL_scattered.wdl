@@ -493,7 +493,7 @@ task CrossLocus {
         else "c3d-highmem-${effective_cpu}"
 
     String umi_flag = if umi_allow_indel then "--umi-allow-indel" else "--umi-hamming-only"
-    Int disk_gb = ceil(size(consensus_bam, "GB") * 3) + 20
+    Int disk_gb = ceil(size(consensus_bam, "GB") * 4) + 20
 
     command <<<
         set -euo pipefail
