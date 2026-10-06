@@ -248,7 +248,8 @@ task LocalOverlap {
     String supplementary_alignments_bam_path = output_prefix + ".supplementary_alignments.bam"
     String supplementary_alignments_arg = if emit_supplementary_alignments then "--sa-read-bam " + supplementary_alignments_bam_path else ""
     String umi_flag = if umi_allow_indel then "--umi-allow-indel" else "--umi-hamming-only"
-    Int disk_gb = ceil(size(input_bam, "GB") * (if emit_consensus_sorted then 4 else 3)) + 20
+    # Peak is the CB-sort merge: input + temp shards (level 1, CB-scattered, ~1.8x input observed) + output (>= input).
+    Int disk_gb = ceil(size(input_bam, "GB") * 5) + 20
 
     command <<<
         set -euo pipefail
@@ -336,6 +337,9 @@ task LocalOverlap {
         fi
 
         if [ "~{emit_consensus_sorted}" = "true" ]; then
+            # Input is no longer needed; free it before the second sort.
+            rm -f "~{basename(input_bam)}" "~{basename(input_bam)}.bai"
+
             samtools sort --no-PG --write-index -@ 4 \
             -o "~{output_prefix}.consensus.sorted.bam##idx##~{output_prefix}.consensus.sorted.bam.bai" \
             "~{output_prefix}.consensus.bam"
