@@ -27,11 +27,13 @@ workflow Demux_Bam_By_Sample {
     }
 
     output {
-        # All four arrays share the same order (sorted by BAM file name).
+        # All arrays share the same order (sorted by BAM file name).
         Array[File]   sample_bams    = Demux.sample_bams
         Array[File]   sample_bais    = Demux.sample_bais
         Array[String] donor_ids      = Demux.donor_ids
         Array[String] samples        = Demux.samples
+        Array[Int]    demux_reads    = Demux.demux_reads
+        Array[Int]    demux_cells    = Demux.demux_cells
         File          demux_summary  = Demux.demux_summary
         File          demux_totals   = Demux.demux_totals
         File          demux_log      = Demux.demux_log
@@ -102,12 +104,15 @@ task Demux {
         fi
         cat demux.log >&2
 
-        # Columns of the summary: donor_id, sample, bam, bai.
+        # Columns of the summary: donor_id, sample, bam, bai, n_barcodes, n_reads, status, n_barcodes_seen.
         # sample_bams / sample_bais are globbed (read_lines would only give path strings, which Cromwell does not delocalize).
         # glob() returns files sorted by name, so donor_ids / samples are written in the same (C-locale, by BAM name) order.
         tail -n +2 out/~{prefix}.demux_summary.tsv | LC_ALL=C sort -t "$(printf '\t')" -k3,3 > summary_by_bam.tsv
         cut -f1 summary_by_bam.tsv > donor_ids.txt
         cut -f2 summary_by_bam.tsv > samples.txt
+        # Reads assigned to each sample, and the number of its barcodes (cells) actually observed in the reads.
+        cut -f6 summary_by_bam.tsv > demux_reads.txt
+        cut -f8 summary_by_bam.tsv > demux_cells.txt
     >>>
 
     output {
@@ -115,6 +120,8 @@ task Demux {
         Array[File]   sample_bais   = glob("out/*.bam.bai")
         Array[String] donor_ids     = read_lines("donor_ids.txt")
         Array[String] samples       = read_lines("samples.txt")
+        Array[Int]    demux_reads   = read_lines("demux_reads.txt")
+        Array[Int]    demux_cells   = read_lines("demux_cells.txt")
         File          demux_summary = "out/~{prefix}.demux_summary.tsv"
         File          demux_totals  = "out/~{prefix}.demux_totals.tsv"
         File          demux_log     = "demux.log"
