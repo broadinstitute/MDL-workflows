@@ -28,10 +28,10 @@ workflow Demux_Bam_By_Sample {
 
     output {
         # All arrays share the same order (sorted by BAM file name).
-        Array[File]   sample_bams    = Demux.sample_bams
-        Array[File]   sample_bais    = Demux.sample_bais
-        Array[String] donor_ids      = Demux.donor_ids
-        Array[String] samples        = Demux.samples
+        Array[File]   demux_sample_bams    = Demux.sample_bams
+        Array[File]   demux_sample_bais    = Demux.sample_bais
+        Array[String] demux_donor_ids      = Demux.donor_ids
+        Array[String] demux_samples        = Demux.samples
         Array[Int]    demux_reads    = Demux.demux_reads
         Array[Int]    demux_cells    = Demux.demux_cells
         File          demux_summary  = Demux.demux_summary
