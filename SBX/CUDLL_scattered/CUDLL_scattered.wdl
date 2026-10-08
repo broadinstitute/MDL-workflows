@@ -126,6 +126,7 @@ workflow CUDLL_scattered {
         input:
             bams = CrossLocus.final_bam,
             prune_pg_header = prune_pg_header_merge_final_bams,
+            count_reads = true,
             output_name = sample_name + ".CUDLL.bam"
     }
 
@@ -154,6 +155,7 @@ workflow CUDLL_scattered {
         Array[File]  CUDLL_pass2_shards_bai    = CrossLocus.final_bai
         Array[File?] CUDLL_pass1_only_bam      = MergeShardConsensusSortedBams.merged_bam
         Array[File?] CUDLL_pass1_only_bai      = MergeShardConsensusSortedBams.merged_bai
+        Int    CUDLL_total_reads               = read_int(select_first([MergeFinalBams.read_count_txt]))
     }
 }
 
@@ -530,6 +532,7 @@ task MergeFinalBams {
     input {
         Array[File] bams
         Boolean prune_pg_header = false
+        Boolean count_reads = false
         String output_name
     }
 
@@ -587,11 +590,17 @@ task MergeFinalBams {
         else
             samtools merge --no-PG --write-index -p -@ 4 -o ~{output_name}##idx##~{output_name}.bai ~{sep=' ' bams}
         fi
+
+        if [ "~{count_reads}" = "true" ]; then
+            # Final BAM holds only primary records (secondaries dropped, supplementary flag cleared), so the mapped column of idxstats is the read count.
+            samtools idxstats "~{output_name}" | awk '{n += $3} END {print n + 0}' > read_count.txt
+        fi
     >>>
 
     output {
         File merged_bam = "~{output_name}"
         File merged_bai = "~{output_name}.bai"
+        File? read_count_txt = "read_count.txt"
     }
 
     runtime {
