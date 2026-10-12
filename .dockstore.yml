@@ -216,3 +216,21 @@ workflows:
     primaryDescriptorPath: /misc_tools/demux_bam_by_sample/demux_bam_by_sample.wdl
     authors:
       - orcid: 0000-0002-2603-1660
+
+  - name: Bam_Dedup_QC
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/bam_dedup_qc/bam_dedup_qc.wdl
+    authors:
+      - orcid: 0000-0002-2603-1660
+
+  - name: Bam_Dedup_QC_Plot
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/bam_dedup_qc/bam_dedup_qc_plot.wdl
+    authors:
+      - orcid: 0000-0002-2603-1660
+
+  - name: Bam_Dedup_QC_Compare
+    subclass: WDL
+    primaryDescriptorPath: /misc_tools/bam_dedup_qc/bam_dedup_qc_compare.wdl
+    authors:
+      - orcid: 0000-0002-2603-1660

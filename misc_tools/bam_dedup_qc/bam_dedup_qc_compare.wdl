@@ -1,0 +1,126 @@
+version 1.0
+
+# Cross-sample comparison of the tables written by Bam_Dedup_QC: overlay plots + one summary row per sample and stage.
+# Takes plain parallel arrays (one entry per sample, same order in every array), so it does not depend on how the
+# arrays are gathered (a set of sets, a sample set, a JSON file ...). Pre and post are independent: give either or both.
+workflow Bam_Dedup_QC_Compare {
+    input {
+        String comparison_name
+
+        Array[String] pre_sample_names = []
+        Array[File] pre_aligned_length_tsvs = []
+        Array[File] pre_error_by_position_tsvs = []
+        Array[File] pre_read_error_rates_tsvs = []  # optional (per-read plot)
+        Array[File] pre_cb_counts_tsv_gzs = []
+        Array[File] pre_summary_jsons = []
+
+        Array[String] post_sample_names = []
+        Array[File] post_aligned_length_tsvs = []
+        Array[File] post_dc_tsvs = []
+        Array[File] post_error_by_position_tsvs = []
+        Array[File] post_read_error_rates_tsvs = []
+        Array[File] post_cb_counts_tsv_gzs = []
+        Array[File] post_summary_jsons = []
+
+        String error_plot_style = "box"
+        Int memory_gb = 16
+        Int preemptible = 3
+        String docker = "us-central1-docker.pkg.dev/methods-dev-lab/misc-utilities/bam_dedup_qc:0.1.0"
+    }
+
+    call Compare {
+        input:
+            comparison_name = comparison_name,
+            pre_sample_names = pre_sample_names, pre_aligned_length_tsvs = pre_aligned_length_tsvs,
+            pre_error_by_position_tsvs = pre_error_by_position_tsvs, pre_read_error_rates_tsvs = pre_read_error_rates_tsvs, pre_cb_counts_tsv_gzs = pre_cb_counts_tsv_gzs,
+            pre_summary_jsons = pre_summary_jsons,
+            post_sample_names = post_sample_names, post_aligned_length_tsvs = post_aligned_length_tsvs,
+            post_dc_tsvs = post_dc_tsvs, post_error_by_position_tsvs = post_error_by_position_tsvs, post_read_error_rates_tsvs = post_read_error_rates_tsvs,
+            post_cb_counts_tsv_gzs = post_cb_counts_tsv_gzs, post_summary_jsons = post_summary_jsons,
+            error_plot_style = error_plot_style, memory_gb = memory_gb, preemptible = preemptible, docker = docker
+    }
+
+    output {
+        File comparison_summary_tsv = Compare.summary_tsv
+        Array[File] comparison_aligned_length_plots = Compare.aligned_length_plots
+        Array[File] comparison_dc_plots = Compare.dc_plots
+        Array[File] comparison_error_plots = Compare.error_plots
+        Array[File] comparison_knee_plots = Compare.knee_plots
+    }
+}
+
+task Compare {
+    input {
+        String comparison_name
+        Array[String] pre_sample_names
+        Array[File] pre_aligned_length_tsvs
+        Array[File] pre_error_by_position_tsvs
+        Array[File] pre_read_error_rates_tsvs
+        Array[File] pre_cb_counts_tsv_gzs
+        Array[File] pre_summary_jsons
+        Array[String] post_sample_names
+        Array[File] post_aligned_length_tsvs
+        Array[File] post_dc_tsvs
+        Array[File] post_error_by_position_tsvs
+        Array[File] post_read_error_rates_tsvs
+        Array[File] post_cb_counts_tsv_gzs
+        Array[File] post_summary_jsons
+        String error_plot_style
+        Int memory_gb
+        Int preemptible
+        String docker
+    }
+
+    Int disk_gb = ceil(size(pre_cb_counts_tsv_gzs, "GB") * 4 + size(post_cb_counts_tsv_gzs, "GB") * 4 + 10)
+
+    command <<<
+        set -euo pipefail
+        mkdir -p t out plots
+        printf 'sample\tstage\tprefix\n' > manifest.tsv
+
+        pn=(~{sep=" " pre_sample_names}); pa=(~{sep=" " pre_aligned_length_tsvs}); pe=(~{sep=" " pre_error_by_position_tsvs})
+        pr=(~{sep=" " pre_read_error_rates_tsvs})
+        pc=(~{sep=" " pre_cb_counts_tsv_gzs}); ps=(~{sep=" " pre_summary_jsons})
+        for i in "${!pn[@]}"; do
+            [ "${#pa[@]}" = "${#pn[@]}" ] && [ "${#pe[@]}" = "${#pn[@]}" ] && [ "${#pc[@]}" = "${#pn[@]}" ] && [ "${#ps[@]}" = "${#pn[@]}" ] \
+                || { echo "ERROR: pre arrays differ in length" >&2; exit 1; }
+            ln -s "${pa[$i]}" t/pre$i.aligned_length.tsv; ln -s "${pe[$i]}" t/pre$i.error_by_position.tsv
+            ln -s "${pc[$i]}" t/pre$i.cb_counts.tsv.gz;   ln -s "${ps[$i]}" t/pre$i.summary.json
+            [ "${#pr[@]}" = "${#pn[@]}" ] && ln -s "${pr[$i]}" t/pre$i.read_error_rates.tsv
+            printf '%s\tpre\tt/pre%s\n' "${pn[$i]}" "$i" >> manifest.tsv
+        done
+
+        qn=(~{sep=" " post_sample_names}); qa=(~{sep=" " post_aligned_length_tsvs}); qd=(~{sep=" " post_dc_tsvs})
+        qr=(~{sep=" " post_read_error_rates_tsvs}); qe=(~{sep=" " post_error_by_position_tsvs}); qc=(~{sep=" " post_cb_counts_tsv_gzs}); qs=(~{sep=" " post_summary_jsons})
+        for i in "${!qn[@]}"; do
+            [ "${#qa[@]}" = "${#qn[@]}" ] && [ "${#qd[@]}" = "${#qn[@]}" ] && [ "${#qe[@]}" = "${#qn[@]}" ] \
+                && [ "${#qc[@]}" = "${#qn[@]}" ] && [ "${#qs[@]}" = "${#qn[@]}" ] \
+                || { echo "ERROR: post arrays differ in length" >&2; exit 1; }
+            ln -s "${qa[$i]}" t/post$i.aligned_length.tsv; ln -s "${qd[$i]}" t/post$i.dc.tsv
+            ln -s "${qe[$i]}" t/post$i.error_by_position.tsv; ln -s "${qc[$i]}" t/post$i.cb_counts.tsv.gz
+            ln -s "${qs[$i]}" t/post$i.summary.json
+            [ "${#qr[@]}" = "${#qn[@]}" ] && ln -s "${qr[$i]}" t/post$i.read_error_rates.tsv
+            printf '%s\tpost\tt/post%s\n' "${qn[$i]}" "$i" >> manifest.tsv
+        done
+
+        [ "$(wc -l < manifest.tsv)" -gt 1 ] || { echo "ERROR: no samples given" >&2; exit 1; }
+        bamqc_compare --manifest manifest.tsv --outdir out --error-style ~{error_plot_style}
+        for f in out/*; do cp "$f" "plots/~{comparison_name}.$(basename "$f")"; done
+    >>>
+
+    output {
+        File summary_tsv = "plots/~{comparison_name}.comparison_summary.tsv"
+        Array[File] aligned_length_plots = glob("plots/*.comparison_aligned_length_*")
+        Array[File] dc_plots = glob("plots/*.comparison_dc.*")
+        Array[File] error_plots = glob("plots/*.comparison_error_*")
+        Array[File] knee_plots = glob("plots/*.comparison_knee.*")
+    }
+
+    runtime {
+        docker: docker
+        cpu: 1
+        memory: "~{memory_gb} GB"
+        disks: "local-disk ~{disk_gb} HDD"
+        preemptible: preemptible
+    }
+}
