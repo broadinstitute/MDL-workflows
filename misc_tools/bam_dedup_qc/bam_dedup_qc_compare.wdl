@@ -121,8 +121,8 @@ task Compare {
         Array[File] aligned_length_plots = glob("plots/*.comparison_aligned_length_*")
         Array[File] dc_plots = glob("plots/*.comparison_dc.*")
         Array[File] error_plots = glob("plots/*.comparison_error_*")
-        Array[File] knee_plots = glob("plots/*.comparison_knee.*")
-        Array[File] mito_plots = glob("plots/*.comparison_mito.*")
+        Array[File] knee_plots = glob("plots/*.comparison_knee*")
+        Array[File] mito_plots = glob("plots/*.comparison_mito*")
         Array[File] combined_pdf = glob("plots/*.comparison_all_plots.pdf")
     }
 
