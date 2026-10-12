@@ -31,8 +31,19 @@ workflow Bam_Dedup_QC_Compare {
         String docker = "us-central1-docker.pkg.dev/methods-dev-lab/misc-utilities/bam_dedup_qc:0.1.0"
     }
 
+    # Fail before any file is localized: every table array must have one entry per sample name.
+    call CheckInputs {
+        input:
+            n_pre_names = length(pre_sample_names), n_pre_tables = [length(pre_aligned_length_tsvs), length(pre_error_by_position_tsvs), length(pre_cb_counts_tsv_gzs), length(pre_summary_jsons)],
+            n_pre_optional = [length(pre_read_error_rates_tsvs)],
+            n_post_names = length(post_sample_names), n_post_tables = [length(post_aligned_length_tsvs), length(post_dc_tsvs), length(post_error_by_position_tsvs), length(post_cb_counts_tsv_gzs), length(post_summary_jsons)],
+            n_post_optional = [length(post_read_error_rates_tsvs)],
+            error_plot_style = error_plot_style, cell_cutoff_method = cell_cutoff_method, docker = docker, preemptible = preemptible
+    }
+
     call Compare {
         input:
+            ready = CheckInputs.ok,
             comparison_name = comparison_name,
             pre_sample_names = pre_sample_names, pre_aligned_length_tsvs = pre_aligned_length_tsvs,
             pre_error_by_position_tsvs = pre_error_by_position_tsvs, pre_read_error_rates_tsvs = pre_read_error_rates_tsvs, pre_cb_counts_tsv_gzs = pre_cb_counts_tsv_gzs,
@@ -54,8 +65,56 @@ workflow Bam_Dedup_QC_Compare {
     }
 }
 
+task CheckInputs {
+    input {
+        Int n_pre_names
+        Array[Int] n_pre_tables
+        Array[Int] n_pre_optional
+        Int n_post_names
+        Array[Int] n_post_tables
+        Array[Int] n_post_optional
+        String error_plot_style
+        String cell_cutoff_method
+        String docker
+        Int preemptible
+    }
+
+    command <<<
+        set -euo pipefail
+        err() { echo "ERROR: $1" >&2; exit 1; }
+        check() {  # stage, names, required counts (space separated), optional counts
+            local stage="$1" names="$2" req="$3" opt="$4" n
+            for n in $req; do
+                [ "$n" -eq "$names" ] || err "$stage: $names sample names but a table array has $n entries (all required arrays need one entry per name; a sample-name expression that matches no attribute gives an empty list)"
+            done
+            for n in $opt; do
+                [ "$n" -eq 0 ] || [ "$n" -eq "$names" ] || err "$stage: an optional table array has $n entries, expected 0 or $names"
+            done
+        }
+        check pre ~{n_pre_names} "~{sep=" " n_pre_tables}" "~{sep=" " n_pre_optional}"
+        check post ~{n_post_names} "~{sep=" " n_post_tables}" "~{sep=" " n_post_optional}"
+        [ $(( ~{n_pre_names} + ~{n_post_names} )) -gt 0 ] || err "no samples given: provide the pre_* and/or post_* names and tables"
+        case "~{error_plot_style}" in box|violin) ;; *) err "error_plot_style must be box or violin" ;; esac
+        case "~{cell_cutoff_method}" in start|steepest) ;; *) err "cell_cutoff_method must be start or steepest" ;; esac
+        echo true > ok.txt
+    >>>
+
+    output {
+        Boolean ok = read_boolean("ok.txt")
+    }
+
+    runtime {
+        docker: docker
+        cpu: 1
+        memory: "1 GB"
+        disks: "local-disk 10 HDD"
+        preemptible: preemptible
+    }
+}
+
 task Compare {
     input {
+        Boolean ready  # orders this task after CheckInputs
         String comparison_name
         Array[String] pre_sample_names
         Array[File] pre_aligned_length_tsvs
@@ -83,6 +142,7 @@ task Compare {
 
     command <<<
         set -euo pipefail
+        # inputs validated: ~{ready}
         mkdir -p t out plots
         printf 'sample\tstage\tprefix\n' > manifest.tsv
 
