@@ -17,6 +17,7 @@ workflow Bam_Dedup_QC {
         File? post_bam
         File? post_bai
 
+        Array[String] mito_contigs = ["chrM"]  # mitochondrial contig name(s) of the reference
         String cb_tag = "CB"
         String dc_tag = "DC"
         Int max_read_position = 10000
@@ -48,7 +49,7 @@ workflow Bam_Dedup_QC {
         scatter (i in range(length(pre_bam_list))) {
             call Scan as PreScan {
                 input:
-                    bam = pre_bam_list[i], bai = pre_bai_list[i], label = "shard", origin = CheckInputs.origin,
+                    bam = pre_bam_list[i], bai = pre_bai_list[i], label = "shard", origin = CheckInputs.origin, mito_contigs = mito_contigs,
                     cb_tag = cb_tag, dc_tag = dc_tag, max_read_position = max_read_position,
                     include_supplementary = include_supplementary, target_reads_per_chunk = target_reads_per_chunk,
                     threads = scan_threads, machine_type = scan_machine_type, extra_disk_gb = scan_extra_disk_gb,
@@ -59,7 +60,7 @@ workflow Bam_Dedup_QC {
             input:
                 label = sample_name + ".pre",
                 aligned_length_tsvs = PreScan.aligned_length_tsv, dc_tsvs = PreScan.dc_tsv,
-                error_by_position_tsvs = PreScan.error_by_position_tsv, read_error_rates_tsvs = PreScan.read_error_rates_tsv, cb_counts_tsvs = PreScan.cb_counts_tsv_gz,
+                error_by_position_tsvs = PreScan.error_by_position_tsv, read_error_rates_tsvs = PreScan.read_error_rates_tsv, contig_counts_tsvs = PreScan.contig_counts_tsv, cb_counts_tsvs = PreScan.cb_counts_tsv_gz,
                 summary_jsons = PreScan.summary_json,
                 memory_gb = small_task_memory_gb, preemptible = preemptible, docker = docker
         }
@@ -70,7 +71,7 @@ workflow Bam_Dedup_QC {
             input:
                 bam = select_first([post_bam]),
                 bai = select_first([post_bai]),
-                label = sample_name + ".post", origin = CheckInputs.origin,
+                label = sample_name + ".post", origin = CheckInputs.origin, mito_contigs = mito_contigs,
                 cb_tag = cb_tag, dc_tag = dc_tag, max_read_position = max_read_position,
                 include_supplementary = include_supplementary, target_reads_per_chunk = target_reads_per_chunk,
                 threads = scan_threads, machine_type = scan_machine_type, extra_disk_gb = scan_extra_disk_gb,
@@ -86,12 +87,14 @@ workflow Bam_Dedup_QC {
         File? pre_error_by_position_tsv = PreMerge.error_by_position_tsv
         File? pre_read_error_rates_tsv = PreMerge.read_error_rates_tsv
         File? pre_cb_counts_tsv_gz = PreMerge.cb_counts_tsv_gz
+        File? pre_contig_counts_tsv = PreMerge.contig_counts_tsv
         File? pre_summary_json = PreMerge.summary_json
         File? post_aligned_length_tsv = PostScan.aligned_length_tsv
         File? post_dc_tsv = PostScan.dc_tsv
         File? post_error_by_position_tsv = PostScan.error_by_position_tsv
         File? post_read_error_rates_tsv = PostScan.read_error_rates_tsv
         File? post_cb_counts_tsv_gz = PostScan.cb_counts_tsv_gz
+        File? post_contig_counts_tsv = PostScan.contig_counts_tsv
         File? post_summary_json = PostScan.summary_json
     }
 }
@@ -143,6 +146,7 @@ task Scan {
         File bai
         String label
         String origin
+        Array[String] mito_contigs
         String cb_tag
         String dc_tag
         Int max_read_position
@@ -169,7 +173,7 @@ task Scan {
         ln -s ~{bai} "in/$b.bai"
         bamqc_scan --bam "in/$b" --label ~{label} --outdir out --threads ~{threads} --origin ~{origin} \
             --max-len ~{max_read_position} --cb-tag ~{cb_tag} --dc-tag ~{dc_tag} \
-            --target-reads-per-chunk ~{target_reads_per_chunk} ~{if include_supplementary then "--include-supplementary" else ""}
+            --target-reads-per-chunk ~{target_reads_per_chunk} ~{sep=" " prefix("--mito-contig ", mito_contigs)} ~{if include_supplementary then "--include-supplementary" else ""}
     >>>
 
     output {
@@ -178,6 +182,7 @@ task Scan {
         File error_by_position_tsv = "out/~{label}.error_by_position.tsv"
         File read_error_rates_tsv = "out/~{label}.read_error_rates.tsv"
         File cb_counts_tsv_gz = "out/~{label}.cb_counts.tsv.gz"
+        File contig_counts_tsv = "out/~{label}.contig_counts.tsv"
         File summary_json = "out/~{label}.summary.json"
     }
 
@@ -198,6 +203,7 @@ task Merge {
         Array[File] dc_tsvs
         Array[File] error_by_position_tsvs
         Array[File] read_error_rates_tsvs
+        Array[File] contig_counts_tsvs
         Array[File] cb_counts_tsvs
         Array[File] summary_jsons
         Int memory_gb
@@ -211,7 +217,7 @@ task Merge {
         set -euo pipefail
         mkdir -p shards out
         a=(~{sep=" " aligned_length_tsvs}); d=(~{sep=" " dc_tsvs}); e=(~{sep=" " error_by_position_tsvs}); r=(~{sep=" " read_error_rates_tsvs})
-        c=(~{sep=" " cb_counts_tsvs}); s=(~{sep=" " summary_jsons})
+        c=(~{sep=" " cb_counts_tsvs}); k=(~{sep=" " contig_counts_tsvs}); s=(~{sep=" " summary_jsons})
         prefixes=()
         for i in "${!a[@]}"; do
             ln -s "${a[$i]}" shards/s$i.aligned_length.tsv
@@ -219,6 +225,7 @@ task Merge {
             ln -s "${e[$i]}" shards/s$i.error_by_position.tsv
             ln -s "${r[$i]}" shards/s$i.read_error_rates.tsv
             ln -s "${c[$i]}" shards/s$i.cb_counts.tsv.gz
+            ln -s "${k[$i]}" shards/s$i.contig_counts.tsv
             ln -s "${s[$i]}" shards/s$i.summary.json
             prefixes+=("shards/s$i")
         done
@@ -231,6 +238,7 @@ task Merge {
         File error_by_position_tsv = "out/~{label}.error_by_position.tsv"
         File read_error_rates_tsv = "out/~{label}.read_error_rates.tsv"
         File cb_counts_tsv_gz = "out/~{label}.cb_counts.tsv.gz"
+        File contig_counts_tsv = "out/~{label}.contig_counts.tsv"
         File summary_json = "out/~{label}.summary.json"
     }
 

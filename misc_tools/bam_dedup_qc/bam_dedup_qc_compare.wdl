@@ -23,6 +23,8 @@ workflow Bam_Dedup_QC_Compare {
         Array[File] post_summary_jsons = []
 
         String error_plot_style = "box"
+        Int cell_min_reads = 0  # 0 = estimate each dataset's cell cutoff from its knee
+        String cell_cutoff_method = "steepest"
         Int memory_gb = 16
         Int preemptible = 3
         String docker = "us-central1-docker.pkg.dev/methods-dev-lab/misc-utilities/bam_dedup_qc:0.1.0"
@@ -37,7 +39,7 @@ workflow Bam_Dedup_QC_Compare {
             post_sample_names = post_sample_names, post_aligned_length_tsvs = post_aligned_length_tsvs,
             post_dc_tsvs = post_dc_tsvs, post_error_by_position_tsvs = post_error_by_position_tsvs, post_read_error_rates_tsvs = post_read_error_rates_tsvs,
             post_cb_counts_tsv_gzs = post_cb_counts_tsv_gzs, post_summary_jsons = post_summary_jsons,
-            error_plot_style = error_plot_style, memory_gb = memory_gb, preemptible = preemptible, docker = docker
+            error_plot_style = error_plot_style, cell_min_reads = cell_min_reads, cell_cutoff_method = cell_cutoff_method, memory_gb = memory_gb, preemptible = preemptible, docker = docker
     }
 
     output {
@@ -46,6 +48,8 @@ workflow Bam_Dedup_QC_Compare {
         Array[File] comparison_dc_plots = Compare.dc_plots
         Array[File] comparison_error_plots = Compare.error_plots
         Array[File] comparison_knee_plots = Compare.knee_plots
+        Array[File] comparison_mito_plots = Compare.mito_plots
+        Array[File] comparison_combined_pdf = Compare.combined_pdf  # all the figures, one per page
     }
 }
 
@@ -66,6 +70,8 @@ task Compare {
         Array[File] post_cb_counts_tsv_gzs
         Array[File] post_summary_jsons
         String error_plot_style
+        Int cell_min_reads
+        String cell_cutoff_method
         Int memory_gb
         Int preemptible
         String docker
@@ -104,7 +110,7 @@ task Compare {
         done
 
         [ "$(wc -l < manifest.tsv)" -gt 1 ] || { echo "ERROR: no samples given" >&2; exit 1; }
-        bamqc_compare --manifest manifest.tsv --outdir out --error-style ~{error_plot_style}
+        bamqc_compare --manifest manifest.tsv --outdir out --error-style ~{error_plot_style} --cell-min-reads ~{cell_min_reads} --cell-cutoff-method ~{cell_cutoff_method}
         for f in out/*; do cp "$f" "plots/~{comparison_name}.$(basename "$f")"; done
     >>>
 
@@ -114,6 +120,8 @@ task Compare {
         Array[File] dc_plots = glob("plots/*.comparison_dc.*")
         Array[File] error_plots = glob("plots/*.comparison_error_*")
         Array[File] knee_plots = glob("plots/*.comparison_knee.*")
+        Array[File] mito_plots = glob("plots/*.comparison_mito.*")
+        Array[File] combined_pdf = glob("plots/*.comparison_all_plots.pdf")
     }
 
     runtime {

@@ -24,6 +24,10 @@ workflow Bam_Dedup_QC_Plot {
         Boolean plot_dc = true
         Boolean plot_errors = true
         Boolean plot_knee = true
+        Boolean plot_mito = true  # needs the cb_counts tables of the current scan (with the mito column)
+        # Cell barcodes for the knee cutoff line and the per-cell mito plots: 0 = estimate from the knee, else reads per barcode.
+        Int cell_min_reads = 0
+        String cell_cutoff_method = "steepest"  # steepest = middle of the cliff, end = where the curve levels off
         String error_plot_style = "box"  # per-read error plot: box or violin
 
         Int memory_gb = 8
@@ -37,7 +41,7 @@ workflow Bam_Dedup_QC_Plot {
     Boolean have_pre = n_pre == 4
     Boolean have_post = n_post == 5
 
-    call CheckInputs { input: n_pre = n_pre, n_post = n_post, error_plot_style = error_plot_style, docker = docker, preemptible = preemptible }
+    call CheckInputs { input: n_pre = n_pre, n_post = n_post, error_plot_style = error_plot_style, cell_cutoff_method = cell_cutoff_method, docker = docker, preemptible = preemptible }
 
     call Plot {
         input:
@@ -50,8 +54,8 @@ workflow Bam_Dedup_QC_Plot {
             post_error_by_position_tsv = post_error_by_position_tsv, post_read_error_rates_tsv = post_read_error_rates_tsv,
             post_cb_counts_tsv_gz = post_cb_counts_tsv_gz, post_summary_json = post_summary_json,
             have_pre = have_pre, have_post = have_post,
-            plot_length = plot_length, plot_dc = plot_dc, plot_errors = plot_errors, plot_knee = plot_knee,
-            error_plot_style = error_plot_style, memory_gb = memory_gb, preemptible = preemptible, docker = docker
+            plot_length = plot_length, plot_dc = plot_dc, plot_errors = plot_errors, plot_knee = plot_knee, plot_mito = plot_mito,
+            cell_min_reads = cell_min_reads, cell_cutoff_method = cell_cutoff_method, error_plot_style = error_plot_style, memory_gb = memory_gb, preemptible = preemptible, docker = docker
     }
 
     output {
@@ -60,6 +64,8 @@ workflow Bam_Dedup_QC_Plot {
         Array[File] plots_dc = Plot.plots_dc
         Array[File] plots_error_rates = Plot.plots_error_rates
         Array[File] plots_knee = Plot.plots_knee
+        Array[File] plots_mito = Plot.plots_mito
+        Array[File] plots_combined_pdf = Plot.plots_combined_pdf  # all the figures of the run, one per page
         File plots_stats_json = Plot.plots_stats_json
     }
 }
@@ -69,6 +75,7 @@ task CheckInputs {
         Int n_pre
         Int n_post
         String error_plot_style
+        String cell_cutoff_method
         String docker
         Int preemptible
     }
@@ -80,6 +87,7 @@ task CheckInputs {
         [ ~{n_post} -eq 0 ] || [ ~{n_post} -eq 5 ] || err "~{n_post} of the 5 required post_* tables given (aligned_length, dc, error_by_position, cb_counts, summary)"
         [ ~{n_pre} -gt 0 ] || [ ~{n_post} -gt 0 ] || err "no tables given: provide the pre_* and/or the post_* tables"
         case "~{error_plot_style}" in box|violin) ;; *) err "error_plot_style must be box or violin" ;; esac
+        case "~{cell_cutoff_method}" in steepest|end) ;; *) err "cell_cutoff_method must be steepest or end" ;; esac
         echo true > ok.txt
     >>>
 
@@ -117,6 +125,9 @@ task Plot {
         Boolean plot_dc
         Boolean plot_errors
         Boolean plot_knee
+        Boolean plot_mito
+        Int cell_min_reads
+        String cell_cutoff_method
         String error_plot_style
         Int memory_gb
         Int preemptible
@@ -124,7 +135,7 @@ task Plot {
     }
 
     String families = (if plot_length then "length," else "") + (if plot_dc then "dc," else "") +
-                      (if plot_errors then "errors," else "") + (if plot_knee then "knee," else "")
+                      (if plot_errors then "errors," else "") + (if plot_knee then "knee," else "") + (if plot_mito then "mito," else "")
     Int disk_gb = ceil(size(pre_cb_counts_tsv_gz, "GB") * 4 + size(post_cb_counts_tsv_gz, "GB") * 4 + 10)
 
     command <<<
@@ -149,7 +160,7 @@ task Plot {
             if [ -n "~{post_read_error_rates_tsv}" ]; then ln -s ~{post_read_error_rates_tsv} t/post.read_error_rates.tsv; fi
             args="$args --post t/post"
         fi
-        bamqc_plot $args --plots "~{families}" --error-style ~{error_plot_style} --outdir raw
+        bamqc_plot $args --plots "~{families}" --error-style ~{error_plot_style} --cell-min-reads ~{cell_min_reads} --cell-cutoff-method ~{cell_cutoff_method} --outdir raw
         for f in raw/*; do cp "$f" "plots/~{sample_name}.$(basename "$f")"; done
     >>>
 
@@ -158,6 +169,8 @@ task Plot {
         Array[File] plots_dc = glob("plots/*.dc_distribution.*")
         Array[File] plots_error_rates = glob("plots/*.error_rates_*")
         Array[File] plots_knee = glob("plots/*.cell_knee.*")
+        Array[File] plots_mito = glob("plots/*.mito_overview.*")
+        Array[File] plots_combined_pdf = glob("plots/*.all_plots.pdf")
         File plots_stats_json = "plots/~{sample_name}.qc_stats.json"
     }
 
