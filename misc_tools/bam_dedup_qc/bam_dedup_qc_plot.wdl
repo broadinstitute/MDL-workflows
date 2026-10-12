@@ -27,7 +27,7 @@ workflow Bam_Dedup_QC_Plot {
         Boolean plot_mito = true  # needs the cb_counts tables of the current scan (with the mito column)
         # Cell barcodes for the knee cutoff line and the per-cell mito plots: 0 = estimate from the knee, else reads per barcode.
         Int cell_min_reads = 0
-        String cell_cutoff_method = "steepest"  # steepest = middle of the cliff, end = where the curve levels off
+        String cell_cutoff_method = "steepest"  # position on the first cliff of the reads-per-barcode curve: start or steepest
         String error_plot_style = "box"  # per-read error plot: box or violin
 
         Int memory_gb = 8
@@ -87,7 +87,7 @@ task CheckInputs {
         [ ~{n_post} -eq 0 ] || [ ~{n_post} -eq 5 ] || err "~{n_post} of the 5 required post_* tables given (aligned_length, dc, error_by_position, cb_counts, summary)"
         [ ~{n_pre} -gt 0 ] || [ ~{n_post} -gt 0 ] || err "no tables given: provide the pre_* and/or the post_* tables"
         case "~{error_plot_style}" in box|violin) ;; *) err "error_plot_style must be box or violin" ;; esac
-        case "~{cell_cutoff_method}" in steepest|end) ;; *) err "cell_cutoff_method must be steepest or end" ;; esac
+        case "~{cell_cutoff_method}" in start|steepest) ;; *) err "cell_cutoff_method must be start or steepest" ;; esac
         echo true > ok.txt
     >>>
 
