@@ -27,6 +27,8 @@ workflow Bam_Dedup_QC_Plot {
         Boolean plot_mito = true  # needs the cb_counts tables of the current scan (with the mito column)
         # Cell barcodes for the knee cutoff line and the per-cell mito plots: 0 = estimate from the knee, else reads per barcode.
         Int cell_min_reads = 0
+        # Common upper limit of every error-rate axis, as a fraction of reference bases (match rate: 1 - limit to 1).
+        Float error_axis_max = 0.04
         String cell_cutoff_method = "steepest"  # position on the first cliff of the reads-per-barcode curve: start or steepest
         String error_plot_style = "box"  # per-read error plot: box or violin
 
@@ -55,7 +57,7 @@ workflow Bam_Dedup_QC_Plot {
             post_cb_counts_tsv_gz = post_cb_counts_tsv_gz, post_summary_json = post_summary_json,
             have_pre = have_pre, have_post = have_post,
             plot_length = plot_length, plot_dc = plot_dc, plot_errors = plot_errors, plot_knee = plot_knee, plot_mito = plot_mito,
-            cell_min_reads = cell_min_reads, cell_cutoff_method = cell_cutoff_method, error_plot_style = error_plot_style, memory_gb = memory_gb, preemptible = preemptible, docker = docker
+            cell_min_reads = cell_min_reads, cell_cutoff_method = cell_cutoff_method, error_axis_max = error_axis_max, error_plot_style = error_plot_style, memory_gb = memory_gb, preemptible = preemptible, docker = docker
     }
 
     output {
@@ -128,6 +130,7 @@ task Plot {
         Boolean plot_mito
         Int cell_min_reads
         String cell_cutoff_method
+        Float error_axis_max
         String error_plot_style
         Int memory_gb
         Int preemptible
@@ -160,7 +163,7 @@ task Plot {
             if [ -n "~{post_read_error_rates_tsv}" ]; then ln -s ~{post_read_error_rates_tsv} t/post.read_error_rates.tsv; fi
             args="$args --post t/post"
         fi
-        bamqc_plot $args --plots "~{families}" --error-style ~{error_plot_style} --cell-min-reads ~{cell_min_reads} --cell-cutoff-method ~{cell_cutoff_method} --outdir raw
+        bamqc_plot $args --plots "~{families}" --error-style ~{error_plot_style} --cell-min-reads ~{cell_min_reads} --cell-cutoff-method ~{cell_cutoff_method} --error-axis-max ~{error_axis_max} --outdir raw
         for f in raw/*; do cp "$f" "plots/~{sample_name}.$(basename "$f")"; done
     >>>
 

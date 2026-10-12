@@ -25,6 +25,7 @@ workflow Bam_Dedup_QC_Compare {
         String error_plot_style = "box"
         Int cell_min_reads = 0  # 0 = estimate each dataset's cell cutoff from its knee
         String cell_cutoff_method = "steepest"
+        Float error_axis_max = 0.04  # common upper limit of every error-rate axis (fraction of reference bases)
         Int memory_gb = 16
         Int preemptible = 3
         String docker = "us-central1-docker.pkg.dev/methods-dev-lab/misc-utilities/bam_dedup_qc:0.1.0"
@@ -39,7 +40,7 @@ workflow Bam_Dedup_QC_Compare {
             post_sample_names = post_sample_names, post_aligned_length_tsvs = post_aligned_length_tsvs,
             post_dc_tsvs = post_dc_tsvs, post_error_by_position_tsvs = post_error_by_position_tsvs, post_read_error_rates_tsvs = post_read_error_rates_tsvs,
             post_cb_counts_tsv_gzs = post_cb_counts_tsv_gzs, post_summary_jsons = post_summary_jsons,
-            error_plot_style = error_plot_style, cell_min_reads = cell_min_reads, cell_cutoff_method = cell_cutoff_method, memory_gb = memory_gb, preemptible = preemptible, docker = docker
+            error_plot_style = error_plot_style, cell_min_reads = cell_min_reads, cell_cutoff_method = cell_cutoff_method, error_axis_max = error_axis_max, memory_gb = memory_gb, preemptible = preemptible, docker = docker
     }
 
     output {
@@ -72,6 +73,7 @@ task Compare {
         String error_plot_style
         Int cell_min_reads
         String cell_cutoff_method
+        Float error_axis_max
         Int memory_gb
         Int preemptible
         String docker
@@ -110,7 +112,7 @@ task Compare {
         done
 
         [ "$(wc -l < manifest.tsv)" -gt 1 ] || { echo "ERROR: no samples given" >&2; exit 1; }
-        bamqc_compare --manifest manifest.tsv --outdir out --error-style ~{error_plot_style} --cell-min-reads ~{cell_min_reads} --cell-cutoff-method ~{cell_cutoff_method}
+        bamqc_compare --manifest manifest.tsv --outdir out --error-style ~{error_plot_style} --cell-min-reads ~{cell_min_reads} --cell-cutoff-method ~{cell_cutoff_method} --error-axis-max ~{error_axis_max}
         for f in out/*; do cp "$f" "plots/~{comparison_name}.$(basename "$f")"; done
     >>>
 
