@@ -384,6 +384,85 @@ task BC_Correct_Pass2 {
 }
 
 
+task Summarize_Read_Accounting {
+    # Per-shard and pool-total read accounting from the pass1/pass2 stats files, so the reads that
+    # are lost at each filter (trimming, too short, uncorrectable) and the reads rescued by error
+    # correction are tracked. exact_match_written is the exact-whitelist CB count from pass 1 (the
+    # same reads that feed the merged counts table).
+    input {
+        Array[String] sample_names
+        Array[File] trim_stats
+        Array[File] pass1_read_stats
+        Array[File] pass2_read_stats
+        String docker
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 - <<'PY'
+        import csv
+
+        names = ["~{sep='", "' sample_names}"]
+        trim = open("~{write_lines(trim_stats)}").read().split("\n")
+        p1 = open("~{write_lines(pass1_read_stats)}").read().split("\n")
+        p2 = open("~{write_lines(pass2_read_stats)}").read().split("\n")
+
+        def load(path):
+            with open(path) as f:
+                rows = csv.reader(f, delimiter="\t")
+                next(rows)
+                return {k: int(v) for k, v in rows}
+
+        cols = [
+            ("raw_reads", lambda t, a, b: t["stage1_input_reads"]),
+            ("trim_dropped_stage1", lambda t, a, b: t["stage1_dropped_reads"]),
+            ("trim_dropped_stage2", lambda t, a, b: t["stage2_dropped_reads"]),
+            ("reads_into_bc_correct", lambda t, a, b: a["total_reads"]),
+            ("exact_match_written", lambda t, a, b: a["matched_written"]),
+            ("exact_match_too_short_dropped", lambda t, a, b: a["matched_too_short_dropped"]),
+            ("unmatched_to_pass2", lambda t, a, b: a["unmatched_written"]),
+            ("rescued_by_correction", lambda t, a, b: b["corrected_written"]),
+            ("corrected_too_short_dropped", lambda t, a, b: b["dropped_too_short"]),
+            ("uncorrectable_dropped", lambda t, a, b: b["dropped_uncorrectable"]),
+            ("out_of_range_dropped", lambda t, a, b: b["dropped_out_of_range"]),
+            ("written_to_discarded", lambda t, a, b: b["written_to_discarded"]),
+            ("total_kept", lambda t, a, b: a["matched_written"] + b["corrected_written"]),
+        ]
+        header = ["sample_name"] + [c for c, _ in cols]
+
+        totals = [0] * len(cols)
+        with open("read_accounting_per_shard.tsv", "w") as out:
+            out.write("\t".join(header) + "\n")
+            for name, tp, ap, bp in zip(names, trim, p1, p2):
+                t, a, b = load(tp), load(ap), load(bp)
+                vals = [fn(t, a, b) for _, fn in cols]
+                totals = [x + y for x, y in zip(totals, vals)]
+                out.write("\t".join([name] + [str(v) for v in vals]) + "\n")
+
+        with open("read_accounting_total.tsv", "w") as out:
+            out.write("metric\tcount\tfraction_of_raw_reads\n")
+            for (c, _), v in zip(cols, totals):
+                frac = v / totals[0] if totals[0] else 0
+                out.write(f"{c}\t{v}\t{frac:.6f}\n")
+        PY
+    >>>
+
+    output {
+        File per_shard = "read_accounting_per_shard.tsv"
+        File total = "read_accounting_total.tsv"
+    }
+
+    runtime {
+        docker: docker
+        cpu: 1
+        memory: "1 GB"
+        predefinedMachineType: "n1-custom-1-1024"
+        preemptible: 3
+    }
+}
+
+
 workflow BC_Barcode_Extract_And_Correct_Array {
     meta {
         description: "Extract and correct cell barcodes/UMIs in two passes over arrays of FASTQs."
@@ -698,6 +777,15 @@ workflow BC_Barcode_Extract_And_Correct_Array {
         }
     }
 
+    call Summarize_Read_Accounting as read_accounting {
+        input:
+            sample_names = sample_names,
+            trim_stats = pass1.trim_stats,
+            pass1_read_stats = pass1.read_stats,
+            pass2_read_stats = pass2.read_stats,
+            docker = docker
+    }
+
     output {
         Array[Array[File]] fastq_pairs = transpose([pass1.matched_fastq, pass2.corrected_fastq])
         # Optional compatibility:
@@ -706,5 +794,7 @@ workflow BC_Barcode_Extract_And_Correct_Array {
         Array[File] discarded_fastqs = if generate_discarded then flatten(pass2.discarded_fastqs) else []
         Array[File] unmatched_fastqs = if output_unmatched then pass1.unmatched_fastq else []
         File merged_counts_table = merged_counts_output
+        File read_accounting_per_shard = read_accounting.per_shard
+        File read_accounting_total = read_accounting.total
     }
 }
