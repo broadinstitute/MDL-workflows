@@ -169,7 +169,7 @@ task Plot {
 
     output {
         Array[File] plots_aligned_length = glob("plots/*.aligned_length_*")
-        Array[File] plots_dc = glob("plots/*.dc_distribution.*")
+        Array[File] plots_dc = glob("plots/*.dc_*")
         Array[File] plots_error_rates = glob("plots/*.error_rates_*")
         Array[File] plots_knee = glob("plots/*.cell_knee.*")
         Array[File] plots_mito = glob("plots/*.mito_overview.*")
