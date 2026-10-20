@@ -15,6 +15,7 @@ task BC_Correct_Pass1 {
         Int min_trimmed_len
         Boolean qual_tags = true
         Boolean revcomp_trimmed = false
+        Boolean rescue_start_adapter = false
         String docker
 
         String poly_logic = ""
@@ -36,6 +37,7 @@ task BC_Correct_Pass1 {
     String poly_err_arg = if (poly_err != "") then ("--poly-err " + poly_err) else ""
     String poly_logic_arg = if (poly_enabled) then ("--poly-logic " + resolved_poly_logic) else ""
     String qual_tags_arg = if (qual_tags) then "--qual-tags" else ""
+    String rescue_arg = if (rescue_start_adapter) then "--rescue-start-adapter" else ""
     String revcomp_arg = if (revcomp_trimmed) then "--revcomp-trimmed" else ""
 
     String trimmed_prefix = sample_name
@@ -55,6 +57,7 @@ task BC_Correct_Pass1 {
 
         /opt/pipeline/fastq_preprocessing_pipeline/trim_split_nocap_extracttags.sh \
           --stdout-found \
+          ~{rescue_arg} \
           -i ~{input_fastq} \
           -o ~{trimmed_prefix} \
           -t 2 \
@@ -143,38 +146,6 @@ task Merge_Whitelist_Counts {
         memory: "4 GB"
         predefinedMachineType: "n2d-custom-2-4096"
         disks: "local-disk ~{diskGB} SSD"
-        preemptible: 3
-    }
-}
-
-
-task Assert_Input_Size {
-    # Fails when raw_fastqs is empty or longer than the merge tree can collapse (merge_chunk_size^5).
-    input {
-        Int total_shards
-        Int capacity
-        String docker
-    }
-
-    command <<<
-        set -euo pipefail
-        if [ "~{total_shards}" -lt 1 ]; then
-          echo "ERROR: length(raw_fastqs) = 0. raw_fastqs/sample_names resolved to empty arrays." >&2
-          echo "If this was submitted against a Terra set entity, check whether it ran as a single call against the set (this.<set>) rather than expanded per-member -- an aggregation expression like this.<set>.raw_fastq only resolves on the set itself, not on an individual member." >&2
-          exit 1
-        fi
-        if [ "~{total_shards}" -gt "~{capacity}" ]; then
-          echo "ERROR: length(raw_fastqs) = ~{total_shards} exceeds ~{capacity}, the maximum this workflow's fixed 5-round, 10-way whitelist-counts merge tree can fully collapse to a single output file." >&2
-          echo "Increase merge_chunk_size, add another merge round, or split raw_fastqs into multiple workflow runs." >&2
-          exit 1
-        fi
-    >>>
-
-    runtime {
-        docker: docker
-        cpu: 1
-        memory: "1 GB"
-        predefinedMachineType: "n1-custom-1-1024"
         preemptible: 3
     }
 }
@@ -419,6 +390,9 @@ task Summarize_Read_Accounting {
             ("out_of_range_dropped", lambda t, a, b: b["dropped_out_of_range"]),
             ("written_to_discarded", lambda t, a, b: b["written_to_discarded"]),
             ("total_kept", lambda t, a, b: a["matched_written"] + b["corrected_written"]),
+            # start-adapter rescue (0 when the run did not use it); these reads are part of the outcomes above, not extra
+            ("start_rescued_substitution", lambda t, a, b: t.get("rescued_substitution_reads", 0)),
+            ("start_rescued_indel", lambda t, a, b: t.get("rescued_indel_reads", 0)),
         ]
         header = ["sample_name"] + [c for c, _ in cols]
 
@@ -502,6 +476,7 @@ task Plot_Read_Accounting {
             outcomes.append(("UNACCOUNTED (check the stats files)", unaccounted, ODD))
         kept = tot["total_kept"]
         den = max(raw, 1)
+        resc_sub, resc_ind = tot.get("start_rescued_substitution", 0), tot.get("start_rescued_indel", 0)
         title = f"{label}: " if label else ""
 
         with PdfPages("read_accounting_plots.pdf") as pdf:
@@ -517,6 +492,9 @@ task Plot_Read_Accounting {
             ax.set_xlabel("% of raw reads")
             ax.set_title(f"{title}{100 * kept / den:.1f}% of {raw:,} raw reads kept ({len(rows)} shards)")
             ax.spines[["top", "right"]].set_visible(False)
+            if resc_sub + resc_ind > 0:
+                ax.text(0.99, 0.02, f"start-adapter rescue (included above): {resc_sub:,} substitution + {resc_ind:,} indel reads = {100 * (resc_sub + resc_ind) / den:.2f}% of raw reads",
+                        transform=ax.transAxes, ha="right", va="bottom", fontsize=8, color="#444444")
             fig.tight_layout()
             fig.savefig("read_accounting_summary.png", dpi=150)
             pdf.savefig(fig)
@@ -596,7 +574,7 @@ workflow BC_Barcode_Extract_And_Correct_Array {
     }
 
     input {
-        Array[File] raw_fastqs
+        Array[File]+ raw_fastqs
         Array[String] sample_names
         File? whitelist
         Float min_post = 0.975
@@ -605,6 +583,10 @@ workflow BC_Barcode_Extract_And_Correct_Array {
         Boolean qual_tags = true
         Boolean generate_discarded = false
         Boolean output_unmatched = false
+
+        # Rescue of reads that fail the start-adapter filter because of a few edits in the left (TSO/RT) or right (SLS) adapter
+        # (anchored, CB+UMI window must keep its exact length). Off by default; needs an image with stage2_rescue; validated on 5' and 3' 10x presets only.
+        Boolean rescue_start_adapter = false
 
         File? whitelist_override
 
@@ -619,16 +601,12 @@ workflow BC_Barcode_Extract_And_Correct_Array {
     Int merge_chunk_size = 10
     Int merge_tree_capacity = merge_chunk_size * merge_chunk_size * merge_chunk_size * merge_chunk_size * merge_chunk_size
 
-    if (length(raw_fastqs) > merge_tree_capacity || length(raw_fastqs) < 1) {
-        call Assert_Input_Size as fail_on_bad_input_size {
-            input:
-                total_shards = length(raw_fastqs),
-                capacity = merge_tree_capacity,
-                docker = docker
-        }
-    }
+    # Fails the workflow (no task) when raw_fastqs is empty or longer than the merge tree can collapse; select_first of an unset optional is
+    # only evaluated in that branch. (Cromwell also rejects an empty raw_fastqs earlier because of the Array[File]+ type.)
+    File? no_file = None
+    Array[File] error_if_fastqs_exceed_merge_capacity = if (length(raw_fastqs) < 1 || length(raw_fastqs) > merge_tree_capacity) then [select_first([no_file])] else raw_fastqs
 
-    Array[Int] lane_indexes = range(length(raw_fastqs))
+    Array[Int] lane_indexes = range(length(error_if_fastqs_exceed_merge_capacity))
 
     call Resolve_BC_Params_From_Config as resolved_config {
         input:
@@ -649,7 +627,7 @@ workflow BC_Barcode_Extract_And_Correct_Array {
     scatter (i in lane_indexes) {
         call BC_Correct_Pass1 as pass1 {
             input:
-                input_fastq = raw_fastqs[i],
+                input_fastq = error_if_fastqs_exceed_merge_capacity[i],
                 sample_name = sample_names[i],
                 whitelist = effective_whitelist,
                 bc_range = effective_bc_range,
@@ -668,6 +646,7 @@ workflow BC_Barcode_Extract_And_Correct_Array {
                 poly_t_min = resolved_config.resolved_poly_t_min,
                 poly_a_min = resolved_config.resolved_poly_a_min,
                 poly_err = resolved_config.resolved_poly_err,
+                rescue_start_adapter = rescue_start_adapter,
                 docker = docker
         }
     }
@@ -713,164 +692,177 @@ workflow BC_Barcode_Extract_And_Correct_Array {
     Array[File] round1_counts = r1_merge.merged_counts
 
     Int round2_total_chunks = length(round1_counts)
-    Int round2_num_chunks = (round2_total_chunks + merge_chunk_size - 1) / merge_chunk_size
-    Array[Int] round2_indexes = range(round2_num_chunks)
+    # round 2 only runs when the previous round left more than one file
+    if (round2_total_chunks > 1) {
+        Int round2_num_chunks = (round2_total_chunks + merge_chunk_size - 1) / merge_chunk_size
+        Array[Int] round2_indexes = range(round2_num_chunks)
 
-    scatter (r2_idx in round2_indexes) {
-        Int r2_file_idx_0 = r2_idx * merge_chunk_size + 0
-        Int r2_file_idx_1 = r2_idx * merge_chunk_size + 1
-        Int r2_file_idx_2 = r2_idx * merge_chunk_size + 2
-        Int r2_file_idx_3 = r2_idx * merge_chunk_size + 3
-        Int r2_file_idx_4 = r2_idx * merge_chunk_size + 4
-        Int r2_file_idx_5 = r2_idx * merge_chunk_size + 5
-        Int r2_file_idx_6 = r2_idx * merge_chunk_size + 6
-        Int r2_file_idx_7 = r2_idx * merge_chunk_size + 7
-        Int r2_file_idx_8 = r2_idx * merge_chunk_size + 8
-        Int r2_file_idx_9 = r2_idx * merge_chunk_size + 9
-        Array[File] r2_chunk = select_all([
-            if (r2_file_idx_0 < round2_total_chunks) then round1_counts[r2_file_idx_0] else None,
-            if (r2_file_idx_1 < round2_total_chunks) then round1_counts[r2_file_idx_1] else None,
-            if (r2_file_idx_2 < round2_total_chunks) then round1_counts[r2_file_idx_2] else None,
-            if (r2_file_idx_3 < round2_total_chunks) then round1_counts[r2_file_idx_3] else None,
-            if (r2_file_idx_4 < round2_total_chunks) then round1_counts[r2_file_idx_4] else None,
-            if (r2_file_idx_5 < round2_total_chunks) then round1_counts[r2_file_idx_5] else None,
-            if (r2_file_idx_6 < round2_total_chunks) then round1_counts[r2_file_idx_6] else None,
-            if (r2_file_idx_7 < round2_total_chunks) then round1_counts[r2_file_idx_7] else None,
-            if (r2_file_idx_8 < round2_total_chunks) then round1_counts[r2_file_idx_8] else None,
-            if (r2_file_idx_9 < round2_total_chunks) then round1_counts[r2_file_idx_9] else None
-        ])
+        scatter (r2_idx in round2_indexes) {
+            Int r2_file_idx_0 = r2_idx * merge_chunk_size + 0
+            Int r2_file_idx_1 = r2_idx * merge_chunk_size + 1
+            Int r2_file_idx_2 = r2_idx * merge_chunk_size + 2
+            Int r2_file_idx_3 = r2_idx * merge_chunk_size + 3
+            Int r2_file_idx_4 = r2_idx * merge_chunk_size + 4
+            Int r2_file_idx_5 = r2_idx * merge_chunk_size + 5
+            Int r2_file_idx_6 = r2_idx * merge_chunk_size + 6
+            Int r2_file_idx_7 = r2_idx * merge_chunk_size + 7
+            Int r2_file_idx_8 = r2_idx * merge_chunk_size + 8
+            Int r2_file_idx_9 = r2_idx * merge_chunk_size + 9
+            Array[File] r2_chunk = select_all([
+                if (r2_file_idx_0 < round2_total_chunks) then round1_counts[r2_file_idx_0] else None,
+                if (r2_file_idx_1 < round2_total_chunks) then round1_counts[r2_file_idx_1] else None,
+                if (r2_file_idx_2 < round2_total_chunks) then round1_counts[r2_file_idx_2] else None,
+                if (r2_file_idx_3 < round2_total_chunks) then round1_counts[r2_file_idx_3] else None,
+                if (r2_file_idx_4 < round2_total_chunks) then round1_counts[r2_file_idx_4] else None,
+                if (r2_file_idx_5 < round2_total_chunks) then round1_counts[r2_file_idx_5] else None,
+                if (r2_file_idx_6 < round2_total_chunks) then round1_counts[r2_file_idx_6] else None,
+                if (r2_file_idx_7 < round2_total_chunks) then round1_counts[r2_file_idx_7] else None,
+                if (r2_file_idx_8 < round2_total_chunks) then round1_counts[r2_file_idx_8] else None,
+                if (r2_file_idx_9 < round2_total_chunks) then round1_counts[r2_file_idx_9] else None
+            ])
 
-        call Merge_Whitelist_Counts as r2_merge {
-            input:
-                counts_tables = r2_chunk,
-                output_path = "merged.whitelist.counts.r2." + r2_idx + ".txt.gz",
-                gzip_output = true,
-                gzip_level = 1,
-                docker = docker
+            call Merge_Whitelist_Counts as r2_merge {
+                input:
+                    counts_tables = r2_chunk,
+                    output_path = "merged.whitelist.counts.r2." + r2_idx + ".txt.gz",
+                    gzip_output = true,
+                    gzip_level = 1,
+                    docker = docker
+            }
         }
-    }
 
-    Array[File] round2_counts = r2_merge.merged_counts
+    }
+    Array[File] round2_counts = select_first([r2_merge.merged_counts, round1_counts])
 
     Int round3_total_chunks = length(round2_counts)
-    Int round3_num_chunks = (round3_total_chunks + merge_chunk_size - 1) / merge_chunk_size
-    Array[Int] round3_indexes = range(round3_num_chunks)
+    # round 3 only runs when the previous round left more than one file
+    if (round3_total_chunks > 1) {
+        Int round3_num_chunks = (round3_total_chunks + merge_chunk_size - 1) / merge_chunk_size
+        Array[Int] round3_indexes = range(round3_num_chunks)
 
-    scatter (r3_idx in round3_indexes) {
-        Int r3_file_idx_0 = r3_idx * merge_chunk_size + 0
-        Int r3_file_idx_1 = r3_idx * merge_chunk_size + 1
-        Int r3_file_idx_2 = r3_idx * merge_chunk_size + 2
-        Int r3_file_idx_3 = r3_idx * merge_chunk_size + 3
-        Int r3_file_idx_4 = r3_idx * merge_chunk_size + 4
-        Int r3_file_idx_5 = r3_idx * merge_chunk_size + 5
-        Int r3_file_idx_6 = r3_idx * merge_chunk_size + 6
-        Int r3_file_idx_7 = r3_idx * merge_chunk_size + 7
-        Int r3_file_idx_8 = r3_idx * merge_chunk_size + 8
-        Int r3_file_idx_9 = r3_idx * merge_chunk_size + 9
-        Array[File] r3_chunk = select_all([
-            if (r3_file_idx_0 < round3_total_chunks) then round2_counts[r3_file_idx_0] else None,
-            if (r3_file_idx_1 < round3_total_chunks) then round2_counts[r3_file_idx_1] else None,
-            if (r3_file_idx_2 < round3_total_chunks) then round2_counts[r3_file_idx_2] else None,
-            if (r3_file_idx_3 < round3_total_chunks) then round2_counts[r3_file_idx_3] else None,
-            if (r3_file_idx_4 < round3_total_chunks) then round2_counts[r3_file_idx_4] else None,
-            if (r3_file_idx_5 < round3_total_chunks) then round2_counts[r3_file_idx_5] else None,
-            if (r3_file_idx_6 < round3_total_chunks) then round2_counts[r3_file_idx_6] else None,
-            if (r3_file_idx_7 < round3_total_chunks) then round2_counts[r3_file_idx_7] else None,
-            if (r3_file_idx_8 < round3_total_chunks) then round2_counts[r3_file_idx_8] else None,
-            if (r3_file_idx_9 < round3_total_chunks) then round2_counts[r3_file_idx_9] else None
-        ])
+        scatter (r3_idx in round3_indexes) {
+            Int r3_file_idx_0 = r3_idx * merge_chunk_size + 0
+            Int r3_file_idx_1 = r3_idx * merge_chunk_size + 1
+            Int r3_file_idx_2 = r3_idx * merge_chunk_size + 2
+            Int r3_file_idx_3 = r3_idx * merge_chunk_size + 3
+            Int r3_file_idx_4 = r3_idx * merge_chunk_size + 4
+            Int r3_file_idx_5 = r3_idx * merge_chunk_size + 5
+            Int r3_file_idx_6 = r3_idx * merge_chunk_size + 6
+            Int r3_file_idx_7 = r3_idx * merge_chunk_size + 7
+            Int r3_file_idx_8 = r3_idx * merge_chunk_size + 8
+            Int r3_file_idx_9 = r3_idx * merge_chunk_size + 9
+            Array[File] r3_chunk = select_all([
+                if (r3_file_idx_0 < round3_total_chunks) then round2_counts[r3_file_idx_0] else None,
+                if (r3_file_idx_1 < round3_total_chunks) then round2_counts[r3_file_idx_1] else None,
+                if (r3_file_idx_2 < round3_total_chunks) then round2_counts[r3_file_idx_2] else None,
+                if (r3_file_idx_3 < round3_total_chunks) then round2_counts[r3_file_idx_3] else None,
+                if (r3_file_idx_4 < round3_total_chunks) then round2_counts[r3_file_idx_4] else None,
+                if (r3_file_idx_5 < round3_total_chunks) then round2_counts[r3_file_idx_5] else None,
+                if (r3_file_idx_6 < round3_total_chunks) then round2_counts[r3_file_idx_6] else None,
+                if (r3_file_idx_7 < round3_total_chunks) then round2_counts[r3_file_idx_7] else None,
+                if (r3_file_idx_8 < round3_total_chunks) then round2_counts[r3_file_idx_8] else None,
+                if (r3_file_idx_9 < round3_total_chunks) then round2_counts[r3_file_idx_9] else None
+            ])
 
-        call Merge_Whitelist_Counts as r3_merge {
-            input:
-                counts_tables = r3_chunk,
-                output_path = "merged.whitelist.counts.r3." + r3_idx + ".txt.gz",
-                gzip_output = true,
-                gzip_level = 1,
-                docker = docker
+            call Merge_Whitelist_Counts as r3_merge {
+                input:
+                    counts_tables = r3_chunk,
+                    output_path = "merged.whitelist.counts.r3." + r3_idx + ".txt.gz",
+                    gzip_output = true,
+                    gzip_level = 1,
+                    docker = docker
+            }
         }
-    }
 
-    Array[File] round3_counts = r3_merge.merged_counts
+    }
+    Array[File] round3_counts = select_first([r3_merge.merged_counts, round2_counts])
 
     Int round4_total_chunks = length(round3_counts)
-    Int round4_num_chunks = (round4_total_chunks + merge_chunk_size - 1) / merge_chunk_size
-    Array[Int] round4_indexes = range(round4_num_chunks)
+    # round 4 only runs when the previous round left more than one file
+    if (round4_total_chunks > 1) {
+        Int round4_num_chunks = (round4_total_chunks + merge_chunk_size - 1) / merge_chunk_size
+        Array[Int] round4_indexes = range(round4_num_chunks)
 
-    scatter (r4_idx in round4_indexes) {
-        Int r4_file_idx_0 = r4_idx * merge_chunk_size + 0
-        Int r4_file_idx_1 = r4_idx * merge_chunk_size + 1
-        Int r4_file_idx_2 = r4_idx * merge_chunk_size + 2
-        Int r4_file_idx_3 = r4_idx * merge_chunk_size + 3
-        Int r4_file_idx_4 = r4_idx * merge_chunk_size + 4
-        Int r4_file_idx_5 = r4_idx * merge_chunk_size + 5
-        Int r4_file_idx_6 = r4_idx * merge_chunk_size + 6
-        Int r4_file_idx_7 = r4_idx * merge_chunk_size + 7
-        Int r4_file_idx_8 = r4_idx * merge_chunk_size + 8
-        Int r4_file_idx_9 = r4_idx * merge_chunk_size + 9
-        Array[File] r4_chunk = select_all([
-            if (r4_file_idx_0 < round4_total_chunks) then round3_counts[r4_file_idx_0] else None,
-            if (r4_file_idx_1 < round4_total_chunks) then round3_counts[r4_file_idx_1] else None,
-            if (r4_file_idx_2 < round4_total_chunks) then round3_counts[r4_file_idx_2] else None,
-            if (r4_file_idx_3 < round4_total_chunks) then round3_counts[r4_file_idx_3] else None,
-            if (r4_file_idx_4 < round4_total_chunks) then round3_counts[r4_file_idx_4] else None,
-            if (r4_file_idx_5 < round4_total_chunks) then round3_counts[r4_file_idx_5] else None,
-            if (r4_file_idx_6 < round4_total_chunks) then round3_counts[r4_file_idx_6] else None,
-            if (r4_file_idx_7 < round4_total_chunks) then round3_counts[r4_file_idx_7] else None,
-            if (r4_file_idx_8 < round4_total_chunks) then round3_counts[r4_file_idx_8] else None,
-            if (r4_file_idx_9 < round4_total_chunks) then round3_counts[r4_file_idx_9] else None
-        ])
+        scatter (r4_idx in round4_indexes) {
+            Int r4_file_idx_0 = r4_idx * merge_chunk_size + 0
+            Int r4_file_idx_1 = r4_idx * merge_chunk_size + 1
+            Int r4_file_idx_2 = r4_idx * merge_chunk_size + 2
+            Int r4_file_idx_3 = r4_idx * merge_chunk_size + 3
+            Int r4_file_idx_4 = r4_idx * merge_chunk_size + 4
+            Int r4_file_idx_5 = r4_idx * merge_chunk_size + 5
+            Int r4_file_idx_6 = r4_idx * merge_chunk_size + 6
+            Int r4_file_idx_7 = r4_idx * merge_chunk_size + 7
+            Int r4_file_idx_8 = r4_idx * merge_chunk_size + 8
+            Int r4_file_idx_9 = r4_idx * merge_chunk_size + 9
+            Array[File] r4_chunk = select_all([
+                if (r4_file_idx_0 < round4_total_chunks) then round3_counts[r4_file_idx_0] else None,
+                if (r4_file_idx_1 < round4_total_chunks) then round3_counts[r4_file_idx_1] else None,
+                if (r4_file_idx_2 < round4_total_chunks) then round3_counts[r4_file_idx_2] else None,
+                if (r4_file_idx_3 < round4_total_chunks) then round3_counts[r4_file_idx_3] else None,
+                if (r4_file_idx_4 < round4_total_chunks) then round3_counts[r4_file_idx_4] else None,
+                if (r4_file_idx_5 < round4_total_chunks) then round3_counts[r4_file_idx_5] else None,
+                if (r4_file_idx_6 < round4_total_chunks) then round3_counts[r4_file_idx_6] else None,
+                if (r4_file_idx_7 < round4_total_chunks) then round3_counts[r4_file_idx_7] else None,
+                if (r4_file_idx_8 < round4_total_chunks) then round3_counts[r4_file_idx_8] else None,
+                if (r4_file_idx_9 < round4_total_chunks) then round3_counts[r4_file_idx_9] else None
+            ])
 
-        call Merge_Whitelist_Counts as r4_merge {
-            input:
-                counts_tables = r4_chunk,
-                output_path = "merged.whitelist.counts.r4." + r4_idx + ".txt.gz",
-                gzip_output = true,
-                gzip_level = 1,
-                docker = docker
+            call Merge_Whitelist_Counts as r4_merge {
+                input:
+                    counts_tables = r4_chunk,
+                    output_path = "merged.whitelist.counts.r4." + r4_idx + ".txt.gz",
+                    gzip_output = true,
+                    gzip_level = 1,
+                    docker = docker
+            }
         }
-    }
 
-    Array[File] round4_counts = r4_merge.merged_counts
+    }
+    Array[File] round4_counts = select_first([r4_merge.merged_counts, round3_counts])
 
     Int round5_total_chunks = length(round4_counts)
-    Int round5_num_chunks = (round5_total_chunks + merge_chunk_size - 1) / merge_chunk_size
-    Array[Int] round5_indexes = range(round5_num_chunks)
+    # round 5 only runs when the previous round left more than one file
+    if (round5_total_chunks > 1) {
+        Int round5_num_chunks = (round5_total_chunks + merge_chunk_size - 1) / merge_chunk_size
+        Array[Int] round5_indexes = range(round5_num_chunks)
 
-    scatter (r5_idx in round5_indexes) {
-        Int r5_file_idx_0 = r5_idx * merge_chunk_size + 0
-        Int r5_file_idx_1 = r5_idx * merge_chunk_size + 1
-        Int r5_file_idx_2 = r5_idx * merge_chunk_size + 2
-        Int r5_file_idx_3 = r5_idx * merge_chunk_size + 3
-        Int r5_file_idx_4 = r5_idx * merge_chunk_size + 4
-        Int r5_file_idx_5 = r5_idx * merge_chunk_size + 5
-        Int r5_file_idx_6 = r5_idx * merge_chunk_size + 6
-        Int r5_file_idx_7 = r5_idx * merge_chunk_size + 7
-        Int r5_file_idx_8 = r5_idx * merge_chunk_size + 8
-        Int r5_file_idx_9 = r5_idx * merge_chunk_size + 9
-        Array[File] r5_chunk = select_all([
-            if (r5_file_idx_0 < round5_total_chunks) then round4_counts[r5_file_idx_0] else None,
-            if (r5_file_idx_1 < round5_total_chunks) then round4_counts[r5_file_idx_1] else None,
-            if (r5_file_idx_2 < round5_total_chunks) then round4_counts[r5_file_idx_2] else None,
-            if (r5_file_idx_3 < round5_total_chunks) then round4_counts[r5_file_idx_3] else None,
-            if (r5_file_idx_4 < round5_total_chunks) then round4_counts[r5_file_idx_4] else None,
-            if (r5_file_idx_5 < round5_total_chunks) then round4_counts[r5_file_idx_5] else None,
-            if (r5_file_idx_6 < round5_total_chunks) then round4_counts[r5_file_idx_6] else None,
-            if (r5_file_idx_7 < round5_total_chunks) then round4_counts[r5_file_idx_7] else None,
-            if (r5_file_idx_8 < round5_total_chunks) then round4_counts[r5_file_idx_8] else None,
-            if (r5_file_idx_9 < round5_total_chunks) then round4_counts[r5_file_idx_9] else None
-        ])
+        scatter (r5_idx in round5_indexes) {
+            Int r5_file_idx_0 = r5_idx * merge_chunk_size + 0
+            Int r5_file_idx_1 = r5_idx * merge_chunk_size + 1
+            Int r5_file_idx_2 = r5_idx * merge_chunk_size + 2
+            Int r5_file_idx_3 = r5_idx * merge_chunk_size + 3
+            Int r5_file_idx_4 = r5_idx * merge_chunk_size + 4
+            Int r5_file_idx_5 = r5_idx * merge_chunk_size + 5
+            Int r5_file_idx_6 = r5_idx * merge_chunk_size + 6
+            Int r5_file_idx_7 = r5_idx * merge_chunk_size + 7
+            Int r5_file_idx_8 = r5_idx * merge_chunk_size + 8
+            Int r5_file_idx_9 = r5_idx * merge_chunk_size + 9
+            Array[File] r5_chunk = select_all([
+                if (r5_file_idx_0 < round5_total_chunks) then round4_counts[r5_file_idx_0] else None,
+                if (r5_file_idx_1 < round5_total_chunks) then round4_counts[r5_file_idx_1] else None,
+                if (r5_file_idx_2 < round5_total_chunks) then round4_counts[r5_file_idx_2] else None,
+                if (r5_file_idx_3 < round5_total_chunks) then round4_counts[r5_file_idx_3] else None,
+                if (r5_file_idx_4 < round5_total_chunks) then round4_counts[r5_file_idx_4] else None,
+                if (r5_file_idx_5 < round5_total_chunks) then round4_counts[r5_file_idx_5] else None,
+                if (r5_file_idx_6 < round5_total_chunks) then round4_counts[r5_file_idx_6] else None,
+                if (r5_file_idx_7 < round5_total_chunks) then round4_counts[r5_file_idx_7] else None,
+                if (r5_file_idx_8 < round5_total_chunks) then round4_counts[r5_file_idx_8] else None,
+                if (r5_file_idx_9 < round5_total_chunks) then round4_counts[r5_file_idx_9] else None
+            ])
 
-        call Merge_Whitelist_Counts as r5_merge {
-            input:
-                counts_tables = r5_chunk,
-                output_path = "merged.whitelist.counts.r5." + r5_idx + ".txt.gz",
-                gzip_output = true,
-                gzip_level = 1,
-                docker = docker
+            call Merge_Whitelist_Counts as r5_merge {
+                input:
+                    counts_tables = r5_chunk,
+                    output_path = "merged.whitelist.counts.r5." + r5_idx + ".txt.gz",
+                    gzip_output = true,
+                    gzip_level = 1,
+                    docker = docker
+            }
         }
     }
+    Array[File] round5_counts = select_first([r5_merge.merged_counts, round4_counts])
 
-    File merged_counts_output = r5_merge.merged_counts[0]
+    File merged_counts_output = round5_counts[0]
 
     scatter (i in lane_indexes) {
         call BC_Correct_Pass2 as pass2 {
