@@ -23,6 +23,7 @@ workflow Minimap2_LR_fastq_list_from_set {
         String sortMemory = "768M"
         Int memoryGB = 59
         Int preemptible_tries = 3
+        String minimap2_docker = "us-central1-docker.pkg.dev/methods-dev-lab/minimap2/minimap2:2.30-slim"
     }
 
     Array[Int] lane_indexes = range(length(sample_names))
@@ -43,7 +44,8 @@ workflow Minimap2_LR_fastq_list_from_set {
                 sortThreads = sortThreads,
                 sortMemory = sortMemory,
                 memoryGB = memoryGB,
-                preemptible_tries = preemptible_tries
+                preemptible_tries = preemptible_tries,
+                docker = minimap2_docker
         }
     }
 

@@ -18,9 +18,8 @@ task Minimap2MultiFastqTask {
         Int memoryGB = 59
         Int? diskSizeGB
         Int preemptible_tries = 3
+        String docker = "us-central1-docker.pkg.dev/methods-dev-lab/minimap2/minimap2:2.30-slim"
     }
-
-    String docker = "us-central1-docker.pkg.dev/methods-dev-lab/minimap2/minimap2:2.30-slim"
 
     Int cpu_tier = if cpu <= 4 then 4
         else if cpu <= 8 then 8
