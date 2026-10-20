@@ -463,6 +463,142 @@ task Summarize_Read_Accounting {
 }
 
 
+task Plot_Read_Accounting {
+    # Plots of the Summarize_Read_Accounting tables (numpy + matplotlib only): page 1 is where the raw
+    # reads of the whole set end up, page 2 the same per shard (to spot shards that behave differently).
+    # "unaccounted" is raw_reads minus every listed outcome; it should be 0 and is drawn if it is not.
+    input {
+        File per_shard
+        File total
+        String plot_label
+        String docker
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 - <<'PY'
+        import csv
+        import numpy as np
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from matplotlib.backends.backend_pdf import PdfPages
+
+        label = "~{plot_label}"
+        KEPT, LOST, ODD = "#2c7fb8", "#d95f0e", "#7f7f7f"
+
+        with open("~{total}") as f:
+            tot = {r["metric"]: int(r["count"]) for r in csv.DictReader(f, delimiter="\t")}
+        with open("~{per_shard}") as f:
+            rows = list(csv.DictReader(f, delimiter="\t"))
+        names = [r["sample_name"] for r in rows]
+        col = lambda c: np.array([int(r[c]) for r in rows], dtype=float)
+
+        raw = tot["raw_reads"]
+        trim_drop = tot["trim_dropped_stage1"] + tot["trim_dropped_stage2"]
+        outcomes = [
+            ("trimming: dropped (adapters / length)", trim_drop, LOST),
+            ("exact barcode: too short after trimming", tot["exact_match_too_short_dropped"], LOST),
+            ("exact barcode: kept", tot["exact_match_written"], KEPT),
+            ("corrected barcode: kept (rescued)", tot["rescued_by_correction"], KEPT),
+            ("corrected barcode: too short", tot["corrected_too_short_dropped"], LOST),
+            ("barcode uncorrectable", tot["uncorrectable_dropped"], LOST),
+            ("barcode out of range", tot["out_of_range_dropped"], LOST),
+        ]
+        unaccounted = raw - sum(c for _, c, _ in outcomes)
+        if unaccounted != 0:
+            outcomes.append(("UNACCOUNTED (check the stats files)", unaccounted, ODD))
+        kept = tot["total_kept"]
+        den = max(raw, 1)
+        title = f"{label}: " if label else ""
+
+        with PdfPages("read_accounting_plots.pdf") as pdf:
+            fig, ax = plt.subplots(figsize=(11, 5.5))
+            y = np.arange(len(outcomes))[::-1]
+            ax.barh(y, [100 * c / den for _, c, _ in outcomes], color=[k for _, _, k in outcomes])
+            ax.set_yticks(y)
+            ax.set_yticklabels([n for n, _, _ in outcomes])
+            top = max([100 * c / den for _, c, _ in outcomes] + [1])
+            for yi, (_, c, _) in zip(y, outcomes):
+                ax.text(100 * c / den + top * 0.01, yi, f"{c:,}  ({100 * c / den:.2f}%)", va="center", fontsize=9)
+            ax.set_xlim(0, top * 1.35)
+            ax.set_xlabel("% of raw reads")
+            ax.set_title(f"{title}{100 * kept / den:.1f}% of {raw:,} raw reads kept ({len(rows)} shards)")
+            ax.spines[["top", "right"]].set_visible(False)
+            fig.tight_layout()
+            fig.savefig("read_accounting_summary.png", dpi=150)
+            pdf.savefig(fig)
+            plt.close(fig)
+
+            raw_s = col("raw_reads")
+            d = np.maximum(raw_s, 1)
+            parts = [
+                ("exact barcode: kept", col("exact_match_written"), KEPT),
+                ("corrected barcode: kept", col("rescued_by_correction"), "#7fcdbb"),
+                ("trimming: dropped", col("trim_dropped_stage1") + col("trim_dropped_stage2"), "#fdae61"),
+                ("too short after trimming", col("exact_match_too_short_dropped") + col("corrected_too_short_dropped"), "#d7191c"),
+                ("uncorrectable / out of range", col("uncorrectable_dropped") + col("out_of_range_dropped"), "#7b3294"),
+            ]
+            kept_frac = col("total_kept") / d
+            x = np.arange(len(rows))
+            fig, axs = plt.subplots(3, 1, figsize=(11, 9), sharex=True, gridspec_kw={"height_ratios": [3, 1.5, 1.5]})
+            bottom = np.zeros(len(rows))
+            for n, v, c in parts:
+                axs[0].bar(x, v / d, bottom=bottom, width=1.0, color=c, label=n, linewidth=0)
+                bottom += v / d
+            axs[0].set_ylabel("fraction of the shard's raw reads")
+            axs[0].set_ylim(0, 1)
+            axs[0].legend(loc="lower right", fontsize=8, ncol=2, framealpha=0.9)
+            axs[0].set_title(f"{title}per-shard outcome of the raw reads")
+            axs[1].bar(x, raw_s / 1e6, width=1.0, color="#636363", linewidth=0)
+            axs[1].set_ylabel("raw reads (M)")
+            axs[2].plot(x, kept_frac, ".", ms=3, color=KEPT)
+            med = float(np.median(kept_frac))
+            mad = float(np.median(np.abs(kept_frac - med)))
+            tol = max(0.05, 5 * mad)
+            axs[2].axhline(med, color="k", lw=0.8)
+            axs[2].axhspan(med - tol, med + tol, color="k", alpha=0.08)
+            out = [i for i in range(len(rows)) if abs(kept_frac[i] - med) > tol]
+            axs[2].plot(x[out], kept_frac[out], "o", ms=5, mfc="none", color=LOST)
+            axs[2].set_ylabel("kept fraction")
+            axs[2].set_xlabel("shard (input order)")
+            axs[2].set_xlim(-0.5, len(rows) - 0.5)
+            axs[2].xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+            for a in axs:
+                a.spines[["top", "right"]].set_visible(False)
+            fig.tight_layout()
+            pdf.savefig(fig)
+            plt.close(fig)
+
+            lines = [f"{names[i]}   kept {kept_frac[i]:.3f}   raw reads {int(raw_s[i]):,}" for i in out[:25]]
+            if len(out) > 25:
+                lines.append(f"... and {len(out) - 25} more")
+            print(f"{len(out)} shard(s) with kept fraction more than {tol:.3f} from the median {med:.3f}")
+            if out:
+                fig = plt.figure(figsize=(11, 4))
+                fig.text(0.02, 0.95, f"{title}shards whose kept fraction differs from the median ({med:.3f}) by more than {tol:.3f}", va="top", fontsize=10)
+                fig.text(0.02, 0.85, "\n".join(lines), va="top", fontsize=8, family="monospace")
+                pdf.savefig(fig)
+                plt.close(fig)
+        PY
+    >>>
+
+    output {
+        File pdf = "read_accounting_plots.pdf"
+        File summary_png = "read_accounting_summary.png"
+    }
+
+    runtime {
+        docker: docker
+        cpu: 1
+        memory: "2 GB"
+        predefinedMachineType: "n1-custom-1-2048"
+        preemptible: 3
+    }
+}
+
+
 workflow BC_Barcode_Extract_And_Correct_Array {
     meta {
         description: "Extract and correct cell barcodes/UMIs in two passes over arrays of FASTQs."
@@ -483,6 +619,9 @@ workflow BC_Barcode_Extract_And_Correct_Array {
 
         String docker
 
+        # Plots of the read accounting: needs python3 with numpy + matplotlib (the barcode image has neither).
+        String plot_docker = "us-central1-docker.pkg.dev/methods-dev-lab/misc-utilities/bam_dedup_qc:0.1.0"
+        String plot_label = ""
     }
 
     # The whitelist-counts merge below is a fixed 5-round, 10-way tree, so it only fully
@@ -786,6 +925,14 @@ workflow BC_Barcode_Extract_And_Correct_Array {
             docker = docker
     }
 
+    call Plot_Read_Accounting as plot_accounting {
+        input:
+            per_shard = read_accounting.per_shard,
+            total = read_accounting.total,
+            plot_label = plot_label,
+            docker = plot_docker
+    }
+
     output {
         Array[Array[File]] fastq_pairs = transpose([pass1.matched_fastq, pass2.corrected_fastq])
         # Optional compatibility:
@@ -796,5 +943,11 @@ workflow BC_Barcode_Extract_And_Correct_Array {
         File merged_counts_table = merged_counts_output
         File read_accounting_per_shard = read_accounting.per_shard
         File read_accounting_total = read_accounting.total
+        File read_accounting_plots_pdf = plot_accounting.pdf
+        File read_accounting_summary_png = plot_accounting.summary_png
+        # The per-shard stats files the accounting is built from (same order as raw_fastqs).
+        Array[File] trim_stats = pass1.trim_stats
+        Array[File] pass1_read_stats = pass1.read_stats
+        Array[File] pass2_read_stats = pass2.read_stats
     }
 }
