@@ -83,6 +83,8 @@ task BC_Correct_Pass1 {
           ~{poly_err_arg} \
           ~{poly_logic_arg} \
           -
+        tail -n +2 "~{trimmed_prefix}_trim_stats.txt" | tr '\t\n' '=;' > "~{trimmed_prefix}_trim_stats.txt.oneline"
+        tail -n +2 "~{trimmed_prefix}.pass1.readstats.txt" | tr '\t\n' '=;' > "~{trimmed_prefix}.pass1.readstats.txt.oneline"
     >>>
 
     output {
@@ -91,6 +93,9 @@ task BC_Correct_Pass1 {
         File counts_table = "~{counts_table_name}"
         File trim_stats = "~{trimmed_prefix}_trim_stats.txt"
         File read_stats = "~{trimmed_prefix}.pass1.readstats.txt"
+        # One-line "key=value;..." copies so the accounting task needs no per-file localization.
+        String trim_stats_line = read_string("~{trimmed_prefix}_trim_stats.txt.oneline")
+        String read_stats_line = read_string("~{trimmed_prefix}.pass1.readstats.txt.oneline")
     }
 
     # cpu/memory intentionally omitted: GCP Batch has a known bug where specifying both
@@ -351,12 +356,14 @@ task BC_Correct_Pass2 {
           ~{poly_err_arg} \
           ~{poly_logic_arg} \
           ~{unmatched_fastq}
+        tail -n +2 "~{output_prefix}.pass2.readstats.txt" | tr '\t\n' '=;' > "~{output_prefix}.pass2.readstats.txt.oneline"
     >>>
 
     output {
         File corrected_fastq = "~{corrected_fastq_path}"
         Array[File] discarded_fastqs = glob("~{output_prefix}*.discarded*.fastq.gz")
         File read_stats = "~{output_prefix}.pass2.readstats.txt"
+        String read_stats_line = read_string("~{output_prefix}.pass2.readstats.txt.oneline")
     }
 
     # cpu/memory intentionally omitted: GCP Batch has a known bug where specifying both
@@ -380,9 +387,9 @@ task Summarize_Read_Accounting {
     # same reads that feed the merged counts table).
     input {
         Array[String] sample_names
-        Array[File] trim_stats
-        Array[File] pass1_read_stats
-        Array[File] pass2_read_stats
+        Array[String] trim_stats
+        Array[String] pass1_read_stats
+        Array[String] pass2_read_stats
         String docker
     }
 
@@ -390,18 +397,13 @@ task Summarize_Read_Accounting {
         set -euo pipefail
 
         python3 - <<'PY'
-        import csv
-
         names = ["~{sep='", "' sample_names}"]
-        trim = open("~{write_lines(trim_stats)}").read().split("\n")
-        p1 = open("~{write_lines(pass1_read_stats)}").read().split("\n")
-        p2 = open("~{write_lines(pass2_read_stats)}").read().split("\n")
+        trim = open("~{write_lines(trim_stats)}").read().splitlines()
+        p1 = open("~{write_lines(pass1_read_stats)}").read().splitlines()
+        p2 = open("~{write_lines(pass2_read_stats)}").read().splitlines()
 
-        def load(path):
-            with open(path) as f:
-                rows = csv.reader(f, delimiter="\t")
-                next(rows)
-                return {k: int(v) for k, v in rows}
+        def load(line):
+            return {k: int(v) for k, v in (kv.split("=") for kv in line.strip(";").split(";"))}
 
         cols = [
             ("raw_reads", lambda t, a, b: t["stage1_input_reads"]),
@@ -898,9 +900,9 @@ workflow BC_Barcode_Extract_And_Correct_Array {
     call Summarize_Read_Accounting as read_accounting {
         input:
             sample_names = sample_names,
-            trim_stats = pass1.trim_stats,
-            pass1_read_stats = pass1.read_stats,
-            pass2_read_stats = pass2.read_stats,
+            trim_stats = pass1.trim_stats_line,
+            pass1_read_stats = pass1.read_stats_line,
+            pass2_read_stats = pass2.read_stats_line,
             docker = docker
     }
 
