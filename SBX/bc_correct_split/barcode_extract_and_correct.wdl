@@ -144,18 +144,7 @@ task Merge_Whitelist_Counts {
 
 
 task Assert_Input_Size {
-    # The whitelist-counts merge downstream is a fixed 5-round, 10-way tree, so it only fully
-    # collapses to one file for up to `capacity` (= merge_chunk_size^5) total pass1 shards, i.e.
-    # length(raw_fastqs). This fails the workflow upfront if that bound is exceeded, instead of
-    # silently taking round5_merge.merged_counts[0] later and dropping the rest.
-    #
-    # Also catches the empty case (total_shards == 0): an empty raw_fastqs -- e.g. from
-    # submitting against a Terra set with per-member expansion instead of against the set
-    # itself, so a set-aggregation input expression like `this.foo_set.raw_fastq` resolves
-    # against an individual member (no such attribute) and silently defaults to [] -- scatters
-    # over zero shards and fails downstream with the exact same opaque
-    # "r5_merge.merged_counts[0]: Array size 0" error as the oversized case, so it gets the same
-    # upfront, actionable check here.
+    # Fails when raw_fastqs is empty or longer than the merge tree can collapse (merge_chunk_size^5).
     input {
         Int total_shards
         Int capacity
@@ -624,15 +613,7 @@ workflow BC_Barcode_Extract_And_Correct_Array {
         String plot_label = ""
     }
 
-    # The whitelist-counts merge below is a fixed 5-round, 10-way tree, so it only fully
-    # collapses to one file for up to merge_tree_capacity total pass1 shards (= length(raw_fastqs)),
-    # and needs at least 1. length() is pure WDL and gives us that count immediately, before any
-    # task runs. Actually failing the workflow on it still needs a task (WDL has no native assert)
-    # -- but gated inside this `if`, that task is only ever scheduled (and only ever costs
-    # anything) when the input is actually out of bounds (empty or oversized); a normal run pays
-    # nothing for it. Nothing downstream depends on its output, so Pass1 isn't blocked waiting on
-    # it either -- Cromwell's default failure mode (NoNewCalls) just stops any *new* calls
-    # (including the whole merge tree) once it fails.
+    # The counts merge below is a fixed 5-round tree (merge_chunk_size per chunk); the check here guards its capacity.
     Int merge_chunk_size = 10
     Int merge_tree_capacity = merge_chunk_size * merge_chunk_size * merge_chunk_size * merge_chunk_size * merge_chunk_size
 
@@ -887,8 +868,6 @@ workflow BC_Barcode_Extract_And_Correct_Array {
         }
     }
 
-    # round5_num_chunks == 1 is guaranteed here by assert_input_size (see above), which already
-    # validated length(raw_fastqs) <= merge_tree_capacity before Pass1 was even allowed to start.
     File merged_counts_output = r5_merge.merged_counts[0]
 
     scatter (i in lane_indexes) {
