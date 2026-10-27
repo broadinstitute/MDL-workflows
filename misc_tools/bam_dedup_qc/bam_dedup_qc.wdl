@@ -64,10 +64,161 @@ workflow Bam_Dedup_QC {
                     docker = docker
             }
         }
+        Int merge_chunk_size = 10
+        Array[File] round0 = PreScan.tables_tar
+
+        Int r1_total = length(round0)
+        # round 1 only runs when the previous round left more than one chunk's worth of files
+        if (r1_total > merge_chunk_size) {
+            Int r1_num_chunks = (r1_total + merge_chunk_size - 1) / merge_chunk_size
+            scatter (r1_idx in range(r1_num_chunks)) {
+                Int r1_i0 = r1_idx * merge_chunk_size + 0
+                Int r1_i1 = r1_idx * merge_chunk_size + 1
+                Int r1_i2 = r1_idx * merge_chunk_size + 2
+                Int r1_i3 = r1_idx * merge_chunk_size + 3
+                Int r1_i4 = r1_idx * merge_chunk_size + 4
+                Int r1_i5 = r1_idx * merge_chunk_size + 5
+                Int r1_i6 = r1_idx * merge_chunk_size + 6
+                Int r1_i7 = r1_idx * merge_chunk_size + 7
+                Int r1_i8 = r1_idx * merge_chunk_size + 8
+                Int r1_i9 = r1_idx * merge_chunk_size + 9
+                Array[File] r1_chunk = flatten([
+                    if (r1_i0 < r1_total) then [round0[r1_i0]] else [],
+                    if (r1_i1 < r1_total) then [round0[r1_i1]] else [],
+                    if (r1_i2 < r1_total) then [round0[r1_i2]] else [],
+                    if (r1_i3 < r1_total) then [round0[r1_i3]] else [],
+                    if (r1_i4 < r1_total) then [round0[r1_i4]] else [],
+                    if (r1_i5 < r1_total) then [round0[r1_i5]] else [],
+                    if (r1_i6 < r1_total) then [round0[r1_i6]] else [],
+                    if (r1_i7 < r1_total) then [round0[r1_i7]] else [],
+                    if (r1_i8 < r1_total) then [round0[r1_i8]] else [],
+                    if (r1_i9 < r1_total) then [round0[r1_i9]] else []
+                ])
+                call MergeTarsPartial as r1_merge {
+                    input:
+                        label = sample_name + ".pre.r1." + r1_idx,
+                        shard_tars = r1_chunk,
+                        memory_gb = small_task_memory_gb, preemptible = preemptible, docker = docker
+                }
+            }
+        }
+        Array[File] round1 = select_first([r1_merge.merged_tar, round0])
+
+        Int r2_total = length(round1)
+        # round 2 only runs when the previous round left more than one chunk's worth of files
+        if (r2_total > merge_chunk_size) {
+            Int r2_num_chunks = (r2_total + merge_chunk_size - 1) / merge_chunk_size
+            scatter (r2_idx in range(r2_num_chunks)) {
+                Int r2_i0 = r2_idx * merge_chunk_size + 0
+                Int r2_i1 = r2_idx * merge_chunk_size + 1
+                Int r2_i2 = r2_idx * merge_chunk_size + 2
+                Int r2_i3 = r2_idx * merge_chunk_size + 3
+                Int r2_i4 = r2_idx * merge_chunk_size + 4
+                Int r2_i5 = r2_idx * merge_chunk_size + 5
+                Int r2_i6 = r2_idx * merge_chunk_size + 6
+                Int r2_i7 = r2_idx * merge_chunk_size + 7
+                Int r2_i8 = r2_idx * merge_chunk_size + 8
+                Int r2_i9 = r2_idx * merge_chunk_size + 9
+                Array[File] r2_chunk = flatten([
+                    if (r2_i0 < r2_total) then [round1[r2_i0]] else [],
+                    if (r2_i1 < r2_total) then [round1[r2_i1]] else [],
+                    if (r2_i2 < r2_total) then [round1[r2_i2]] else [],
+                    if (r2_i3 < r2_total) then [round1[r2_i3]] else [],
+                    if (r2_i4 < r2_total) then [round1[r2_i4]] else [],
+                    if (r2_i5 < r2_total) then [round1[r2_i5]] else [],
+                    if (r2_i6 < r2_total) then [round1[r2_i6]] else [],
+                    if (r2_i7 < r2_total) then [round1[r2_i7]] else [],
+                    if (r2_i8 < r2_total) then [round1[r2_i8]] else [],
+                    if (r2_i9 < r2_total) then [round1[r2_i9]] else []
+                ])
+                call MergeTarsPartial as r2_merge {
+                    input:
+                        label = sample_name + ".pre.r2." + r2_idx,
+                        shard_tars = r2_chunk,
+                        memory_gb = small_task_memory_gb, preemptible = preemptible, docker = docker
+                }
+            }
+        }
+        Array[File] round2 = select_first([r2_merge.merged_tar, round1])
+
+        Int r3_total = length(round2)
+        # round 3 only runs when the previous round left more than one chunk's worth of files
+        if (r3_total > merge_chunk_size) {
+            Int r3_num_chunks = (r3_total + merge_chunk_size - 1) / merge_chunk_size
+            scatter (r3_idx in range(r3_num_chunks)) {
+                Int r3_i0 = r3_idx * merge_chunk_size + 0
+                Int r3_i1 = r3_idx * merge_chunk_size + 1
+                Int r3_i2 = r3_idx * merge_chunk_size + 2
+                Int r3_i3 = r3_idx * merge_chunk_size + 3
+                Int r3_i4 = r3_idx * merge_chunk_size + 4
+                Int r3_i5 = r3_idx * merge_chunk_size + 5
+                Int r3_i6 = r3_idx * merge_chunk_size + 6
+                Int r3_i7 = r3_idx * merge_chunk_size + 7
+                Int r3_i8 = r3_idx * merge_chunk_size + 8
+                Int r3_i9 = r3_idx * merge_chunk_size + 9
+                Array[File] r3_chunk = flatten([
+                    if (r3_i0 < r3_total) then [round2[r3_i0]] else [],
+                    if (r3_i1 < r3_total) then [round2[r3_i1]] else [],
+                    if (r3_i2 < r3_total) then [round2[r3_i2]] else [],
+                    if (r3_i3 < r3_total) then [round2[r3_i3]] else [],
+                    if (r3_i4 < r3_total) then [round2[r3_i4]] else [],
+                    if (r3_i5 < r3_total) then [round2[r3_i5]] else [],
+                    if (r3_i6 < r3_total) then [round2[r3_i6]] else [],
+                    if (r3_i7 < r3_total) then [round2[r3_i7]] else [],
+                    if (r3_i8 < r3_total) then [round2[r3_i8]] else [],
+                    if (r3_i9 < r3_total) then [round2[r3_i9]] else []
+                ])
+                call MergeTarsPartial as r3_merge {
+                    input:
+                        label = sample_name + ".pre.r3." + r3_idx,
+                        shard_tars = r3_chunk,
+                        memory_gb = small_task_memory_gb, preemptible = preemptible, docker = docker
+                }
+            }
+        }
+        Array[File] round3 = select_first([r3_merge.merged_tar, round2])
+
+        Int r4_total = length(round3)
+        # round 4 only runs when the previous round left more than one chunk's worth of files
+        if (r4_total > merge_chunk_size) {
+            Int r4_num_chunks = (r4_total + merge_chunk_size - 1) / merge_chunk_size
+            scatter (r4_idx in range(r4_num_chunks)) {
+                Int r4_i0 = r4_idx * merge_chunk_size + 0
+                Int r4_i1 = r4_idx * merge_chunk_size + 1
+                Int r4_i2 = r4_idx * merge_chunk_size + 2
+                Int r4_i3 = r4_idx * merge_chunk_size + 3
+                Int r4_i4 = r4_idx * merge_chunk_size + 4
+                Int r4_i5 = r4_idx * merge_chunk_size + 5
+                Int r4_i6 = r4_idx * merge_chunk_size + 6
+                Int r4_i7 = r4_idx * merge_chunk_size + 7
+                Int r4_i8 = r4_idx * merge_chunk_size + 8
+                Int r4_i9 = r4_idx * merge_chunk_size + 9
+                Array[File] r4_chunk = flatten([
+                    if (r4_i0 < r4_total) then [round3[r4_i0]] else [],
+                    if (r4_i1 < r4_total) then [round3[r4_i1]] else [],
+                    if (r4_i2 < r4_total) then [round3[r4_i2]] else [],
+                    if (r4_i3 < r4_total) then [round3[r4_i3]] else [],
+                    if (r4_i4 < r4_total) then [round3[r4_i4]] else [],
+                    if (r4_i5 < r4_total) then [round3[r4_i5]] else [],
+                    if (r4_i6 < r4_total) then [round3[r4_i6]] else [],
+                    if (r4_i7 < r4_total) then [round3[r4_i7]] else [],
+                    if (r4_i8 < r4_total) then [round3[r4_i8]] else [],
+                    if (r4_i9 < r4_total) then [round3[r4_i9]] else []
+                ])
+                call MergeTarsPartial as r4_merge {
+                    input:
+                        label = sample_name + ".pre.r4." + r4_idx,
+                        shard_tars = r4_chunk,
+                        memory_gb = small_task_memory_gb, preemptible = preemptible, docker = docker
+                }
+            }
+        }
+        Array[File] round4 = select_first([r4_merge.merged_tar, round3])
+
         call Merge as PreMerge {
             input:
                 label = sample_name + ".pre",
-                shard_tars = PreScan.tables_tar,
+                shard_tars = round4,
                 memory_gb = small_task_memory_gb, preemptible = preemptible, docker = docker
         }
     }
@@ -217,6 +368,47 @@ task Scan {
 }
 
 # Sums the tables of several scans (e.g. the shard BAMs of one library), given as one tar per scan.
+task MergeTarsPartial {
+    # Merges a chunk of shard (or already merged) table tars into one tar of the same layout, for the next round of the merge tree.
+    input {
+        String label
+        Array[File] shard_tars
+        Int memory_gb
+        Int preemptible
+        String docker
+    }
+
+    Int disk_gb = ceil(size(shard_tars, "GB") * 3 + 10)
+
+    command <<<
+        set -euo pipefail
+        mkdir -p shards out
+        prefixes=()
+        i=0
+        for t in ~{sep=" " shard_tars}; do
+            mkdir shards/s$i
+            tar -xf "$t" -C shards/s$i
+            sj=$(ls shards/s$i/*.summary.json)
+            prefixes+=("${sj%.summary.json}")
+            i=$((i+1))
+        done
+        bamqc_merge --label ~{label} --outdir out "${prefixes[@]}"
+        tar -cf ~{label}.tables.tar -C out .
+    >>>
+
+    output {
+        File merged_tar = "~{label}.tables.tar"
+    }
+
+    runtime {
+        docker: docker
+        cpu: 1
+        memory: "~{memory_gb} GB"
+        disks: "local-disk ~{disk_gb} HDD"
+        preemptible: preemptible
+    }
+}
+
 task Merge {
     input {
         String label
