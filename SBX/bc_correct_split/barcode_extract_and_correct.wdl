@@ -393,6 +393,17 @@ task Summarize_Read_Accounting {
             # start-adapter rescue (0 when the run did not use it); these reads are part of the outcomes above, not extra
             ("start_rescued_substitution", lambda t, a, b: t.get("rescued_substitution_reads", 0)),
             ("start_rescued_indel", lambda t, a, b: t.get("rescued_indel_reads", 0)),
+            # The same outcomes counted for the rescued reads only (XR tag), by bc_correct_split itself at each decision point
+            # (0 when the run did not use the rescue or the tool predates these counters).
+            ("xr_exact_match_written", lambda t, a, b: a.get("matched_written_xr", 0)),
+            ("xr_exact_match_too_short_dropped", lambda t, a, b: a.get("matched_too_short_dropped_xr", 0)),
+            ("xr_unmatched_to_pass2", lambda t, a, b: a.get("unmatched_written_xr", 0)),
+            ("xr_rescued_by_correction", lambda t, a, b: b.get("corrected_written_xr", 0)),
+            ("xr_corrected_too_short_dropped", lambda t, a, b: b.get("dropped_too_short_xr", 0)),
+            ("xr_uncorrectable_dropped", lambda t, a, b: b.get("dropped_uncorrectable_xr", 0)),
+            ("xr_out_of_range_dropped", lambda t, a, b: b.get("dropped_out_of_range_xr", 0)),
+            ("xr_written_to_discarded", lambda t, a, b: b.get("written_to_discarded_xr", 0)),
+            ("xr_total_kept", lambda t, a, b: a.get("matched_written_xr", 0) + b.get("corrected_written_xr", 0)),
         ]
         header = ["sample_name"] + [c for c, _ in cols]
 
@@ -410,12 +421,37 @@ task Summarize_Read_Accounting {
             for (c, _), v in zip(cols, totals):
                 frac = v / totals[0] if totals[0] else 0
                 out.write(f"{c}\t{v}\t{frac:.6f}\n")
+
+        # What the run would have looked like without the start-adapter rescue: every rescued read (counted at trimming) is back in
+        # trim_dropped_stage2 and out of the later outcomes (its fate there is the xr_* counters).
+        tot = {c: v for (c, _), v in zip(cols, totals)}
+        rescued = tot["start_rescued_substitution"] + tot["start_rescued_indel"]
+        no_rescue = [
+            ("raw_reads", tot["raw_reads"]),
+            ("trim_dropped_stage1", tot["trim_dropped_stage1"]),
+            ("trim_dropped_stage2", tot["trim_dropped_stage2"] + rescued),
+            ("reads_into_bc_correct", tot["reads_into_bc_correct"] - rescued),
+            ("exact_match_written", tot["exact_match_written"] - tot["xr_exact_match_written"]),
+            ("exact_match_too_short_dropped", tot["exact_match_too_short_dropped"] - tot["xr_exact_match_too_short_dropped"]),
+            ("unmatched_to_pass2", tot["unmatched_to_pass2"] - tot["xr_unmatched_to_pass2"]),
+            ("rescued_by_correction", tot["rescued_by_correction"] - tot["xr_rescued_by_correction"]),
+            ("corrected_too_short_dropped", tot["corrected_too_short_dropped"] - tot["xr_corrected_too_short_dropped"]),
+            ("uncorrectable_dropped", tot["uncorrectable_dropped"] - tot["xr_uncorrectable_dropped"]),
+            ("out_of_range_dropped", tot["out_of_range_dropped"] - tot["xr_out_of_range_dropped"]),
+            ("written_to_discarded", tot["written_to_discarded"] - tot["xr_written_to_discarded"]),
+            ("total_kept", tot["total_kept"] - tot["xr_total_kept"]),
+        ]
+        with open("read_accounting_total_without_rescue.tsv", "w") as out:
+            out.write("metric\tcount\tfraction_of_raw_reads\n")
+            for c, v in no_rescue:
+                out.write(f"{c}\t{v}\t{(v / tot['raw_reads'] if tot['raw_reads'] else 0):.6f}\n")
         PY
     >>>
 
     output {
         File per_shard = "read_accounting_per_shard.tsv"
         File total = "read_accounting_total.tsv"
+        File total_without_rescue = "read_accounting_total_without_rescue.tsv"
     }
 
     runtime {
@@ -916,6 +952,7 @@ workflow BC_Barcode_Extract_And_Correct_Array {
         File merged_counts_table = merged_counts_output
         File read_accounting_per_shard = read_accounting.per_shard
         File read_accounting_total = read_accounting.total
+        File read_accounting_total_without_rescue = read_accounting.total_without_rescue
         File read_accounting_plots_pdf = plot_accounting.pdf
         File read_accounting_summary_png = plot_accounting.summary_png
         # The per-shard stats files the accounting is built from (same order as raw_fastqs).
