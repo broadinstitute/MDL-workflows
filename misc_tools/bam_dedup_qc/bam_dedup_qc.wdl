@@ -22,6 +22,7 @@ workflow Bam_Dedup_QC {
         String dc_tag = "DC"
         Int max_read_position = 10000
         Boolean include_supplementary = false
+        String? exclude_tag  # skip reads that carry this BAM tag, e.g. "XR" (start-adapter rescued reads); needs a bam_dedup_qc image with --exclude-tag (0.2.0+)
         Int target_reads_per_chunk = 1000000
         Int scan_threads = 4
         String scan_machine_type = "c3d-highcpu-4"
@@ -55,7 +56,7 @@ workflow Bam_Dedup_QC {
                     cb_tag = cb_tag,
                     dc_tag = dc_tag,
                     max_read_position = max_read_position,
-                    include_supplementary = include_supplementary, target_reads_per_chunk = target_reads_per_chunk,
+                    include_supplementary = include_supplementary, exclude_tag = exclude_tag, target_reads_per_chunk = target_reads_per_chunk,
                     threads = scan_threads,
                     machine_type = scan_machine_type,
                     extra_disk_gb = scan_extra_disk_gb,
@@ -83,7 +84,7 @@ workflow Bam_Dedup_QC {
                 cb_tag = cb_tag,
                 dc_tag = dc_tag,
                 max_read_position = max_read_position,
-                include_supplementary = include_supplementary,
+                include_supplementary = include_supplementary, exclude_tag = exclude_tag,
                 target_reads_per_chunk = target_reads_per_chunk,
                 threads = scan_threads,
                 machine_type = scan_machine_type,
@@ -167,6 +168,7 @@ task Scan {
         String dc_tag
         Int max_read_position
         Boolean include_supplementary
+        String? exclude_tag
         Int target_reads_per_chunk
         Int threads
         String machine_type
@@ -189,7 +191,7 @@ task Scan {
         ln -s ~{bai} "in/$b.bai"
         bamqc_scan --bam "in/$b" --label ~{label} --outdir out --threads ~{threads} --origin ~{origin} \
             --max-len ~{max_read_position} --cb-tag ~{cb_tag} --dc-tag ~{dc_tag} \
-            --target-reads-per-chunk ~{target_reads_per_chunk} ~{sep=" " prefix("--mito-contig ", mito_contigs)} ~{if include_supplementary then "--include-supplementary" else ""}
+            --target-reads-per-chunk ~{target_reads_per_chunk} ~{sep=" " prefix("--mito-contig ", mito_contigs)} ~{if include_supplementary then "--include-supplementary" else ""} ~{if defined(exclude_tag) then "--exclude-tag " + select_first([exclude_tag]) else ""}
         tar -cf ~{label}.tables.tar -C out .
         ~{if tar_only then "rm -r out" else ""}
     >>>
