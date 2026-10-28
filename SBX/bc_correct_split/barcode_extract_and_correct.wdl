@@ -383,6 +383,8 @@ task Summarize_Read_Accounting {
             ("reads_into_bc_correct", lambda t, a, b: a["total_reads"]),
             ("exact_match_written", lambda t, a, b: a["matched_written"]),
             ("exact_match_too_short_dropped", lambda t, a, b: a["matched_too_short_dropped"]),
+            # too short, barcode not on the whitelist: dropped in pass 1 (0 with a bc_correct_split that predates the single length test)
+            ("unmatched_too_short_dropped", lambda t, a, b: a.get("unmatched_too_short_dropped", 0)),
             ("unmatched_to_pass2", lambda t, a, b: a["unmatched_written"]),
             ("rescued_by_correction", lambda t, a, b: b["corrected_written"]),
             ("corrected_too_short_dropped", lambda t, a, b: b["dropped_too_short"]),
@@ -397,6 +399,7 @@ task Summarize_Read_Accounting {
             # (0 when the run did not use the rescue or the tool predates these counters).
             ("xr_exact_match_written", lambda t, a, b: a.get("matched_written_xr", 0)),
             ("xr_exact_match_too_short_dropped", lambda t, a, b: a.get("matched_too_short_dropped_xr", 0)),
+            ("xr_unmatched_too_short_dropped", lambda t, a, b: a.get("unmatched_too_short_dropped_xr", 0)),
             ("xr_unmatched_to_pass2", lambda t, a, b: a.get("unmatched_written_xr", 0)),
             ("xr_rescued_by_correction", lambda t, a, b: b.get("corrected_written_xr", 0)),
             ("xr_corrected_too_short_dropped", lambda t, a, b: b.get("dropped_too_short_xr", 0)),
@@ -404,6 +407,9 @@ task Summarize_Read_Accounting {
             ("xr_out_of_range_dropped", lambda t, a, b: b.get("dropped_out_of_range_xr", 0)),
             ("xr_written_to_discarded", lambda t, a, b: b.get("written_to_discarded_xr", 0)),
             ("xr_total_kept", lambda t, a, b: a.get("matched_written_xr", 0) + b.get("corrected_written_xr", 0)),
+            # every too-short drop, whatever the barcode status and whichever pass saw the read (the length test does not depend on the barcode)
+            ("too_short_dropped", lambda t, a, b: a["matched_too_short_dropped"] + a.get("unmatched_too_short_dropped", 0) + b["dropped_too_short"]),
+            ("xr_too_short_dropped", lambda t, a, b: a.get("matched_too_short_dropped_xr", 0) + a.get("unmatched_too_short_dropped_xr", 0) + b.get("dropped_too_short_xr", 0)),
         ]
         header = ["sample_name"] + [c for c, _ in cols]
 
@@ -433,6 +439,7 @@ task Summarize_Read_Accounting {
             ("reads_into_bc_correct", tot["reads_into_bc_correct"] - rescued),
             ("exact_match_written", tot["exact_match_written"] - tot["xr_exact_match_written"]),
             ("exact_match_too_short_dropped", tot["exact_match_too_short_dropped"] - tot["xr_exact_match_too_short_dropped"]),
+            ("unmatched_too_short_dropped", tot["unmatched_too_short_dropped"] - tot["xr_unmatched_too_short_dropped"]),
             ("unmatched_to_pass2", tot["unmatched_to_pass2"] - tot["xr_unmatched_to_pass2"]),
             ("rescued_by_correction", tot["rescued_by_correction"] - tot["xr_rescued_by_correction"]),
             ("corrected_too_short_dropped", tot["corrected_too_short_dropped"] - tot["xr_corrected_too_short_dropped"]),
@@ -440,6 +447,7 @@ task Summarize_Read_Accounting {
             ("out_of_range_dropped", tot["out_of_range_dropped"] - tot["xr_out_of_range_dropped"]),
             ("written_to_discarded", tot["written_to_discarded"] - tot["xr_written_to_discarded"]),
             ("total_kept", tot["total_kept"] - tot["xr_total_kept"]),
+            ("too_short_dropped", tot["too_short_dropped"] - tot["xr_too_short_dropped"]),
         ]
         with open("read_accounting_total_without_rescue.tsv", "w") as out:
             out.write("metric\tcount\tfraction_of_raw_reads\n")
@@ -500,10 +508,9 @@ task Plot_Read_Accounting {
         trim_drop = tot["trim_dropped_stage1"] + tot["trim_dropped_stage2"]
         outcomes = [
             ("trimming: dropped (adapters / length)", trim_drop, LOST),
-            ("exact barcode: too short after trimming", tot["exact_match_too_short_dropped"], LOST),
+            ("too short after trimming (any barcode)", tot["too_short_dropped"], LOST),
             ("exact barcode: kept", tot["exact_match_written"], KEPT),
             ("corrected barcode: kept (rescued)", tot["rescued_by_correction"], KEPT),
-            ("corrected barcode: too short", tot["corrected_too_short_dropped"], LOST),
             ("barcode uncorrectable", tot["uncorrectable_dropped"], LOST),
             ("barcode out of range", tot["out_of_range_dropped"], LOST),
         ]
@@ -542,7 +549,7 @@ task Plot_Read_Accounting {
                 ("exact barcode: kept", col("exact_match_written"), KEPT),
                 ("corrected barcode: kept", col("rescued_by_correction"), "#7fcdbb"),
                 ("trimming: dropped", col("trim_dropped_stage1") + col("trim_dropped_stage2"), "#fdae61"),
-                ("too short after trimming", col("exact_match_too_short_dropped") + col("corrected_too_short_dropped"), "#d7191c"),
+                ("too short after trimming", col("too_short_dropped"), "#d7191c"),
                 ("uncorrectable / out of range", col("uncorrectable_dropped") + col("out_of_range_dropped"), "#7b3294"),
             ]
             kept_frac = col("total_kept") / d
