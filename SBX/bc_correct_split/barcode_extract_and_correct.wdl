@@ -13,7 +13,7 @@ task BC_Correct_Pass1 {
         String endedness
         Float min_post
         Int min_trimmed_len
-        Boolean qual_tags = false
+        Boolean qual_tags = true
         Boolean revcomp_trimmed = false
         String docker
 
@@ -293,7 +293,7 @@ task BC_Correct_Pass2 {
         Int trim_len
         Float min_post
         Int min_trimmed_len
-        Boolean qual_tags = false
+        Boolean qual_tags = true
         Boolean revcomp_trimmed = false
         Boolean generate_discarded = false
         String docker
@@ -602,7 +602,7 @@ workflow BC_Barcode_Extract_And_Correct_Array {
         Float min_post = 0.975
         String library_config
 
-        Boolean qual_tags = false
+        Boolean qual_tags = true
         Boolean generate_discarded = false
         Boolean output_unmatched = false
 
