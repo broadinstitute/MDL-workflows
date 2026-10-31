@@ -1,8 +1,8 @@
 version 1.1
 
-import "https://raw.githubusercontent.com/broadinstitute/MDL-workflows/main/misc_tools/extract_barcode_readcounts_from_aligned_bam/scBarcodeCounting.wdl" as counting
+import "https://raw.githubusercontent.com/broadinstitute/MDL-workflows/main/LR-tools/CUDLL_Kinnex/scBarcodeCounting.wdl" as counting
 import "https://raw.githubusercontent.com/broadinstitute/MDL-workflows/main/SBX/shard_bams_by_barcode_group/shard_bams_by_barcode_group.wdl" as sharding
-import "https://raw.githubusercontent.com/broadinstitute/MDL-workflows/main/SBX/CUDLL_scattered/CUDLL_scattered.wdl" as cudll
+import "https://raw.githubusercontent.com/broadinstitute/MDL-workflows/main/LR-tools/CUDLL_Kinnex/CUDLL_scattered.wdl" as cudll
 
 # Pipeline: (1) count reads per cell barcode across all BAMs
 #           (2) detect knee, group barcodes into read-balanced groups, split/merge BAMs per group
