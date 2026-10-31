@@ -1,4 +1,4 @@
-version 1.1
+version 1.0
 
 import "https://raw.githubusercontent.com/broadinstitute/MDL-workflows/main/misc_tools/extract_barcode_readcounts_from_aligned_bam/scBarcodeCounting.wdl" as counting
 import "https://raw.githubusercontent.com/broadinstitute/MDL-workflows/main/SBX/shard_bams_by_barcode_group/shard_bams_by_barcode_group.wdl" as sharding
