@@ -130,6 +130,7 @@ workflows:
   - name: CUDLLforKinnex
     subclass: WDL
     primaryDescriptorPath: /LR-tools/CUDLL_Kinnex/sharding_for_CUDLL_scattered.wdl
+    publish: true
     authors:
       - name: akhorgad
       
