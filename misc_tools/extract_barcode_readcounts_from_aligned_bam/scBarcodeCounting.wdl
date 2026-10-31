@@ -1,4 +1,4 @@
-version 1.o
+version 1.0
 
 task CountUMI {
   input {
