@@ -296,8 +296,8 @@ task LocalOverlap {
 
         if [ "~{mitochondrial_only}" = "true" ] && [ "~{priming}" != "auto" ]; then
             # --cb-sorted-input bounds memory by per-CB depth; skipped for priming=auto (calibration needs random access).
-            samtools view -h -u -@ 1 "~{basename(input_bam)}" "${chrom_list}" | \
-                samtools sort -u -@ 4 -t ~{barcode_tag} | \
+            samtools view -h --no-PG -u -@ 1 "~{basename(input_bam)}" "${chrom_list}" | \
+                samtools sort --no-PG -u -@ 4 -t ~{barcode_tag} | \
                 cudll_local_overlap \
                     -i - \
                     -o - \
