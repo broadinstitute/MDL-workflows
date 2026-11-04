@@ -361,8 +361,6 @@ task LocalOverlap {
         disks: "local-disk ~{disk_gb} SSD"
         predefinedMachineType: "~{machine_type}"
         preemptible: 3
-        # Enables memoryRetryMultiplier: Cromwell only triggers a retry when maxRetries > 0.
-        maxRetries: 2
     }
 }
 
