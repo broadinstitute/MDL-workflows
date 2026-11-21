@@ -681,7 +681,8 @@ workflow BC_Barcode_Extract_And_Correct_Array {
                 File group_shard = error_if_fastqs_exceed_merge_capacity[shard_idx]
             }
         }
-        String group_name = sample_names[g * shards_per_task]
+        Int first_shard_idx = g * shards_per_task
+        String group_name = sample_names[first_shard_idx]
         call BC_Correct_Pass1 as pass1 {
             input:
                 input_fastqs = select_all(group_shard),
