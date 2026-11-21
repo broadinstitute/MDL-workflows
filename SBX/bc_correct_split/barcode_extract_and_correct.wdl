@@ -1,8 +1,12 @@
 version 1.1
 
 task BC_Correct_Pass1 {
+    # One task = a group of raw FASTQ shards, run as `lanes` parallel streams (pass1_lanes.sh): each lane streams its shards
+    # through trim_split_nocap_extracttags.sh into one bc_correct_split (a thread per lane). Outputs one matched + one
+    # unmatched FASTQ per lane (never concatenated: no rewrite) and one counts table / readstats / trim stats per task.
     input {
-        File input_fastq
+        Array[File]+ input_fastqs
+        Int lanes = 2
         String sample_name
         String whitelist
         String bc_range
@@ -42,10 +46,9 @@ task BC_Correct_Pass1 {
 
     String trimmed_prefix = sample_name
     String counts_table_name = trimmed_prefix + ".whitelist.counts.txt.gz"
-    String matched_fastq_path = trimmed_prefix + ".matched.fastq.gz"
-    String unmatched_fastq_path = trimmed_prefix + ".unmatched.fastq.gz"
 
-    Int diskGB = select_first([disk_size_gb, ceil(size(input_fastq, "GB") * 3 + 20)])
+    # localized shards + outputs (written once, measured 0.60-0.86 x the gz input) + margin
+    Int diskGB = select_first([disk_size_gb, ceil(size(input_fastqs, "GB") * 1.8 + 10)])
 
     command <<<
         set -euo pipefail
@@ -55,44 +58,21 @@ task BC_Correct_Pass1 {
           exit 1
         fi
 
-        /opt/pipeline/fastq_preprocessing_pipeline/trim_split_nocap_extracttags.sh \
-          --stdout-found \
-          ~{rescue_arg} \
-          -i ~{input_fastq} \
-          -o ~{trimmed_prefix} \
-          -t 2 \
-          -a ~{end_adapter} \
-          -g ~{start_adapter} \
-          -e ~{endedness} \
-        | bc_correct_split \
-          --fastq4 \
-          --whitelist ~{whitelist} \
-          --outdir . \
-          --threads 2 \
-          --bc ~{bc_range} \
-          --umi ~{umi_range} \
-          --trim ~{trim_len} \
-          --min-post ~{min_post} \
-          --min-trimmed-len ~{min_trimmed_len} \
-          --pass 1 \
-          --counts-table ~{counts_table_name} \
-          --output-prefix ~{trimmed_prefix} \
-          ~{qual_tags_arg} \
-          ~{revcomp_arg} \
-          ~{poly_start_arg} \
-          ~{poly_window_arg} \
-          ~{poly_t_min_arg} \
-          ~{poly_a_min_arg} \
-          ~{poly_err_arg} \
-          ~{poly_logic_arg} \
-          -
+        # one thread per stage and lane (-t 1): the 4 vCPUs are shared by 2 lanes x (decompression, trimming, start filter) + bc_correct_split
+        /opt/pipeline/fastq_preprocessing_pipeline/pass1_lanes.sh \
+          --prefix ~{trimmed_prefix} \
+          --lanes ~{lanes} \
+          --trim-args "~{rescue_arg} -t 1 -a ~{end_adapter} -g ~{start_adapter} -e ~{endedness}" \
+          --bc-args "--fastq4 --whitelist ~{whitelist} --bc ~{bc_range} --umi ~{umi_range} --trim ~{trim_len} --min-post ~{min_post} --min-trimmed-len ~{min_trimmed_len} ~{qual_tags_arg} ~{revcomp_arg} ~{poly_start_arg} ~{poly_window_arg} ~{poly_t_min_arg} ~{poly_a_min_arg} ~{poly_err_arg} ~{poly_logic_arg}" \
+          ~{sep=" " input_fastqs}
         tail -n +2 "~{trimmed_prefix}_trim_stats.txt" | tr '\t\n' '=;' > "~{trimmed_prefix}_trim_stats.txt.oneline"
         tail -n +2 "~{trimmed_prefix}.pass1.readstats.txt" | tr '\t\n' '=;' > "~{trimmed_prefix}.pass1.readstats.txt.oneline"
     >>>
 
     output {
-        File matched_fastq = "~{matched_fastq_path}"
-        File unmatched_fastq = "~{unmatched_fastq_path}"
+        # one file per lane, lane order (plain gzip: `cat` them to stream the group as one FASTQ)
+        Array[File] matched_fastqs = glob("~{trimmed_prefix}_lane*.matched.fastq.gz")
+        Array[File] unmatched_fastqs = glob("~{trimmed_prefix}_lane*.unmatched.fastq.gz")
         File counts_table = "~{counts_table_name}"
         File trim_stats = "~{trimmed_prefix}_trim_stats.txt"
         File read_stats = "~{trimmed_prefix}.pass1.readstats.txt"
@@ -254,10 +234,13 @@ task Resolve_BC_Params_From_Config {
 
 
 task BC_Correct_Pass2 {
+    # One task = several pass-1 groups. Each group's unmatched lane files are streamed (cat into a FIFO, no copy) into one
+    # bc_correct_split pass 2 named after the group: one corrected FASTQ + readstats per group; `parallel` groups at a time.
     input {
-        File unmatched_fastq
+        Array[File] unmatched_fastqs
+        Array[String] unmatched_groups # group name of each unmatched file (same order); files of a group are consecutive
+        Int parallel = 2
         File counts_table
-        String sample_name
         String whitelist
         String bc_range
         String umi_range
@@ -291,10 +274,7 @@ task BC_Correct_Pass2 {
     String revcomp_arg = if (revcomp_trimmed) then "--revcomp-trimmed" else ""
     String discard_arg = if (generate_discarded) then "--discarded" else "--no-discarded"
 
-    String output_prefix = sample_name
-    String corrected_fastq_path = output_prefix + ".corrected.fastq.gz"
-
-    Int diskGB = select_first([disk_size_gb, ceil(size(unmatched_fastq, "GB") * 3 + 20)])
+    Int diskGB = select_first([disk_size_gb, ceil(size(unmatched_fastqs, "GB") * 2 + 20)])
 
     command <<<
         set -euo pipefail
@@ -304,37 +284,56 @@ task BC_Correct_Pass2 {
           exit 1
         fi
 
-        bc_correct_split \
-          --fastq4 \
-          --whitelist ~{whitelist} \
-          --outdir . \
-          --threads 2 \
-          --bc ~{bc_range} \
-          --umi ~{umi_range} \
-          --trim ~{trim_len} \
-          --min-post ~{min_post} \
-          --min-trimmed-len ~{min_trimmed_len} \
-          --pass 2 \
-          --counts-table ~{counts_table} \
-          --output-prefix ~{output_prefix} \
-          ~{discard_arg} \
-          ~{qual_tags_arg} \
-          ~{revcomp_arg} \
-          ~{poly_start_arg} \
-          ~{poly_window_arg} \
-          ~{poly_t_min_arg} \
-          ~{poly_a_min_arg} \
-          ~{poly_err_arg} \
-          ~{poly_logic_arg} \
-          ~{unmatched_fastq}
-        tail -n +2 "~{output_prefix}.pass2.readstats.txt" | tr '\t\n' '=;' > "~{output_prefix}.pass2.readstats.txt.oneline"
+        paste ~{write_lines(unmatched_groups)} ~{write_lines(unmatched_fastqs)} > files.tsv
+        awk -F'\t' '!seen[$1]++ {print $1}' files.tsv > groups.txt
+        run_group() {
+          local g=$1 cat_pid
+          # pass 2 opens its input by path (no stdin) and reads it once: a FIFO streams the group's lane files without a copy
+          mkfifo "$g.unmatched_in.fastq.gz"
+          awk -F'\t' -v g="$g" '$1 == g {print $2}' files.tsv | xargs cat > "$g.unmatched_in.fastq.gz" & cat_pid=$!
+          bc_correct_split \
+            --fastq4 \
+            --whitelist ~{whitelist} \
+            --outdir . \
+            --threads 1 \
+            --bc ~{bc_range} \
+            --umi ~{umi_range} \
+            --trim ~{trim_len} \
+            --min-post ~{min_post} \
+            --min-trimmed-len ~{min_trimmed_len} \
+            --pass 2 \
+            --counts-table ~{counts_table} \
+            --output-prefix "$g" \
+            ~{discard_arg} \
+            ~{qual_tags_arg} \
+            ~{revcomp_arg} \
+            ~{poly_start_arg} \
+            ~{poly_window_arg} \
+            ~{poly_t_min_arg} \
+            ~{poly_a_min_arg} \
+            ~{poly_err_arg} \
+            ~{poly_logic_arg} \
+            "$g.unmatched_in.fastq.gz"
+          wait "$cat_pid"
+          rm -f "$g.unmatched_in.fastq.gz"
+        }
+        export -f run_group
+        # xargs exits non-zero if any group failed
+        xargs -P ~{parallel} -I{} bash -c 'set -euo pipefail; run_group "$1"' _ {} < groups.txt
+        : > corrected.list; : > readstats.list; : > readstats_lines.txt
+        while read -r g; do
+          echo "$g.corrected.fastq.gz" >> corrected.list
+          echo "$g.pass2.readstats.txt" >> readstats.list
+          { tail -n +2 "$g.pass2.readstats.txt" | tr '\t\n' '=;'; echo; } >> readstats_lines.txt
+        done < groups.txt
     >>>
 
     output {
-        File corrected_fastq = "~{corrected_fastq_path}"
-        Array[File] discarded_fastqs = glob("~{output_prefix}*.discarded*.fastq.gz")
-        File read_stats = "~{output_prefix}.pass2.readstats.txt"
-        String read_stats_line = read_string("~{output_prefix}.pass2.readstats.txt.oneline")
+        # one per group, in input group order
+        Array[File] corrected_fastqs = read_lines("corrected.list")
+        Array[File] read_stats = read_lines("readstats.list")
+        Array[String] read_stats_lines = read_lines("readstats_lines.txt")
+        Array[File] discarded_fastqs = glob("*.discarded*.fastq.gz")
     }
 
     # cpu/memory intentionally omitted: GCP Batch has a known bug where specifying both
@@ -635,6 +634,13 @@ workflow BC_Barcode_Extract_And_Correct_Array {
 
         String docker
 
+        # Grouping (cuts the fixed per-task cost: VM start, image pull, localization): pass 1 runs shards_per_task raw shards
+        # per task as pass1_lanes parallel streams; pass 2 runs pass2_groups_per_task pass-1 groups per task. Outputs are per
+        # group (named after the group's first shard): fastq_pairs[g] = the group's matched lane files + its corrected file.
+        Int shards_per_task = 4
+        Int pass1_lanes = 2
+        Int pass2_groups_per_task = 8
+
         # Plots of the read accounting: needs python3 with numpy + matplotlib (the barcode image has neither).
         String plot_docker = "us-central1-docker.pkg.dev/methods-dev-lab/misc-utilities/bam_dedup_qc:0.1.0"
         String plot_label = ""
@@ -649,7 +655,8 @@ workflow BC_Barcode_Extract_And_Correct_Array {
     File? no_file = None
     Array[File] error_if_fastqs_exceed_merge_capacity = if (length(raw_fastqs) < 1 || length(raw_fastqs) > merge_tree_capacity) then [select_first([no_file])] else raw_fastqs
 
-    Array[Int] lane_indexes = range(length(error_if_fastqs_exceed_merge_capacity))
+    Int n_shards = length(error_if_fastqs_exceed_merge_capacity)
+    Int n_groups = (n_shards + shards_per_task - 1) / shards_per_task
 
     call Resolve_BC_Params_From_Config as resolved_config {
         input:
@@ -667,11 +674,19 @@ workflow BC_Barcode_Extract_And_Correct_Array {
     Int effective_trim_len = resolved_config.resolved_trim_len
     Int effective_min_trimmed_len = resolved_config.resolved_min_trimmed_len
 
-    scatter (i in lane_indexes) {
+    scatter (g in range(n_groups)) {
+        scatter (k in range(shards_per_task)) {
+            Int shard_idx = g * shards_per_task + k
+            if (shard_idx < n_shards) {
+                File group_shard = error_if_fastqs_exceed_merge_capacity[shard_idx]
+            }
+        }
+        String group_name = sample_names[g * shards_per_task]
         call BC_Correct_Pass1 as pass1 {
             input:
-                input_fastq = error_if_fastqs_exceed_merge_capacity[i],
-                sample_name = sample_names[i],
+                input_fastqs = select_all(group_shard),
+                lanes = pass1_lanes,
+                sample_name = group_name,
                 whitelist = effective_whitelist,
                 bc_range = effective_bc_range,
                 umi_range = effective_umi_range,
@@ -907,12 +922,22 @@ workflow BC_Barcode_Extract_And_Correct_Array {
 
     File merged_counts_output = round5_counts[0]
 
-    scatter (i in lane_indexes) {
+    Int n_pass2_tasks = (n_groups + pass2_groups_per_task - 1) / pass2_groups_per_task
+    scatter (j in range(n_pass2_tasks)) {
+        scatter (k in range(pass2_groups_per_task)) {
+            Int group_idx = j * pass2_groups_per_task + k
+            if (group_idx < n_groups) {
+                Array[File] p2_group_files = pass1.unmatched_fastqs[group_idx]
+                scatter (f in pass1.unmatched_fastqs[group_idx]) {
+                    String p2_file_group = group_name[group_idx]
+                }
+            }
+        }
         call BC_Correct_Pass2 as pass2 {
             input:
-                unmatched_fastq = pass1.unmatched_fastq[i],
+                unmatched_fastqs = flatten(select_all(p2_group_files)),
+                unmatched_groups = flatten(select_all(p2_file_group)),
                 counts_table = merged_counts_output,
-                sample_name = sample_names[i],
                 whitelist = effective_whitelist,
                 bc_range = effective_bc_range,
                 umi_range = effective_umi_range,
@@ -932,12 +957,18 @@ workflow BC_Barcode_Extract_And_Correct_Array {
         }
     }
 
+    # per group, group order (pass 2 keeps the group order within and across its tasks)
+    Array[File] corrected_per_group = flatten(pass2.corrected_fastqs)
+    scatter (g in range(n_groups)) {
+        Array[File] group_fastqs = flatten([pass1.matched_fastqs[g], [corrected_per_group[g]]])
+    }
+
     call Summarize_Read_Accounting as read_accounting {
         input:
-            sample_names = sample_names,
+            sample_names = group_name,
             trim_stats = pass1.trim_stats_line,
             pass1_read_stats = pass1.read_stats_line,
-            pass2_read_stats = pass2.read_stats_line,
+            pass2_read_stats = flatten(pass2.read_stats_lines),
             docker = docker
     }
 
@@ -950,21 +981,24 @@ workflow BC_Barcode_Extract_And_Correct_Array {
     }
 
     output {
-        Array[Array[File]] fastq_pairs = transpose([pass1.matched_fastq, pass2.corrected_fastq])
+        # per group (shards_per_task raw shards): the group's matched lane files + its corrected file; group_names names them
+        # (the first shard's sample name). The alignment step takes fastq_pairs with group_names as its sample names.
+        Array[Array[File]] fastq_pairs = group_fastqs
+        Array[String] group_names = group_name
         # Optional compatibility:
-        Array[File] matched_fastqs = pass1.matched_fastq
-        Array[File] corrected_fastqs = pass2.corrected_fastq
+        Array[File] matched_fastqs = flatten(pass1.matched_fastqs)
+        Array[File] corrected_fastqs = corrected_per_group
         Array[File] discarded_fastqs = if generate_discarded then flatten(pass2.discarded_fastqs) else []
-        Array[File] unmatched_fastqs = if output_unmatched then pass1.unmatched_fastq else []
+        Array[File] unmatched_fastqs = if output_unmatched then flatten(pass1.unmatched_fastqs) else []
         File merged_counts_table = merged_counts_output
         File read_accounting_per_shard = read_accounting.per_shard
         File read_accounting_total = read_accounting.total
         File read_accounting_total_without_rescue = read_accounting.total_without_rescue
         File read_accounting_plots_pdf = plot_accounting.pdf
         File read_accounting_summary_png = plot_accounting.summary_png
-        # The per-shard stats files the accounting is built from (same order as raw_fastqs).
+        # The per-group stats files the accounting is built from (group order).
         Array[File] trim_stats = pass1.trim_stats
         Array[File] pass1_read_stats = pass1.read_stats
-        Array[File] pass2_read_stats = pass2.read_stats
+        Array[File] pass2_read_stats = flatten(pass2.read_stats)
     }
 }
