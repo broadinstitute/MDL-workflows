@@ -20,6 +20,7 @@ task BC_Correct_Pass1 {
         Boolean qual_tags = true
         Boolean revcomp_trimmed = false
         Boolean rescue_start_adapter = false
+        String out_format = "fastq" # fastq (gzip) | bam (unaligned BAM, BGZF): matched reads
         String docker
 
         String poly_logic = ""
@@ -43,6 +44,8 @@ task BC_Correct_Pass1 {
     String qual_tags_arg = if (qual_tags) then "--qual-tags" else ""
     String rescue_arg = if (rescue_start_adapter) then "--rescue-start-adapter" else ""
     String revcomp_arg = if (revcomp_trimmed) then "--revcomp-trimmed" else ""
+    String out_format_arg = if (out_format == "bam") then "--out-format bam" else "" # flag only for bam: fastq runs on older images too
+    String out_ext = if (out_format == "bam") then "bam" else "fastq.gz"
 
     String trimmed_prefix = sample_name
     String counts_table_name = trimmed_prefix + ".whitelist.counts.txt.gz"
@@ -63,15 +66,16 @@ task BC_Correct_Pass1 {
           --prefix ~{trimmed_prefix} \
           --lanes ~{lanes} \
           --trim-args "~{rescue_arg} -t 1 -a ~{end_adapter} -g ~{start_adapter} -e ~{endedness}" \
-          --bc-args "--fastq4 --whitelist ~{whitelist} --bc ~{bc_range} --umi ~{umi_range} --trim ~{trim_len} --min-post ~{min_post} --min-trimmed-len ~{min_trimmed_len} ~{qual_tags_arg} ~{revcomp_arg} ~{poly_start_arg} ~{poly_window_arg} ~{poly_t_min_arg} ~{poly_a_min_arg} ~{poly_err_arg} ~{poly_logic_arg}" \
+          --bc-args "--fastq4 --whitelist ~{whitelist} --bc ~{bc_range} --umi ~{umi_range} --trim ~{trim_len} --min-post ~{min_post} --min-trimmed-len ~{min_trimmed_len} ~{qual_tags_arg} ~{revcomp_arg} ~{poly_start_arg} ~{poly_window_arg} ~{poly_t_min_arg} ~{poly_a_min_arg} ~{poly_err_arg} ~{poly_logic_arg} ~{out_format_arg}" \
           ~{sep=" " input_fastqs}
         tail -n +2 "~{trimmed_prefix}_trim_stats.txt" | tr '\t\n' '=;' > "~{trimmed_prefix}_trim_stats.txt.oneline"
         tail -n +2 "~{trimmed_prefix}.pass1.readstats.txt" | tr '\t\n' '=;' > "~{trimmed_prefix}.pass1.readstats.txt.oneline"
     >>>
 
     output {
-        # one file per lane, lane order (plain gzip: `cat` them to stream the group as one FASTQ)
-        Array[File] matched_fastqs = glob("~{trimmed_prefix}_lane*.matched.fastq.gz")
+        # one file per lane, lane order (fastq: plain gzip, `cat` streams the group as one FASTQ; bam: one unaligned BAM per lane,
+        # pass the files as a list). The unmatched files (pass-2 input) are gzip FASTQ in both formats.
+        Array[File] matched_fastqs = glob("~{trimmed_prefix}_lane*.matched.~{out_ext}")
         Array[File] unmatched_fastqs = glob("~{trimmed_prefix}_lane*.unmatched.fastq.gz")
         File counts_table = "~{counts_table_name}"
         File trim_stats = "~{trimmed_prefix}_trim_stats.txt"
@@ -250,6 +254,7 @@ task BC_Correct_Pass2 {
         Boolean qual_tags = true
         Boolean revcomp_trimmed = false
         Boolean generate_discarded = false
+        String out_format = "fastq" # fastq (gzip) | bam (unaligned BAM, BGZF): corrected / discarded reads
         String docker
 
         String poly_logic = ""
@@ -273,6 +278,8 @@ task BC_Correct_Pass2 {
     String qual_tags_arg = if (qual_tags) then "--qual-tags" else ""
     String revcomp_arg = if (revcomp_trimmed) then "--revcomp-trimmed" else ""
     String discard_arg = if (generate_discarded) then "--discarded" else "--no-discarded"
+    String out_format_arg = if (out_format == "bam") then "--out-format bam" else ""
+    String out_ext = if (out_format == "bam") then "bam" else "fastq.gz"
 
     Int diskGB = select_first([disk_size_gb, ceil(size(unmatched_fastqs, "GB") * 2 + 20)])
 
@@ -313,6 +320,7 @@ task BC_Correct_Pass2 {
             ~{poly_a_min_arg} \
             ~{poly_err_arg} \
             ~{poly_logic_arg} \
+            ~{out_format_arg} \
             "$g.unmatched_in.fastq.gz"
           wait "$cat_pid"
           rm -f "$g.unmatched_in.fastq.gz"
@@ -322,7 +330,7 @@ task BC_Correct_Pass2 {
         xargs -P ~{parallel} -I{} bash -c 'set -euo pipefail; run_group "$1"' _ {} < groups.txt
         : > corrected.list; : > readstats.list; : > readstats_lines.txt
         while read -r g; do
-          echo "$g.corrected.fastq.gz" >> corrected.list
+          echo "$g.corrected.~{out_ext}" >> corrected.list
           echo "$g.pass2.readstats.txt" >> readstats.list
           { tail -n +2 "$g.pass2.readstats.txt" | tr '\t\n' '=;'; echo; } >> readstats_lines.txt
         done < groups.txt
@@ -333,7 +341,7 @@ task BC_Correct_Pass2 {
         Array[File] corrected_fastqs = read_lines("corrected.list")
         Array[File] read_stats = read_lines("readstats.list")
         Array[String] read_stats_lines = read_lines("readstats_lines.txt")
-        Array[File] discarded_fastqs = glob("*.discarded*.fastq.gz")
+        Array[File] discarded_fastqs = glob("*.discarded*.~{out_ext}")
     }
 
     # cpu/memory intentionally omitted: GCP Batch has a known bug where specifying both
@@ -641,6 +649,11 @@ workflow BC_Barcode_Extract_And_Correct_Array {
         Int pass1_lanes = 2
         Int pass2_groups_per_task = 8
 
+        # Format of the matched / corrected / discarded reads: fastq (gzip FASTQ, tags in the header comment; what minimap2 reads)
+        # or bam (unaligned BAM, BGZF, typed tags; smaller and cheaper to write and read, for the pre-alignment collapse step;
+        # needs an image whose bc_correct_split has --out-format). The outputs keep their names (fastq_pairs, matched_fastqs, ...) in both formats.
+        String out_format = "fastq"
+
         # Plots of the read accounting: needs python3 with numpy + matplotlib (the barcode image has neither).
         String plot_docker = "us-central1-docker.pkg.dev/methods-dev-lab/misc-utilities/bam_dedup_qc:0.1.0"
         String plot_label = ""
@@ -698,6 +711,7 @@ workflow BC_Barcode_Extract_And_Correct_Array {
                 min_post = min_post,
                 min_trimmed_len = effective_min_trimmed_len,
                 qual_tags = qual_tags,
+                out_format = out_format,
                 revcomp_trimmed = resolved_config.resolved_revcomp_trimmed,
                 poly_logic = resolved_config.resolved_poly_logic,
                 poly_start = resolved_config.resolved_poly_start,
@@ -946,6 +960,7 @@ workflow BC_Barcode_Extract_And_Correct_Array {
                 min_post = min_post,
                 min_trimmed_len = effective_min_trimmed_len,
                 qual_tags = qual_tags,
+                out_format = out_format,
                 revcomp_trimmed = resolved_config.resolved_revcomp_trimmed,
                 generate_discarded = generate_discarded,
                 poly_logic = resolved_config.resolved_poly_logic,
