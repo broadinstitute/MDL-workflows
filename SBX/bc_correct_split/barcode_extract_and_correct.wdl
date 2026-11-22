@@ -21,6 +21,7 @@ task BC_Correct_Pass1 {
         Boolean revcomp_trimmed = false
         Boolean rescue_start_adapter = false
         String out_format = "fastq" # fastq (gzip) | bam (unaligned BAM, BGZF): matched reads
+        Int buckets = 0 # bam only: > 0 = bucket-ordered BAM (bucket = CB hash) + a .bkt index per file
         String docker
 
         String poly_logic = ""
@@ -44,14 +45,15 @@ task BC_Correct_Pass1 {
     String qual_tags_arg = if (qual_tags) then "--qual-tags" else ""
     String rescue_arg = if (rescue_start_adapter) then "--rescue-start-adapter" else ""
     String revcomp_arg = if (revcomp_trimmed) then "--revcomp-trimmed" else ""
-    String out_format_arg = if (out_format == "bam") then "--out-format bam" else "" # flag only for bam: fastq runs on older images too
+    String out_format_arg = if (out_format == "bam") then "--out-format bam --pg-version " + docker + (if (buckets > 0) then " --buckets " + buckets else "") else "" # flags only for bam: fastq runs on older images too
     String out_ext = if (out_format == "bam") then "bam" else "fastq.gz"
 
     String trimmed_prefix = sample_name
     String counts_table_name = trimmed_prefix + ".whitelist.counts.txt.gz"
 
-    # localized shards + outputs (written once, measured 0.60-0.86 x the gz input) + margin
-    Int diskGB = select_first([disk_size_gb, ceil(size(input_fastqs, "GB") * 1.8 + 10)])
+    # localized shards + outputs (written once, measured 0.60-0.86 x the gz input) + margin; bucket-ordered output also holds a
+    # temporary copy of the blocks until they are written in bucket order
+    Int diskGB = select_first([disk_size_gb, ceil(size(input_fastqs, "GB") * (if (out_format == "bam" && buckets > 0) then 2.8 else 1.8) + 10)])
 
     command <<<
         set -euo pipefail
@@ -76,6 +78,7 @@ task BC_Correct_Pass1 {
         # one file per lane, lane order (fastq: plain gzip, `cat` streams the group as one FASTQ; bam: one unaligned BAM per lane,
         # pass the files as a list). The unmatched files (pass-2 input) are gzip FASTQ in both formats.
         Array[File] matched_fastqs = glob("~{trimmed_prefix}_lane*.matched.~{out_ext}")
+        Array[File] matched_bucket_index = glob("~{trimmed_prefix}_lane*.matched.bam.bkt") # bucket-ordered bam only (same order)
         Array[File] unmatched_fastqs = glob("~{trimmed_prefix}_lane*.unmatched.fastq.gz")
         File counts_table = "~{counts_table_name}"
         File trim_stats = "~{trimmed_prefix}_trim_stats.txt"
@@ -255,6 +258,8 @@ task BC_Correct_Pass2 {
         Boolean revcomp_trimmed = false
         Boolean generate_discarded = false
         String out_format = "fastq" # fastq (gzip) | bam (unaligned BAM, BGZF): corrected / discarded reads
+        Array[String] upstream_pg = [] # bam: programs that ran before pass 2 ("NAME:COMMAND"), recorded as @PG lines
+        Int buckets = 0 # bam only: > 0 = bucket-ordered BAM + .bkt index
         String docker
 
         String poly_logic = ""
@@ -278,10 +283,10 @@ task BC_Correct_Pass2 {
     String qual_tags_arg = if (qual_tags) then "--qual-tags" else ""
     String revcomp_arg = if (revcomp_trimmed) then "--revcomp-trimmed" else ""
     String discard_arg = if (generate_discarded) then "--discarded" else "--no-discarded"
-    String out_format_arg = if (out_format == "bam") then "--out-format bam" else ""
+    String out_format_arg = if (out_format == "bam") then "--out-format bam" + (if (buckets > 0) then " --buckets " + buckets else "") else ""
     String out_ext = if (out_format == "bam") then "bam" else "fastq.gz"
 
-    Int diskGB = select_first([disk_size_gb, ceil(size(unmatched_fastqs, "GB") * 2 + 20)])
+    Int diskGB = select_first([disk_size_gb, ceil(size(unmatched_fastqs, "GB") * (if (out_format == "bam" && buckets > 0) then 2.5 else 2) + 20)])
 
     command <<<
         set -euo pipefail
@@ -296,6 +301,11 @@ task BC_Correct_Pass2 {
         run_group() {
           local g=$1 cat_pid
           # pass 2 opens its input by path (no stdin) and reads it once: a FIFO streams the group's lane files without a copy
+          local pg=()
+          if [[ "~{out_format}" == bam ]]; then
+            while IFS= read -r l; do [[ -n "$l" ]] && pg+=(--pg-pre "$l"); done < ~{write_lines(upstream_pg)}
+            pg+=(--pg-version "~{docker}")
+          fi
           mkfifo "$g.unmatched_in.fastq.gz"
           awk -F'\t' -v g="$g" '$1 == g {print $2}' files.tsv | xargs cat > "$g.unmatched_in.fastq.gz" & cat_pid=$!
           bc_correct_split \
@@ -321,6 +331,7 @@ task BC_Correct_Pass2 {
             ~{poly_err_arg} \
             ~{poly_logic_arg} \
             ~{out_format_arg} \
+            "${pg[@]}" \
             "$g.unmatched_in.fastq.gz"
           wait "$cat_pid"
           rm -f "$g.unmatched_in.fastq.gz"
@@ -328,9 +339,10 @@ task BC_Correct_Pass2 {
         export -f run_group
         # xargs exits non-zero if any group failed
         xargs -P ~{parallel} -I{} bash -c 'set -euo pipefail; run_group "$1"' _ {} < groups.txt
-        : > corrected.list; : > readstats.list; : > readstats_lines.txt
+        : > corrected.list; : > corrected_bkt.list; : > readstats.list; : > readstats_lines.txt
         while read -r g; do
           echo "$g.corrected.~{out_ext}" >> corrected.list
+          if [[ -e "$g.corrected.~{out_ext}.bkt" ]]; then echo "$g.corrected.~{out_ext}.bkt" >> corrected_bkt.list; fi
           echo "$g.pass2.readstats.txt" >> readstats.list
           { tail -n +2 "$g.pass2.readstats.txt" | tr '\t\n' '=;'; echo; } >> readstats_lines.txt
         done < groups.txt
@@ -339,6 +351,7 @@ task BC_Correct_Pass2 {
     output {
         # one per group, in input group order
         Array[File] corrected_fastqs = read_lines("corrected.list")
+        Array[File] corrected_bucket_index = read_lines("corrected_bkt.list") # bucket-ordered bam only
         Array[File] read_stats = read_lines("readstats.list")
         Array[String] read_stats_lines = read_lines("readstats_lines.txt")
         Array[File] discarded_fastqs = glob("*.discarded*.~{out_ext}")
@@ -654,6 +667,17 @@ workflow BC_Barcode_Extract_And_Correct_Array {
         # needs an image whose bc_correct_split has --out-format). The outputs keep their names (fastq_pairs, matched_fastqs, ...) in both formats.
         String out_format = "fastq"
 
+        # Orientation of the step-1 reads for libraries whose cDNA is the reverse complement of the sequenced read (3'): cdna
+        # (default) reverse complements them here, as minimap2 -uf needs when it reads this output; sequenced keeps them as
+        # sequenced for the pre-alignment collapse, which processes reads as sequenced and writes cDNA-oriented records itself.
+        # No effect on libraries read in cDNA orientation (5'). In bam output the choice is recorded in the header (@CO orient=).
+        String read_orientation = "cdna"
+
+        # bam only: > 0 writes bucket-ordered BAMs (bucket = FNV-1a 64 hash of the CB value mod buckets) with a .bkt index of each
+        # bucket's byte range and read count, so the pre-alignment collapse can read groups of buckets by range. Keep the same value
+        # for every run that may be collapsed together (a CB must land in the same bucket in all of them).
+        Int buckets = 0
+
         # Plots of the read accounting: needs python3 with numpy + matplotlib (the barcode image has neither).
         String plot_docker = "us-central1-docker.pkg.dev/methods-dev-lab/misc-utilities/bam_dedup_qc:0.1.0"
         String plot_label = ""
@@ -686,6 +710,12 @@ workflow BC_Barcode_Extract_And_Correct_Array {
     String effective_umi_range = resolved_config.resolved_umi_range
     Int effective_trim_len = resolved_config.resolved_trim_len
     Int effective_min_trimmed_len = resolved_config.resolved_min_trimmed_len
+    Boolean effective_revcomp_trimmed = resolved_config.resolved_revcomp_trimmed && read_orientation != "sequenced"
+    # programs upstream of pass 2, for the @PG lines of its bam output (pass 1 records its own chain)
+    Array[String] pass2_upstream_pg = [
+        "trim_split_nocap_extracttags.sh:trim_split_nocap_extracttags.sh --stdout-found " + (if rescue_start_adapter then "--rescue-start-adapter " else "") + "-t 1 -a " + effective_end_adapter + " -g " + effective_start_adapter + " -e " + effective_endedness,
+        "bc_correct_split_pass1:bc_correct_split --pass 1 (exact whitelist matches; the unmatched reads go to pass 2)"
+    ]
 
     scatter (g in range(n_groups)) {
         scatter (k in range(shards_per_task)) {
@@ -712,7 +742,8 @@ workflow BC_Barcode_Extract_And_Correct_Array {
                 min_trimmed_len = effective_min_trimmed_len,
                 qual_tags = qual_tags,
                 out_format = out_format,
-                revcomp_trimmed = resolved_config.resolved_revcomp_trimmed,
+                buckets = buckets,
+                revcomp_trimmed = effective_revcomp_trimmed,
                 poly_logic = resolved_config.resolved_poly_logic,
                 poly_start = resolved_config.resolved_poly_start,
                 poly_window = resolved_config.resolved_poly_window,
@@ -961,8 +992,10 @@ workflow BC_Barcode_Extract_And_Correct_Array {
                 min_trimmed_len = effective_min_trimmed_len,
                 qual_tags = qual_tags,
                 out_format = out_format,
-                revcomp_trimmed = resolved_config.resolved_revcomp_trimmed,
+                buckets = buckets,
+                revcomp_trimmed = effective_revcomp_trimmed,
                 generate_discarded = generate_discarded,
+                upstream_pg = pass2_upstream_pg,
                 poly_logic = resolved_config.resolved_poly_logic,
                 poly_start = resolved_config.resolved_poly_start,
                 poly_window = resolved_config.resolved_poly_window,
@@ -975,8 +1008,12 @@ workflow BC_Barcode_Extract_And_Correct_Array {
 
     # per group, group order (pass 2 keeps the group order within and across its tasks)
     Array[File] corrected_per_group = flatten(pass2.corrected_fastqs)
+    Array[File] corrected_bkt_flat = flatten(pass2.corrected_bucket_index)
+    Boolean bucketed = out_format == "bam" && buckets > 0
     scatter (g in range(n_groups)) {
         Array[File] group_fastqs = flatten([pass1.matched_fastqs[g], [corrected_per_group[g]]])
+        File? corrected_bkt = if (bucketed) then corrected_bkt_flat[g] else no_file # only the taken branch is evaluated
+        Array[File] group_bucket_index = flatten([pass1.matched_bucket_index[g], select_all([corrected_bkt])])
     }
 
     call Summarize_Read_Accounting as read_accounting {
@@ -1001,6 +1038,8 @@ workflow BC_Barcode_Extract_And_Correct_Array {
         # (the first shard's sample name). The alignment step takes fastq_pairs with group_names as its sample names.
         Array[Array[File]] fastq_pairs = group_fastqs
         Array[String] group_names = group_name
+        # bucket-ordered bam: the .bkt index of each fastq_pairs file (same nesting and order); empty otherwise
+        Array[Array[File]] bucket_indexes = group_bucket_index
         # Optional compatibility:
         Array[File] matched_fastqs = flatten(pass1.matched_fastqs)
         Array[File] corrected_fastqs = corrected_per_group
